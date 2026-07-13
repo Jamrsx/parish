@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { api } from '../../../../library/api';
+import { getTodayLocalDateString } from '../../../../library/dateHelpers';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveGrid from '../../../../components/ResponsiveGrid';
 import ParishionerHeader from '../../../../components/ParishionerHeader';
@@ -185,11 +186,6 @@ export default function ChurchService() {
     buttons: [{ text: 'OK', onPress: () => {}, style: 'default' }],
   });
 
-  // Track the selected date
-  const [selectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-
   useEffect(() => {
     if (initialView === 'services') {
       setActiveTab('services');
@@ -204,14 +200,16 @@ export default function ChurchService() {
     setAlertVisible(true);
   };
 
-  // API CALLS
-  const fetchAvailability = useCallback(async (date?: string) => {
+  // API CALLS — always use device-local "today" (Asia/Manila / phone timezone)
+  const fetchAvailability = useCallback(async () => {
     try {
       setLoading(true);
-      const dateToUse = date || selectedDate;
-      const response = await api.getAvailability(dateToUse);
+      const todayLocal = getTodayLocalDateString();
+      console.log('Fetching service availability for local today:', todayLocal);
+      const response = await api.getAvailability(todayLocal);
 
       if (response.success) {
+        console.log('Availability date from API:', response.data.date);
         const correctedServices = response.data.services.map((service: ServiceAvailability) => {
           const pathMap: Record<string, string> = {
             Baptism: '/Parishioner/(protected)/forms_request/BaptismForm',
@@ -242,7 +240,7 @@ export default function ChurchService() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedDate]);
+  }, []);
 
   useEffect(() => {
     fetchAvailability();
@@ -250,7 +248,7 @@ export default function ChurchService() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchAvailability(selectedDate);
+    fetchAvailability();
   };
 
   // HANDLERS
@@ -339,7 +337,7 @@ export default function ChurchService() {
         <View className="flex-1 justify-center items-center px-6">
           <Text className="text-red-600 text-center mb-4">{error}</Text>
           <TouchableOpacity 
-            onPress={() => fetchAvailability(selectedDate)} 
+            onPress={() => fetchAvailability()} 
             className="bg-blue-600 px-6 py-3 rounded-lg"
           >
             <Text className="text-white font-semibold">Retry</Text>
@@ -415,7 +413,7 @@ export default function ChurchService() {
               {activeTab === 'services' ? 'No services available at the moment.' : 'No certificates available at the moment.'}
             </Text>
             <TouchableOpacity 
-              onPress={() => fetchAvailability(selectedDate)} 
+              onPress={() => fetchAvailability()} 
               className="mt-4 bg-blue-600 px-6 py-2 rounded-lg"
             >
               <Text className="text-white font-medium">Refresh</Text>
@@ -472,7 +470,7 @@ export default function ChurchService() {
                       )}
                       <View className="flex-row justify-between">
                         <Text className="text-xs text-gray-500">
-                          {isAvailable && hasSlots ? 'Book Today Until' : 'Next Booking Day'}
+                          {isAvailable && hasSlots ? 'Booking Day' : 'Next Booking Day'}
                         </Text>
                         <Text className="text-xs font-semibold text-gray-800">{service.nextDate}</Text>
                       </View>

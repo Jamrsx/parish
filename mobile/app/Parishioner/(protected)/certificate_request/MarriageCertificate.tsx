@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../library/api';
+import { getTodayLocalDateString } from '../../../../library/dateHelpers';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
@@ -105,7 +106,7 @@ const CustomAlert = ({
   );
 };
 
-const today = new Date().toISOString().split('T')[0];
+const today = getTodayLocalDateString();
 
 const ErrorMessage = ({ message }: { message?: string }) => {
   if (!message) return null;
