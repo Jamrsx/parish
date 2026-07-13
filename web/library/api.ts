@@ -38,7 +38,7 @@ export interface PaginationLink {
 }
 
 // ============ API CONFIGURATION ============
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://10.116.123.238:8000/api';
+const API_BASE_URL = 'http://10.174.201.74:8000/api';
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
