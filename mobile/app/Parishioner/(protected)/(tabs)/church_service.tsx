@@ -11,7 +11,11 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { api } from '../../../../library/api';
+import ResponsiveContainer from '../../../../components/ResponsiveContainer';
+import ResponsiveGrid from '../../../../components/ResponsiveGrid';
+import { useResponsive } from '../../../../hooks/useResponsive';
 
 // ============================================================
 // INTERFACES
@@ -117,56 +121,39 @@ const CustomAlert = ({
 // ============================================================
 // ICON HELPERS
 // ============================================================
-const getServiceEmoji = (name: string): string => {
+const getServiceIcon = (name: string): { name: keyof typeof FontAwesome5.glyphMap; color: string } => {
   const lower = name.toLowerCase();
-  if (lower.includes('baptism') && !lower.includes('certificate')) return '💧';
-  if (lower.includes('funeral')) return '✝️';
-  if (lower.includes('marriage') && !lower.includes('certificate')) return '💎';
-  if (lower.includes('house blessing') || lower.includes('house')) return '🏠';
-  if (lower.includes('certificate')) return '📄';
-  return '❤️';
+  if (lower.includes('baptism') && !lower.includes('certificate')) return { name: 'tint', color: '#2563EB' };
+  if (lower.includes('funeral')) return { name: 'cross', color: '#2563EB' };
+  if (lower.includes('marriage') && !lower.includes('certificate')) return { name: 'ring', color: '#2563EB' };
+  if (lower.includes('house blessing') || lower.includes('house')) return { name: 'home', color: '#2563EB' };
+  if (lower.includes('certificate')) return { name: 'file-alt', color: '#2563EB' };
+  return { name: 'church', color: '#2563EB' };
 };
 
-const getCertificateEmoji = (title: string): string => {
+const getCertificateIcon = (title: string): { name: keyof typeof FontAwesome5.glyphMap; color: string } => {
   const lower = title.toLowerCase();
-  if (lower.includes('baptismal')) return '📄';
-  if (lower.includes('marriage')) return '💎';
-  return '📄';
+  if (lower.includes('baptismal')) return { name: 'file-alt', color: '#2563EB' };
+  if (lower.includes('marriage')) return { name: 'file-signature', color: '#2563EB' };
+  return { name: 'file-alt', color: '#2563EB' };
 };
 
 // ============================================================
-// COLOR HELPERS
+// COLOR HELPERS — unified blue/white for responsive layout
 // ============================================================
-const getServiceColors = (name: string) => {
-  const lower = name.toLowerCase();
-  if (lower.includes('baptism') && !lower.includes('certificate')) {
-    return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', button: 'bg-blue-600' };
-  }
-  if (lower.includes('funeral')) {
-    return { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-600', button: 'bg-purple-600' };
-  }
-  if (lower.includes('marriage') && !lower.includes('certificate')) {
-    return { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-600', button: 'bg-pink-600' };
-  }
-  if (lower.includes('house blessing') || lower.includes('house')) {
-    return { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-600', button: 'bg-green-600' };
-  }
-  if (lower.includes('certificate')) {
-    return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-600', button: 'bg-amber-600' };
-  }
-  return { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-600', button: 'bg-gray-600' };
-};
+const getServiceColors = () => ({
+  bg: 'bg-white',
+  border: 'border-blue-200',
+  text: 'text-blue-600',
+  button: 'bg-blue-600',
+});
 
-const getCertificateColors = (title: string) => {
-  const lower = title.toLowerCase();
-  if (lower.includes('baptismal')) {
-    return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600', button: 'bg-blue-600' };
-  }
-  if (lower.includes('marriage')) {
-    return { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-600', button: 'bg-pink-600' };
-  }
-  return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-600', button: 'bg-amber-600' };
-};
+const getCertificateColors = () => ({
+  bg: 'bg-white',
+  border: 'border-blue-200',
+  text: 'text-blue-600',
+  button: 'bg-blue-600',
+});
 
 // ============================================================
 // MAIN COMPONENT
@@ -175,6 +162,7 @@ export default function ChurchService() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const initialView = params.initialView as string;
+  const { isCompact } = useResponsive();
 
   // ============ STATE ============
   const [activeTab, setActiveTab] = useState<'services' | 'certificates'>('services');
@@ -376,25 +364,28 @@ export default function ChurchService() {
       <View className="bg-white px-5 py-4 border-b border-gray-200">
         <View className="flex-row items-center">
           <View className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-blue-100 items-center justify-center">
-            <Text className="text-2xl">⛪</Text>
+            <FontAwesome5 name="church" size={20} color="#2563EB" />
           </View>
-          <View className="ml-3">
-            <Text className="text-xl font-bold text-gray-800">Church Services</Text>
+          <View className="ml-3 flex-1">
+            <Text className={`font-bold text-gray-800 ${isCompact ? 'text-lg' : 'text-xl'}`}>Church Services</Text>
             <Text className="text-xs text-gray-500">Parishioner Portal</Text>
           </View>
         </View>
       </View>
 
-      {/* TITLE */}
-      <View className="px-5 pt-6 pb-4">
-        <Text className="text-3xl font-bold text-gray-800 text-center">Church Services</Text>
-        <Text className="text-base text-gray-500 text-center mt-1">
-          Choose from our available services below
-        </Text>
-      </View>
+      <ResponsiveContainer noPadding>
+        {/* TITLE */}
+        <View className="pt-6 pb-4">
+          <Text className={`font-bold text-gray-800 text-center ${isCompact ? 'text-2xl' : 'text-3xl'}`}>
+            Church Services
+          </Text>
+          <Text className="text-base text-gray-500 text-center mt-1">
+            Choose from our available services below
+          </Text>
+        </View>
 
-      {/* TAB NAVIGATION */}
-      <View className="px-5 pb-4">
+        {/* TAB NAVIGATION */}
+        <View className="pb-4">
         <View className="flex-row bg-gray-100 rounded-lg p-1">
           <TouchableOpacity
             onPress={() => handleTabChange('services')}
@@ -417,14 +408,16 @@ export default function ChurchService() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+        </View>
+      </ResponsiveContainer>
 
       {/* CARDS GRID */}
       <ScrollView
-        className="flex-1 px-5"
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <ResponsiveContainer>
         {isEmpty ? (
           <View className="py-12 items-center">
             <Text className="text-gray-500">
@@ -438,11 +431,12 @@ export default function ChurchService() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="pb-6 flex-row flex-wrap justify-between">
+          <ResponsiveGrid>
             {items.map((item) => {
               if (isService(item)) {
                 const service = item;
-                const colors = getServiceColors(service.name);
+                const colors = getServiceColors();
+                const serviceIcon = getServiceIcon(service.name);
                 const isAvailable = service.isAvailable !== false;
                 const remainingSlots = getRemainingSlots(service.slotsRemaining);
                 const hasSlots = remainingSlots > 0;
@@ -450,12 +444,14 @@ export default function ChurchService() {
                 return (
                   <View
                     key={service.id}
-                    className={`w-[48%] ${colors.bg} border ${colors.border} rounded-2xl p-4 mb-4 shadow-sm ${
+                    className={`${colors.bg} border ${colors.border} rounded-2xl p-4 shadow-sm ${
                       isAvailable && hasSlots ? '' : 'opacity-60'
                     }`}
                   >
                     <View className="flex-row justify-between items-start">
-                      <Text className="text-3xl">{getServiceEmoji(service.name)}</Text>
+                      <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center">
+                        <FontAwesome5 name={serviceIcon.name} size={18} color={serviceIcon.color} />
+                      </View>
                       <View
                         className={`px-2 py-1 rounded-full ${
                           isAvailable && hasSlots ? 'bg-green-100' : 'bg-red-100'
@@ -510,15 +506,18 @@ export default function ChurchService() {
                 );
               } else {
                 const certificate = item as CertificateAvailability;
-                const colors = getCertificateColors(certificate.title);
+                const colors = getCertificateColors();
+                const certIcon = getCertificateIcon(certificate.title);
 
                 return (
                   <View
                     key={certificate.id}
-                    className={`w-[48%] ${colors.bg} border ${colors.border} rounded-2xl p-4 mb-4 shadow-sm`}
+                    className={`${colors.bg} border ${colors.border} rounded-2xl p-4 shadow-sm`}
                   >
                     <View className="flex-row justify-between items-start">
-                      <Text className="text-3xl">{getCertificateEmoji(certificate.title)}</Text>
+                      <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center">
+                        <FontAwesome5 name={certIcon.name} size={18} color={certIcon.color} />
+                      </View>
                       <View className="px-2 py-1 rounded-full bg-green-100">
                         <Text className="text-xs font-medium text-green-700">Available</Text>
                       </View>
@@ -546,9 +545,10 @@ export default function ChurchService() {
                 );
               }
             })}
-          </View>
+          </ResponsiveGrid>
         )}
         <View className="h-8" />
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* Custom Alert Modal */}

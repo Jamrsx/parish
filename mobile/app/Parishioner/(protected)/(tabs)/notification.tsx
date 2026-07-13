@@ -9,7 +9,7 @@ import {
   Alert,
   Animated,
   PanResponder,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../../../library/api';
 import { useAuth } from '../../../../context/AuthContext';
 import { useNotifications } from '../../../../context/NotificationContext';
+import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 
 interface NotificationItem {
   notification_id: number;
@@ -33,7 +34,7 @@ interface NotificationItem {
   };
 }
 
-const { width } = Dimensions.get('window');
+const SWIPE_THRESHOLD = 80;
 
 // Notification type icons and colors - UPDATED with rescheduled
 const NOTIFICATION_CONFIG = {
@@ -80,6 +81,7 @@ const getStatusColorConfig = (status: string) => {
 };
 
 export default function NotificationScreen() {
+  const { width } = useWindowDimensions();
   const { user, isLoading } = useAuth();
   const { refreshUnreadCount, decrementUnreadCount } = useNotifications();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -435,10 +437,11 @@ export default function NotificationScreen() {
       </View>
 
       <ScrollView
-        className="flex-1 px-4 pt-4"
+        className="flex-1 pt-4"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        <ResponsiveContainer>
         {filteredNotifications.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
             <View className="w-24 h-24 bg-gray-100 rounded-full items-center justify-center mb-4">
@@ -537,6 +540,7 @@ export default function NotificationScreen() {
           })
         )}
         <View className="h-4" />
+        </ResponsiveContainer>
       </ScrollView>
     </SafeAreaView>
   );

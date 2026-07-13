@@ -8,7 +8,13 @@ content: [
 ],
 presets: [require("nativewind/preset")],
 theme: {
-extend: {},
+extend: {
+screens: {
+sm: '380px',
+md: '768px',
+lg: '1024px',
+},
+},
 },
 plugins: [],
 };

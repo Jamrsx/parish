@@ -16,10 +16,15 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../library/api';
 import type { User } from '../../../../library/api';
+import ResponsiveContainer from '../../../../components/ResponsiveContainer';
+import ResponsiveRow from '../../../../components/ResponsiveRow';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { Feather } from '@expo/vector-icons';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout, updateUser, refreshProfile } = useAuth()
+  const { user, logout, updateUser, refreshProfile } = useAuth();
+  const { isCompact } = useResponsive();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -102,9 +107,9 @@ export default function ProfileScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-
+        <ResponsiveContainer className="pt-6">
         {/* Profile Card */}
-        <View className="mx-4 mt-6 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <View className="items-center">
             <View className="w-24 h-24 rounded-full bg-blue-100 items-center justify-center mb-4">
               <Text className="text-4xl font-bold text-blue-600">
@@ -126,7 +131,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Details Section */}
-        <View className="mx-4 mt-4 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <View className="mt-4 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <Text className="text-lg font-semibold text-gray-800 mb-4">Personal Information</Text>
           
           <View className="space-y-4">
@@ -191,12 +196,13 @@ export default function ProfileScreen() {
         {/* Logout Button */}
         <TouchableOpacity 
           onPress={handleLogout} 
-          className="mx-4 mt-6 bg-red-500 py-4 rounded-2xl"
+          className="mt-6 bg-red-500 py-4 rounded-2xl"
         >
           <Text className="text-white text-center font-semibold text-lg">Log Out</Text>
         </TouchableOpacity>
 
         <View className="h-8" />
+        </ResponsiveContainer>
       </ScrollView>
 
       {/* Edit Profile Modal */}
@@ -207,11 +213,14 @@ export default function ProfileScreen() {
         onRequestClose={() => setIsEditing(false)}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6 min-h-[60%]">
+          <View
+            className="bg-white rounded-t-3xl p-6"
+            style={{ maxHeight: isCompact ? '92%' : '80%', minHeight: isCompact ? '70%' : '60%' }}
+          >
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-2xl font-bold text-gray-800">Edit Profile</Text>
-              <TouchableOpacity onPress={() => setIsEditing(false)}>
-                <Text className="text-2xl text-gray-500">✕</Text>
+              <TouchableOpacity onPress={() => setIsEditing(false)} className="p-2">
+                <Feather name="x" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
@@ -287,7 +296,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              <View className="flex-row gap-3 mt-8 mb-4">
+              <ResponsiveRow className="mt-8 mb-4">
                 <TouchableOpacity 
                   onPress={() => setIsEditing(false)} 
                   className="flex-1 bg-gray-200 py-3 rounded-xl"
@@ -303,7 +312,7 @@ export default function ProfileScreen() {
                     {loading ? 'Saving...' : 'Save Changes'}
                   </Text>
                 </TouchableOpacity>
-              </View>
+              </ResponsiveRow>
             </ScrollView>
           </View>
         </View>

@@ -12,9 +12,14 @@ import {
   FlatList,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../library/api';
+import ResponsiveContainer from '../../../../components/ResponsiveContainer';
+import ResponsiveRow from '../../../../components/ResponsiveRow';
+import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import { useResponsive } from '../../../../hooks/useResponsive';
 
 
 interface MarriageCertificateData {
@@ -196,6 +201,7 @@ const TimeDropdownModal = ({
 export default function MarriageCertificate() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isWeb, height } = useResponsive();
 
   const [formData, setFormData] = useState<MarriageCertificateData>({
     husband_name: '',
@@ -239,14 +245,6 @@ export default function MarriageCertificate() {
   };
 
   // Calendar functions
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-
   const isDateDisabled = (year: number, month: number, day: number): boolean => {
     const checkDate = new Date(year, month, day);
     checkDate.setHours(0, 0, 0, 0);
@@ -276,66 +274,6 @@ export default function MarriageCertificate() {
       newDate.setMonth(prev.getMonth() + increment);
       return newDate;
     });
-  };
-
-  const renderCalendar = () => {
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth();
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = getFirstDayOfMonth(year, month);
-    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    const calendarDays: React.ReactNode[] = [];
-
-    weekdays.forEach((day, index) => {
-      calendarDays.push(
-        <View key={`header-${index}`} className="w-10 h-10 justify-center items-center">
-          <Text className="text-xs font-semibold text-gray-500">{day}</Text>
-        </View>
-      );
-    });
-
-    for (let i = 0; i < firstDay; i++) {
-      calendarDays.push(<View key={`empty-${i}`} className="w-10 h-10" />);
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const disabled = isDateDisabled(year, month, day);
-      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const isSelected = formData[activeDateField] === dateString;
-
-      calendarDays.push(
-        <TouchableOpacity
-          key={`day-${day}`}
-          onPress={() => !disabled && handleDateSelect(day)}
-          className={`w-10 h-10 justify-center items-center rounded-full ${
-            disabled ? 'bg-gray-100' : isSelected ? 'bg-blue-500' : 'bg-white'
-          }`}
-          disabled={disabled}
-        >
-          <Text className={`text-sm ${disabled ? 'text-gray-400' : isSelected ? 'text-white font-bold' : 'text-gray-700'}`}>
-            {day}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <View className="mt-4">
-        <View className="flex-row justify-between items-center mb-4 px-4">
-          <TouchableOpacity onPress={() => changeMonth(-1)} className="p-2">
-            <Text className="text-2xl text-gray-600">←</Text>
-          </TouchableOpacity>
-          <Text className="text-lg font-semibold text-gray-800">
-            {selectedMonth.toLocaleString('default', { month: 'long' })} {year}
-          </Text>
-          <TouchableOpacity onPress={() => changeMonth(1)} className="p-2">
-            <Text className="text-2xl text-gray-600">→</Text>
-          </TouchableOpacity>
-        </View>
-        <View className="flex-row flex-wrap justify-start gap-1 px-2">{calendarDays}</View>
-      </View>
-    );
   };
 
   const getDisplayTime = (time24Hour: string): string => {
@@ -526,6 +464,7 @@ export default function MarriageCertificate() {
   };
 
   const scrollContent = (
+    <ResponsiveContainer>
     <>
       {/* Header */}
       <View className="flex-row items-center gap-3 mb-6">
@@ -533,17 +472,17 @@ export default function MarriageCertificate() {
           onPress={goToChurchService} 
           className="w-9 h-9 items-center justify-center rounded-full border border-gray-200 bg-white"
         >
-          <Text className="text-gray-500 text-lg">←</Text>
+          <Feather name="arrow-left" size={18} color="#6B7280" />
         </TouchableOpacity>
-        <View>
-          <Text className="text-xl font-bold text-gray-800">💑 Marriage Certificate</Text>
+        <View className="flex-1">
+          <Text className="text-xl font-bold text-gray-800">Marriage Certificate Form</Text>
           <Text className="text-xs text-gray-400">Fill in all required fields</Text>
         </View>
       </View>
 
       {/* Couple Information */}
       <SectionCard title="Couple's Information">
-        <View className="flex-row gap-3 mb-3">
+        <ResponsiveRow className="mb-3">
           <View className="flex-1">
             <Text className="text-sm text-gray-600 font-medium mb-1">Husband&apos;s Name *</Text>
             <TextInput
@@ -570,7 +509,7 @@ export default function MarriageCertificate() {
             />
             <ErrorMessage message={errors.wife_name} />
           </View>
-        </View>
+        </ResponsiveRow>
 
         <View className="mb-3">
           <Text className="text-sm text-gray-600 font-medium mb-1">Marriage Date *</Text>
@@ -616,7 +555,7 @@ export default function MarriageCertificate() {
             }`}
             placeholder="09XX XXX XXXX"
             placeholderTextColor="#9CA3AF"
-            keyboardType="phone-pad"
+            keyboardType={isWeb ? 'default' : 'phone-pad'}
             value={formData.contact_number}
             onChangeText={text => handleChange('contact_number', text)}
           />
@@ -626,7 +565,7 @@ export default function MarriageCertificate() {
 
       {/* Request Details */}
       <SectionCard title="Request Details">
-        <View className="flex-row gap-3">
+        <ResponsiveRow>
           <View className="flex-1">
             <Text className="text-sm text-gray-600 font-medium mb-1">Request Date *</Text>
             <TouchableOpacity
@@ -659,11 +598,11 @@ export default function MarriageCertificate() {
             </TouchableOpacity>
             <ErrorMessage message={errors.preferred_time} />
           </View>
-        </View>
+        </ResponsiveRow>
       </SectionCard>
 
       {/* Actions */}
-      <View className="flex-row gap-3 mt-2 mb-12">
+      <ResponsiveRow className="mt-2 mb-12">
         <TouchableOpacity
           onPress={goToChurchService}
           disabled={isSubmitting}
@@ -682,27 +621,39 @@ export default function MarriageCertificate() {
             <Text className="text-white text-center text-sm font-semibold">Request Certificate</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </ResponsiveRow>
     </>
+    </ResponsiveContainer>
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <View className="flex-1">
+    <View className="flex-1 bg-gray-50" style={isWeb ? { height: height } : { flex: 1 }}>
+      <View className="flex-1" style={isWeb ? { height: height, overflow: 'hidden' } : { flex: 1 }}>
         <StatusBar style="dark" />
         
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-          className="flex-1"
-        >
+        {isWeb ? (
           <ScrollView 
-            className="flex-1 px-4 pt-5" 
-            showsVerticalScrollIndicator={false}
+            className="px-4 pt-5" 
+            showsVerticalScrollIndicator={true}
+            style={{ height: height - 60 }}
             contentContainerStyle={{ paddingBottom: 30 }}
           >
             {scrollContent}
           </ScrollView>
-        </KeyboardAvoidingView>
+        ) : (
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+            className="flex-1"
+          >
+            <ScrollView 
+              className="flex-1 px-4 pt-5" 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 30 }}
+            >
+              {scrollContent}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        )}
       </View>
 
       {/* Custom Alert Modal */}
@@ -717,17 +668,23 @@ export default function MarriageCertificate() {
       {/* Date Picker Modal */}
       <Modal visible={showDatePicker} transparent={true} animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-4 min-h-[400px]">
-            <View className="flex-row justify-between items-center mb-4 px-4">
+          <View className="bg-white rounded-t-3xl p-4" style={{ maxHeight: '90%' }}>
+            <View className="flex-row justify-between items-center mb-4 px-2">
               <Text className="text-xl font-bold text-gray-800">
                 Select {activeDateField === 'preferred_date' ? 'Request Date' : 'Marriage Date'}
               </Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Text className="text-2xl text-gray-500">✕</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)} className="p-2">
+                <Feather name="x" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            {renderCalendar()}
-            <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-500 py-3 rounded-xl mx-4">
+            <DatePickerCalendar
+              selectedMonth={selectedMonth}
+              selectedDate={formData[activeDateField]}
+              onMonthChange={changeMonth}
+              onDateSelect={handleDateSelect}
+              isDateDisabled={isDateDisabled}
+            />
+            <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-600 py-3 rounded-xl mx-2">
               <Text className="text-white text-center font-semibold">Close</Text>
             </TouchableOpacity>
           </View>
