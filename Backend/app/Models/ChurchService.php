@@ -54,16 +54,18 @@ class ChurchService extends Model
     }
 
     /**
-     * Get active bookings count for a specific preferred date.
-     * Cancelled and completed requests do not block scheduling.
+     * Count requests submitted on a given calendar day for this service.
+     * Daily limit applies to how many bookings parishioners can make per day,
+     * not how many are scheduled on a preferred date.
+     * Cancelled requests do not count toward the daily submission quota.
      */
     public function getBookingsCount($date = null, $excludeRequestId = null): int
     {
         $date = $date ?: Carbon::today();
 
         $query = $this->requests()
-            ->whereDate('preferred_date', $date)
-            ->whereIn('status', ['pending', 'approved']);
+            ->whereDate('created_at', $date)
+            ->whereNotIn('status', ['cancelled']);
 
         if ($excludeRequestId) {
             $query->where('request_id', '!=', $excludeRequestId);
@@ -73,7 +75,31 @@ class ChurchService extends Model
     }
 
     /**
-     * Check if a date still has available slots.
+     * Check if parishioners can still submit new requests today for this service.
+     */
+    public function canAcceptSubmissionsToday(?int $excludeRequestId = null): bool
+    {
+        return $this->getBookingsCount(Carbon::today(), $excludeRequestId) < $this->getDailyLimit();
+    }
+
+    /**
+     * Validate today's submission quota for this service.
+     */
+    public function validateTodaySubmissionQuota(?int $excludeRequestId = null): ?string
+    {
+        if ($this->canAcceptSubmissionsToday($excludeRequestId)) {
+            return null;
+        }
+
+        $nextAvailable = $this->findNextAvailableDate(Carbon::today());
+
+        return $nextAvailable
+            ? "Today's booking limit has been reached for {$this->service_type}. Please try again on {$nextAvailable}."
+            : "Today's booking limit has been reached for {$this->service_type}. Please contact the parish office.";
+    }
+
+    /**
+     * Check if more requests can be submitted on a given day.
      */
     public function isDateAvailable($date, $excludeRequestId = null): bool
     {
@@ -89,14 +115,10 @@ class ChurchService extends Model
     }
 
     /**
-     * Validate whether a schedule can be used for this service.
+     * Validate whether a preferred schedule can be used (time-slot conflicts only).
      */
     public function validateSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
     {
-        if (!$this->isDateAvailable($date, $excludeRequestId)) {
-            return 'No available slots for the selected date. Please choose another date.';
-        }
-
         if ($this->isTimeSlotTaken($date, $time, $excludeRequestId)) {
             return 'The selected time slot is already booked. Please choose another time.';
         }
@@ -105,7 +127,7 @@ class ChurchService extends Model
     }
 
     /**
-     * Get remaining slots for a specific date
+     * Get remaining submission slots for a given day.
      */
     public function getRemainingSlots($date = null): int
     {
@@ -116,7 +138,7 @@ class ChurchService extends Model
     }
 
     /**
-     * Check if service is available for a specific date
+     * Check if parishioners can submit requests on a given day.
      */
     public function isAvailable($date = null): bool
     {
@@ -152,12 +174,12 @@ class ChurchService extends Model
             $status = 'Limited Slots';
             $statusColor = 'orange';
             $disabled = false;
-            $buttonText = 'Inquire Now';
+            $buttonText = 'Start Request';
         } else {
             $status = 'Available';
             $statusColor = 'green';
             $disabled = false;
-            $buttonText = 'Inquire Now';
+            $buttonText = 'Start Request';
         }
 
         return [
@@ -177,22 +199,22 @@ class ChurchService extends Model
     }
 
     /**
-     * Find next available date with optional start date
+     * Find the next day when new requests can be submitted.
      */
     public function findNextAvailableDate($startDate = null, $daysToCheck = 60): ?string
     {
         $limit = $this->getDailyLimit();
         $start = $startDate ? Carbon::parse($startDate) : Carbon::today();
-        
+
         for ($i = 1; $i <= $daysToCheck; $i++) {
             $date = $start->copy()->addDays($i);
-            $bookings = $this->getBookingsCount($date);
-            
-            if ($bookings < $limit) {
+            $submissions = $this->getBookingsCount($date);
+
+            if ($submissions < $limit) {
                 return $date->format('F j, Y');
             }
         }
-        
+
         return null;
     }
 
@@ -283,9 +305,9 @@ class ChurchService extends Model
                 'COALESCE(available_slots, 0) > 0 AND 
                  (SELECT COUNT(*) FROM manage_requests 
                   WHERE manage_requests.service_id = church_services.service_id 
-                  AND DATE(manage_requests.preferred_date) = ? 
-                  AND manage_requests.status IN (?, ?)) < COALESCE(available_slots, 0)',
-                [$today->format('Y-m-d'), 'pending', 'approved']
+                  AND DATE(manage_requests.created_at) = ? 
+                  AND manage_requests.status != ?) < COALESCE(available_slots, 0)',
+                [$today->format('Y-m-d'), 'cancelled']
             );
         });
     }

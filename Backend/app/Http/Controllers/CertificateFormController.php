@@ -102,18 +102,16 @@ class CertificateFormController extends Controller
             ], 422);
         }
 
-        // ✅ AVAILABILITY CHECK
-        $preferredDate = Carbon::parse($validated['preferred_date']);
-        
-        if (!$churchService->isAvailable($preferredDate)) {
-            $nextAvailable = $churchService->findNextAvailableDate($preferredDate);
-            
+        $quotaError = $churchService->validateTodaySubmissionQuota();
+        if ($quotaError) {
+            $nextAvailable = $churchService->findNextAvailableDate();
+
             return response()->json([
                 'success' => false,
-                'message' => 'No available slots for the selected date.',
+                'message' => $quotaError,
                 'data' => [
                     'next_available_date' => $nextAvailable,
-                    'remaining_slots' => $churchService->getRemainingSlots($preferredDate),
+                    'remaining_slots' => $churchService->getRemainingSlots(),
                     'daily_limit' => $churchService->getDailyLimit(),
                 ]
             ], 422);

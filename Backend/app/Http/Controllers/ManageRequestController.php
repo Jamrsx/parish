@@ -232,6 +232,22 @@ class ManageRequestController extends Controller
             ], 422);
         }
 
+        $churchService = ChurchService::find($request->service_id);
+        if ($churchService) {
+            $quotaError = $churchService->validateTodaySubmissionQuota();
+            if ($quotaError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $quotaError,
+                    'data' => [
+                        'next_available_date' => $churchService->findNextAvailableDate(),
+                        'remaining_slots' => $churchService->getRemainingSlots(),
+                        'daily_limit' => $churchService->getDailyLimit(),
+                    ],
+                ], 422);
+            }
+        }
+
         $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
         if ($scheduleError) {
             return response()->json([

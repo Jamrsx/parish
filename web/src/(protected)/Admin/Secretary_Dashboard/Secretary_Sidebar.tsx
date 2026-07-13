@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../../../../context/AuthContext";
+import { manageRequestAPI } from "../../../../library/manage-request";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -26,6 +27,8 @@ const navItems: { path: string; label: string; icon: LucideIcon }[] = [
   { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },
 ];
 
+const PENDING_POLL_INTERVAL_MS = 30000;
+
 const SecretarySidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,12 +36,41 @@ const SecretarySidebar: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || user?.role !== "secretary")) {
       navigate("/login");
     }
   }, [isAuthenticated, user, authLoading, navigate]);
+
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const response = await manageRequestAPI.getAll({ status: "pending", per_page: 1 });
+      if (response.data?.success) {
+        const data = response.data.data;
+        let total = 0;
+        if (data && typeof data === "object" && "total" in data) {
+          total = Number(data.total) || 0;
+        } else if (Array.isArray(data)) {
+          total = data.length;
+        }
+        console.log("Sidebar pending requests count:", total);
+        setPendingCount(total);
+      }
+    } catch (err) {
+      console.error("Error fetching pending requests count:", err);
+    }
+  }, []);
+
+  // Poll pending count and refresh whenever the secretary navigates
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || user?.role !== "secretary") return;
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, PENDING_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [authLoading, isAuthenticated, user, fetchPendingCount, location.pathname]);
 
   if (authLoading) {
     return (
@@ -140,19 +172,49 @@ const SecretarySidebar: React.FC = () => {
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
+              const showPendingIndicator =
+                item.path === "/admin/secretary/manage-requests" && pendingCount > 0;
               return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  title={sidebarCollapsed ? item.label : undefined}
+                  title={
+                    sidebarCollapsed
+                      ? showPendingIndicator
+                        ? `${item.label} (${pendingCount} pending)`
+                        : item.label
+                      : undefined
+                  }
                   className={`w-full px-3 py-2.5 text-sm font-medium flex items-center gap-3 rounded-lg transition-all ${
                     isActive
                       ? "bg-blue-600 text-white shadow-sm"
                       : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
                   } ${sidebarCollapsed ? "justify-center" : ""}`}
                 >
-                  <Icon size={18} className="shrink-0" />
-                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  <span className="relative shrink-0">
+                    <Icon size={18} className="shrink-0" />
+                    {showPendingIndicator && sidebarCollapsed && (
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white" />
+                      </span>
+                    )}
+                  </span>
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1">{item.label}</span>
+                      {showPendingIndicator && (
+                        <span
+                          className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                            isActive ? "bg-white text-blue-700" : "bg-red-500 text-white"
+                          }`}
+                          aria-label={`${pendingCount} pending requests`}
+                        >
+                          {pendingCount > 99 ? "99+" : pendingCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Link>
               );
             })}

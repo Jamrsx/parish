@@ -60,10 +60,10 @@ class AvailabilityController extends Controller
                 }
 
                 $status = $churchService->getAvailabilityStatus($date);
-                
-                $nextAvailableDate = $status['isAvailable'] 
-                    ? $date->copy()->addDay()->format('F j, Y')
-                    : $churchService->findNextAvailableDate($date);
+
+                $nextAvailableDate = $status['isAvailable']
+                    ? $date->format('F j, Y')
+                    : ($churchService->findNextAvailableDate($date) ?? 'Contact parish office');
 
                 $availability[] = [
                     'id' => $key,

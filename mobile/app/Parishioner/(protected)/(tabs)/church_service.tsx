@@ -261,8 +261,8 @@ export default function ChurchService() {
   const handleServiceSelect = (service: ServiceAvailability) => {
     if (service.disabled) {
       showCustomAlert(
-        'Fully Booked',
-        `Sorry, ${service.name} is fully booked. Next available: ${service.nextDate}`,
+        'Daily Limit Reached',
+        `Today's request limit for ${service.name} has been reached. You can submit again on ${service.nextDate}.`,
         [{ text: 'OK', onPress: () => {}, style: 'default' }]
       );
       return;
@@ -466,17 +466,19 @@ export default function ChurchService() {
                     <View className="mt-3 space-y-1">
                       {service.dailyLimit && (
                         <View className="flex-row justify-between">
-                          <Text className="text-xs text-gray-500">Daily Limit</Text>
+                          <Text className="text-xs text-gray-500">Daily Request Limit</Text>
                           <Text className="text-xs font-semibold text-gray-800">{service.dailyLimit}</Text>
                         </View>
                       )}
                       <View className="flex-row justify-between">
-                        <Text className="text-xs text-gray-500">Next Available</Text>
+                        <Text className="text-xs text-gray-500">
+                          {isAvailable && hasSlots ? 'Book Today Until' : 'Next Booking Day'}
+                        </Text>
                         <Text className="text-xs font-semibold text-gray-800">{service.nextDate}</Text>
                       </View>
                       {hasSlots && (
                         <View className="flex-row justify-between border-t border-gray-100 pt-1 mt-1">
-                          <Text className="text-xs text-green-500">Slots Remaining</Text>
+                          <Text className="text-xs text-green-500">Requests Left Today</Text>
                           <Text className="text-xs font-medium text-green-600">{remainingSlots} slots</Text>
                         </View>
                       )}
