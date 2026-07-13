@@ -1454,8 +1454,14 @@ class ManageRequestController extends Controller
 
         ManageRequest::expirePendingRequests($user->user_id);
 
-        $requests = ManageRequest::where('user_id', $user->user_id)
-            ->with(['service', 'baptismForm', 'serviceForm', 'certificateForm', 'processedBy', 'assignedPriest'])
+        $query = ManageRequest::where('user_id', $user->user_id);
+
+        if ($request->has('status') && $request->status !== 'all' && $request->status !== '') {
+            $query->where('status', $request->status);
+        }
+
+        $requests = $query
+            ->with(['service', 'baptismForm', 'serviceForm', 'certificateForm', 'processedBy', 'assignedPriest', 'rescheduledBy'])
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 15);
 

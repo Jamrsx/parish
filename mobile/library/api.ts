@@ -37,10 +37,25 @@ export interface Request {
   status: 'pending' | 'approved' | 'done' | 'cancelled';
   payment_status: 'unpaid' | 'partial' | 'paid';
   amount_paid: number;
-  service: Service;
+  remaining_balance?: number;
+  is_fully_paid?: boolean;
+  service: Service & { service_name?: string; form_type?: string | null };
   form_type: string;
+  form_type_label?: string;
   form_summary: string;
   can_be_rescheduled: boolean;
+  cancelled_reason?: string | null;
+  reschedule_reason?: string | null;
+  reschedule_count?: number;
+  rescheduled_by?: number | null;
+  rescheduledBy?: User | null;
+  approved_at?: string | null;
+  completed_at?: string | null;
+  formatted_preferred_date?: string | null;
+  formatted_preferred_time?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  assignedPriest?: User | null;
   user?: User;
 }
 
@@ -315,8 +330,25 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
   }
 
   // PARISHIONER REQUESTS
-  async getUserRequests(): Promise<ApiResponse<{ data: Request[] }>> {
-    return this.request('/parishioner/requests');
+  async getUserRequests(params?: {
+    page?: number;
+    per_page?: number;
+    status?: string;
+  }): Promise<
+    ApiResponse<{
+      current_page: number;
+      data: Request[];
+      total: number;
+      last_page: number;
+    }>
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.per_page) query.append('per_page', String(params.per_page));
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
+
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return this.request(`/parishioner/requests${suffix}`);
   }
 
   async getUserStatistics(): Promise<

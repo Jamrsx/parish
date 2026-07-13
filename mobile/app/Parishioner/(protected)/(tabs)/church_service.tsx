@@ -15,6 +15,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveGrid from '../../../../components/ResponsiveGrid';
+import ParishionerHeader from '../../../../components/ParishionerHeader';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
 // ============================================================
@@ -361,17 +362,7 @@ export default function ChurchService() {
       <StatusBar style="dark" />
 
       {/* HEADER */}
-      <View className="bg-white px-5 py-4 border-b border-gray-200">
-        <View className="flex-row items-center">
-          <View className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-blue-100 items-center justify-center">
-            <FontAwesome5 name="church" size={20} color="#2563EB" />
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className={`font-bold text-gray-800 ${isCompact ? 'text-lg' : 'text-xl'}`}>Church Services</Text>
-            <Text className="text-xs text-gray-500">Parishioner Portal</Text>
-          </View>
-        </View>
-      </View>
+      <ParishionerHeader title="Church Services" subtitle="Parishioner Portal" />
 
       <ResponsiveContainer noPadding>
         {/* TITLE */}

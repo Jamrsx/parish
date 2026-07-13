@@ -14,10 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../../../../library/api';
-import { useAuth } from '../../../../context/AuthContext';
-import { useNotifications } from '../../../../context/NotificationContext';
-import ResponsiveContainer from '../../../../components/ResponsiveContainer';
+import { api } from '../../../library/api';
+import { useAuth } from '../../../context/AuthContext';
+import { useNotifications } from '../../../context/NotificationContext';
+import ResponsiveContainer from '../../../components/ResponsiveContainer';
+import ParishionerHeader from '../../../components/ParishionerHeader';
 
 interface NotificationItem {
   notification_id: number;
@@ -540,25 +541,25 @@ export default function NotificationScreen() {
       )}
 
       {/* Header */}
-      <View className="bg-white px-5 py-4 border-b border-gray-200">
-        <View className="flex-row justify-between items-center">
-          <View className="flex-row items-center">
-            <Text className="text-2xl font-bold text-gray-800">Notifications</Text>
-          </View>
-          <View className="flex-row space-x-2">
-            {unreadCount > 0 && (
-              <TouchableOpacity
-                onPress={handleMarkAllRead}
-                className="px-3 py-2 rounded-lg bg-blue-50"
-              >
-                <Text className="text-blue-600 text-sm font-semibold">Mark all read</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+      <ParishionerHeader
+        title="Notifications"
+        showBack
+        showNotification={false}
+        rightContent={
+          unreadCount > 0 ? (
+            <TouchableOpacity
+              onPress={handleMarkAllRead}
+              className="px-3 py-2 rounded-lg bg-blue-50"
+            >
+              <Text className="text-blue-600 text-sm font-semibold">Mark all read</Text>
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
+      <View className="bg-white px-5 pb-4 border-b border-gray-200">
         {/* Tabs */}
-        <View className="flex-row mt-3 bg-gray-100 rounded-lg p-1">
+        <View className="flex-row bg-gray-100 rounded-lg p-1">
           <TouchableOpacity
             onPress={() => setSelectedTab('all')}
             className={`flex-1 py-2 rounded-lg ${

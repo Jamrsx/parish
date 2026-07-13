@@ -18,6 +18,7 @@ import { api } from '../../../../library/api';
 import type { User } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
+import ParishionerHeader from '../../../../components/ParishionerHeader';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { Feather } from '@expo/vector-icons';
 
@@ -99,9 +100,7 @@ export default function ProfileScreen() {
       <StatusBar backgroundColor="#ffffff" barStyle="dark-content" />
 
       {/* Header */}
-        <View className="bg-white px-6 py-4 border-b border-gray-200">
-          <Text className="text-2xl font-bold text-gray-800">My Profile</Text>
-        </View>
+      <ParishionerHeader title="My Profile" subtitle="Manage your account" />
 
       <ScrollView 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

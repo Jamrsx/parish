@@ -1,13 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { NotificationProvider, useNotifications } from '../../../../context/NotificationContext';
 
-
-function TabsNavigator() {
-  const { unreadCount } = useNotifications();
-
+export default function Layout() {
   return (
     <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen
@@ -29,21 +24,12 @@ function TabsNavigator() {
         }}
       />
       <Tabs.Screen
-        name="notification"
+        name="my_requests"
         options={{
-          title: 'Notification',
+          title: 'My Requests',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications" size={size ?? 28} color={color} />
+            <FontAwesome5 name="clipboard-list" size={size ?? 28} color={color} />
           ),
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: '#EF4444',
-            color: '#FFFFFF',
-            fontSize: 10,
-            minWidth: 18,
-            height: 18,
-            borderRadius: 9,
-          },
         }}
       />
       <Tabs.Screen
@@ -56,13 +42,5 @@ function TabsNavigator() {
         }}
       />
     </Tabs>
-  );
-}
-
-export default function Layout() {
-  return (
-    <NotificationProvider>
-      <TabsNavigator />
-    </NotificationProvider>
   );
 }

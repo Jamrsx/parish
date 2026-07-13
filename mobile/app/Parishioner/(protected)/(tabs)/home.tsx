@@ -14,6 +14,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { useAuth } from '../../../../context/AuthContext';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveGrid from '../../../../components/ResponsiveGrid';
+import ParishionerHeader from '../../../../components/ParishionerHeader';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
 export default function Home() {
@@ -61,19 +62,7 @@ export default function Home() {
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       <View className="flex-1">
-        <View className="bg-white px-5 py-3 border-b border-gray-200">
-          <View className="flex-row items-center">
-            <View className="w-12 h-12 rounded-full items-center justify-center bg-blue-100">
-              <FontAwesome5 name="church" size={20} color="#2563EB" />
-            </View>
-            <Text
-              className={`pl-3 font-bold text-gray-800 ${isCompact ? 'text-base' : 'text-lg'}`}
-              numberOfLines={2}
-            >
-              SAN GUILLERMO PARISH
-            </Text>
-          </View>
-        </View>
+        <ParishionerHeader title="SAN GUILLERMO PARISH" subtitle="Parishioner Portal" />
 
         <ScrollView
           showsVerticalScrollIndicator={false}
