@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
 import { manageRequestAPI } from '../../../../library/manage-request';
+import { usersAPI } from '../../../../library/api';
 import { getUserFullName } from '../../../../library/manage-request';
 import type { ManageRequest, RequestStatus } from '../../../../library/manage-request';
 import { Calendar, Clock, User, RefreshCw, AlertCircle, LogOut } from 'lucide-react';
@@ -71,11 +72,14 @@ const getServiceIcon = (serviceName: string): string => {
 // ============ MAIN COMPONENT ============
 const PriestHomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [schedules, setSchedules] = useState<PriestSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [priestStatus, setPriestStatus] = useState<PriestStatus>('available');
+  const [priestStatus, setPriestStatus] = useState<PriestStatus>(
+    user?.is_available === false ? 'unavailable' : 'available'
+  );
+  const [statusUpdating, setStatusUpdating] = useState(false);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
   const [selectedSchedule, setSelectedSchedule] = useState<PriestSchedule | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -118,6 +122,39 @@ const PriestHomePage: React.FC = () => {
   useEffect(() => {
     fetchAssignedRequests();
   }, [fetchAssignedRequests]);
+
+  useEffect(() => {
+    if (user?.is_available !== undefined) {
+      setPriestStatus(user.is_available === false ? 'unavailable' : 'available');
+    }
+  }, [user?.is_available]);
+
+  // Toggle priest availability
+  const toggleStatus = async () => {
+    const nextAvailable = priestStatus !== 'available';
+    const previousStatus = priestStatus;
+
+    setPriestStatus(nextAvailable ? 'available' : 'unavailable');
+    setStatusUpdating(true);
+
+    try {
+      console.log('Updating priest availability:', nextAvailable);
+      const response = await usersAPI.updateAvailability(nextAvailable);
+
+      if (response.data?.success && response.data.data) {
+        updateUser({ is_available: response.data.data.is_available });
+        console.log('Priest availability updated:', response.data.data.is_available);
+      } else {
+        throw new Error(response.data?.message || 'Failed to update availability');
+      }
+    } catch (err) {
+      console.error('Error updating priest availability:', err);
+      setPriestStatus(previousStatus);
+      alert('Failed to update availability. Please try again.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -163,14 +200,6 @@ const PriestHomePage: React.FC = () => {
     } finally {
       setUpdatingStatus(null);
     }
-  };
-
-  // Toggle priest availability
-  const toggleStatus = () => {
-    const newStatus = priestStatus === 'available' ? 'unavailable' : 'available';
-    setPriestStatus(newStatus);
-    // You can add API call here to save priest status to backend
-    alert(`You are now ${newStatus} for new requests`);
   };
 
   // Filter schedules
@@ -288,7 +317,8 @@ const PriestHomePage: React.FC = () => {
               </span>
               <button
                 onClick={toggleStatus}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                disabled={statusUpdating}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   priestStatus === 'available' ? 'bg-green-600' : 'bg-gray-300'
                 }`}
               >

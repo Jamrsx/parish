@@ -25,7 +25,8 @@ return new class extends Migration
                   ->default('parishioner');
 
             $table->boolean('is_active')->default(true);
-            
+            $table->boolean('is_available')->default(true);
+
             $table->timestamp('last_login')->nullable();
             $table->timestamps();
             

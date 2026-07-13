@@ -54,9 +54,12 @@ api.interceptors.request.use(
     const token = authStorage.getToken();
     
     // Skip auth for login
-    const skipAuth = config.url?.includes('/auth/web-login') || 
-                     config.url?.includes('/auth/register') ||
-                     config.url?.includes('/availability');
+    const url = config.url || '';
+    const skipAuth =
+      url.includes('/auth/web-login') ||
+      url.includes('/auth/register') ||
+      url === '/availability' ||
+      url.startsWith('/availability/');
 
     if (skipAuth) {
       return config;
@@ -154,12 +157,13 @@ export interface CreatePriestData {
 }
 
 export const usersAPI = {
-  listPriests: (options?: { activeOnly?: boolean }) =>
+  listPriests: (options?: { activeOnly?: boolean; availableOnly?: boolean }) =>
     api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
       params: {
         role: 'priest',
         per_page: 100,
         ...(options?.activeOnly ? { active_only: 1 } : {}),
+        ...(options?.availableOnly ? { available_only: 1 } : {}),
       },
     }),
 
@@ -171,6 +175,9 @@ export const usersAPI = {
 
   enablePriest: (userId: number) =>
     api.post<ApiResponse<User>>(`/admin/users/${userId}/enable`),
+
+  updateAvailability: (isAvailable: boolean) =>
+    api.put<ApiResponse<User>>('/priest/availability', { is_available: isAvailable }),
 };
 
 // Export types

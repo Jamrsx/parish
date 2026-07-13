@@ -1,10 +1,34 @@
-import React, { useState, useEffect } from "react";
-import { manageRequestAPI, getStatusLabel } from "../../../../library/manage-request";
-import type { RequestStatus, ManageRequest } from "../../../../library/manage-request";
+import React, { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import { manageRequestAPI } from "../../../../library/manage-request";
+import type { RequestStatus, ManageRequest, RescheduleData } from "../../../../library/manage-request";
+import { usersAPI } from "../../../../library/api";
 import type { User } from "../../../../library/api";
+
+interface ExtendedChurchService {
+  service_id: number;
+  service_name?: string;
+  service_type?: string;
+  fee?: number;
+  form_type?: string | null;
+}
 import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCircle, ClipboardList, Zap, Calendar, UserCog } from "lucide-react";
 import SecretaryStatCard from "./components/SecretaryStatCard";
+import ModalCloseButton from "./components/ModalCloseButton";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
+
+const timeOptions = [
+  { label: '8:00 AM', value: '08:00' },
+  { label: '9:00 AM', value: '09:00' },
+  { label: '10:00 AM', value: '10:00' },
+  { label: '11:00 AM', value: '11:00' },
+  { label: '12:00 PM', value: '12:00' },
+  { label: '1:00 PM', value: '13:00' },
+  { label: '2:00 PM', value: '14:00' },
+  { label: '3:00 PM', value: '15:00' },
+  { label: '4:00 PM', value: '16:00' },
+  { label: '5:00 PM', value: '17:00' },
+];
 
 // Define the request details interface
 interface RequestDetails {
@@ -14,6 +38,7 @@ interface RequestDetails {
   paymentStatus?: string;
   amountPaid?: number;
   assignedPriest?: string;
+  assignedPriestId?: number | null;
   createdAt?: string;
   updatedAt?: string;
   childBirthDate?: string;
@@ -32,6 +57,7 @@ interface ScheduledServices {
   status: RequestStatus;
   displayStatus: string;
   isCompleted?: boolean;
+  assignedPriestId?: number | null;
   requestDetails?: RequestDetails;
 }
 
@@ -103,7 +129,104 @@ const getDisplayStatus = (status: RequestStatus): string => {
   if (status === 'approved') {
     return 'Scheduled';
   }
-  return getStatusLabel(status);
+  if (status === 'done') return 'Completed';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'pending') return 'Pending';
+  return String(status).charAt(0).toUpperCase() + String(status).slice(1);
+};
+
+const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices | null => {
+  if (!['approved', 'done'].includes(request.status) || !request.preferred_date) return null;
+
+  const service = request.service as ExtendedChurchService | null | undefined;
+  const serviceName = service?.service_name || service?.service_type || '';
+  const assignedPriestId = request.assigned_priest ?? request.assignedPriest?.user_id ?? null;
+  const formType = request.form_type;
+  const formattedDate = formatDateToYYYYMMDD(request.preferred_date);
+
+  const requestDetails: RequestDetails = {
+    contactNumber: request.user?.contact_number || request.user?.email || 'N/A',
+    address: request.serviceForm?.address || request.baptismForm?.address || request.certificateForm?.address || 'N/A',
+    serviceFee: request.service?.fee || 0,
+    paymentStatus: request.payment_status || 'unpaid',
+    amountPaid: request.amount_paid || 0,
+    assignedPriest: getUserFullName(request.assignedPriest) || 'Not assigned',
+    assignedPriestId,
+    createdAt: request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A',
+    updatedAt: request.updated_at ? new Date(request.updated_at).toLocaleDateString() : 'N/A',
+  };
+
+  const base = {
+    id: request.request_id,
+    date: formattedDate,
+    time: request.preferred_time || 'TBA',
+    status: request.status,
+    displayStatus: getDisplayStatus(request.status),
+    isCompleted: request.status === 'done',
+    assignedPriestId,
+    requestDetails,
+  };
+
+  if (formType === 'baptism' || request.baptismForm || request.baptism_form_id) {
+    const childName = request.baptismForm?.child_first_name
+      ? `${request.baptismForm.child_first_name} ${request.baptismForm.child_last_name}`
+      : getUserFullName(request.user) || 'N/A';
+    return {
+      ...base,
+      type: 'Baptism',
+      name: childName,
+      requestDetails: {
+        ...requestDetails,
+        childBirthDate: request.baptismForm?.child_birth_date || 'N/A',
+        motherName: request.baptismForm
+          ? `${request.baptismForm.mother_first_name} ${request.baptismForm.mother_last_name}`
+          : 'N/A',
+        fatherName: request.baptismForm
+          ? `${request.baptismForm.father_first_name} ${request.baptismForm.father_last_name}`
+          : 'N/A',
+      },
+    };
+  }
+
+  if (formType === 'service' || request.serviceForm || request.service_form_id) {
+    let serviceType = 'Church Service';
+    if (serviceName === 'Funeral Mass') serviceType = 'Funeral Mass';
+    else if (serviceName === 'House Blessing') serviceType = 'House Blessing';
+    else if (serviceName === 'Marriage') serviceType = 'Marriage';
+
+    return {
+      ...base,
+      type: serviceType,
+      name: request.serviceForm?.full_name || getUserFullName(request.user) || 'N/A',
+      requestDetails: { ...requestDetails, serviceName },
+    };
+  }
+
+  if (formType === 'certificate' || request.certificateForm || request.certificate_form_id) {
+    const certType =
+      request.certificateForm?.certificate_type === 'marriage'
+        ? 'Marriage Certificate'
+        : 'Baptismal Certificate';
+    return {
+      ...base,
+      type: certType,
+      name: request.certificateForm?.full_name || getUserFullName(request.user) || 'N/A',
+      requestDetails: {
+        ...requestDetails,
+        certificateType: request.certificateForm?.certificate_type || 'N/A',
+      },
+    };
+  }
+
+  if (serviceName) {
+    return {
+      ...base,
+      type: serviceName,
+      name: getUserFullName(request.user) || 'N/A',
+    };
+  }
+
+  return null;
 };
 
 // ============ MODAL COMPONENTS ============
@@ -274,6 +397,57 @@ const ScheduledServices: React.FC = () => {
     type: 'info' as 'success' | 'error' | 'info' | 'warning'
   });
 
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState<RescheduleData>({
+    preferred_date: '',
+    preferred_time: '',
+    reschedule_reason: '',
+  });
+  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+
+  const [showPriestModal, setShowPriestModal] = useState(false);
+  const [priests, setPriests] = useState<User[]>([]);
+  const [selectedPriestId, setSelectedPriestId] = useState<number | null>(null);
+  const [priestsLoading, setPriestsLoading] = useState(false);
+  const [priestSubmitting, setPriestSubmitting] = useState(false);
+
+  const fetchPriests = useCallback(async (): Promise<User[]> => {
+    try {
+      const response = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
+      if (response.data?.success) {
+        const data = response.data.data;
+        if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+          return data.data;
+        }
+        if (Array.isArray(data)) {
+          return data;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching priests:', error);
+      return [];
+    }
+  }, []);
+
+  const showError = (message: string) => {
+    setNotificationModal({
+      isOpen: true,
+      title: 'Action Failed',
+      message,
+      type: 'error',
+    });
+  };
+
+  const showSuccess = (message: string) => {
+    setNotificationModal({
+      isOpen: true,
+      title: 'Success',
+      message,
+      type: 'success',
+    });
+  };
+
   useEffect(() => {
     fetchServices();
   }, []);
@@ -281,130 +455,33 @@ const ScheduledServices: React.FC = () => {
   const fetchServices = async () => {
     try {
       setLoading(true);
-      
-      const response = await manageRequestAPI.getAll({ page: 1, per_page: 50 });
 
-      if (response.data?.success && response.data?.data?.data) {
-        const requests: ManageRequest[] = response.data.data.data;  
-        
-        const services: ScheduledServices[] = [];
-        
-        requests.forEach((request: ManageRequest) => {
-          if (request.status === 'approved' && request.preferred_date) {
-            const serviceName = request.service?.service_name || '';
-            const formType = request.form_type;
-            let service: ScheduledServices | null = null;
-            
-            const formattedDate = formatDateToYYYYMMDD(request.preferred_date);
-            
-            const requestDetails: RequestDetails = {
-              contactNumber: request.user?.contact_number || request.user?.email || 'N/A',
-              address: request.serviceForm?.address || request.baptismForm?.address || request.certificateForm?.address || 'N/A',
-              serviceFee: request.service?.fee || 0,
-              paymentStatus: request.payment_status || 'unpaid',
-              amountPaid: request.amount_paid || 0,
-              assignedPriest: getUserFullName(request.assignedPriest) || 'Not assigned',
-              createdAt: request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A',
-              updatedAt: request.updated_at ? new Date(request.updated_at).toLocaleDateString() : 'N/A',
-            };
-            
-            if (formType === 'baptism' || request.baptismForm || request.baptism_form_id) {
-              const childName = request.baptismForm?.child_first_name 
-                ? `${request.baptismForm.child_first_name} ${request.baptismForm.child_last_name}` 
-                : getUserFullName(request.user) || 'N/A';
-              service = {
-                id: request.request_id,
-                type: 'Baptism',
-                name: childName,
-                date: formattedDate,
-                time: request.preferred_time || 'TBA',
-                status: request.status,
-                displayStatus: getDisplayStatus(request.status),
-                isCompleted: false,
-                requestDetails: {
-                  ...requestDetails,
-                  childBirthDate: request.baptismForm?.child_birth_date || 'N/A',
-                  motherName: request.baptismForm ? `${request.baptismForm.mother_first_name} ${request.baptismForm.mother_last_name}` : 'N/A',
-                  fatherName: request.baptismForm ? `${request.baptismForm.father_first_name} ${request.baptismForm.father_last_name}` : 'N/A',
-                }
-              };
-            } 
-            else if (formType === 'service' || request.serviceForm || request.service_form_id) {
-              let serviceType = 'Church Service';
-              if (serviceName === 'Funeral Mass') {
-                serviceType = 'Funeral Mass';
-              } else if (serviceName === 'House Blessing') {
-                serviceType = 'House Blessing';
-              } else if (serviceName === 'Marriage') {
-                serviceType = 'Marriage';
-              }
-              
-              const personName = request.serviceForm?.full_name || getUserFullName(request.user) || 'N/A';
-              service = {
-                id: request.request_id,
-                type: serviceType,
-                name: personName,
-                date: formattedDate,
-                time: request.preferred_time || 'TBA',
-                status: request.status,
-                displayStatus: getDisplayStatus(request.status),
-                isCompleted: false,
-                requestDetails: {
-                  ...requestDetails,
-                  serviceName: serviceName,
-                }
-              };
-            } 
-            else if (formType === 'certificate' || request.certificateForm || request.certificate_form_id) {
-              const certType = request.certificateForm?.certificate_type === 'marriage' ? 'Marriage Certificate' : 'Baptismal Certificate';
-              const certName = request.certificateForm?.full_name || getUserFullName(request.user) || 'N/A';
-              service = {
-                id: request.request_id,
-                type: certType,
-                name: certName,
-                date: formattedDate,
-                time: request.preferred_time || 'TBA',
-                status: request.status,
-                displayStatus: getDisplayStatus(request.status),
-                isCompleted: false,
-                requestDetails: {
-                  ...requestDetails,
-                  certificateType: request.certificateForm?.certificate_type || 'N/A',
-                }
-              };
-            } else {
-              if (serviceName) {
-                const personName = getUserFullName(request.user) || 'N/A';
-                service = {
-                  id: request.request_id,
-                  type: serviceName,
-                  name: personName,
-                  date: formattedDate,
-                  time: request.preferred_time || 'TBA',
-                  status: request.status,
-                  displayStatus: getDisplayStatus(request.status),
-                  isCompleted: false,
-                  requestDetails: {
-                    ...requestDetails,
-                  }
-                };
-              }
-            }
-            
-            if (service) {
-              services.push(service);
-            }
-          }
-        });
-        
-        const sortedServices = services.sort((a, b) => 
-          new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-        
-        setAllServices(sortedServices);
-      } else {
-        console.log('No data or unsuccessful response');
-      }
+      const [approvedResponse, doneResponse] = await Promise.all([
+        manageRequestAPI.getAll({ status: 'approved', page: 1, per_page: 100 }),
+        manageRequestAPI.getAll({ status: 'done', page: 1, per_page: 100 }),
+      ]);
+
+      const approvedRequests: ManageRequest[] =
+        approvedResponse.data?.success && approvedResponse.data?.data?.data
+          ? approvedResponse.data.data.data
+          : [];
+      const doneRequests: ManageRequest[] =
+        doneResponse.data?.success && doneResponse.data?.data?.data
+          ? doneResponse.data.data.data
+          : [];
+
+      const requests = [...approvedRequests, ...doneRequests];
+      console.log('Fetched scheduled services:', {
+        approved: approvedRequests.length,
+        done: doneRequests.length,
+      });
+
+      const services = requests
+        .map(mapRequestToScheduledService)
+        .filter((service): service is ScheduledServices => service !== null)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      setAllServices(services);
     } catch (error) {
       console.error('Error fetching services:', error);
       setError('Failed to load services');
@@ -424,7 +501,18 @@ const ScheduledServices: React.FC = () => {
         try {
           setActionInProgress(true);
           await manageRequestAPI.complete(serviceId);
-          setAllServices(prevServices => prevServices.filter(s => s.id !== serviceId));
+          setAllServices((prevServices) =>
+            prevServices.map((service) =>
+              service.id === serviceId
+                ? {
+                    ...service,
+                    status: 'done',
+                    displayStatus: 'Completed',
+                    isCompleted: true,
+                  }
+                : service
+            )
+          );
           setShowDetailModal(false);
           setSelectedService(null);
           
@@ -454,21 +542,146 @@ const ScheduledServices: React.FC = () => {
   };
 
   const handleReschedule = () => {
-    setNotificationModal({
-      isOpen: true,
-      title: 'Coming Soon',
-      message: 'Reschedule functionality is currently under development. Please check back later.',
-      type: 'info'
+    if (!selectedService) return;
+
+    let timeValue = selectedService.time || '';
+    const timeMatch = timeValue.match(/(\d{2}):(\d{2})/);
+    if (timeMatch) {
+      timeValue = timeMatch[0];
+    }
+
+    setRescheduleData({
+      preferred_date: selectedService.date,
+      preferred_time: timeValue === 'TBA' ? '' : timeValue,
+      reschedule_reason: '',
+    });
+    setShowRescheduleModal(true);
+  };
+
+  const closeRescheduleModal = () => {
+    setShowRescheduleModal(false);
+    setRescheduleData({
+      preferred_date: '',
+      preferred_time: '',
+      reschedule_reason: '',
     });
   };
 
-  const handleChangePriest = () => {
-    setNotificationModal({
-      isOpen: true,
-      title: 'Coming Soon',
-      message: 'Change assigned priest functionality is currently under development. Please check back later.',
-      type: 'info'
-    });
+  const submitReschedule = async () => {
+    if (!selectedService) return;
+
+    if (!rescheduleData.preferred_date || !rescheduleData.preferred_time) {
+      showError('Please select a new date and time.');
+      return;
+    }
+
+    if (!rescheduleData.reschedule_reason || rescheduleData.reschedule_reason.trim().length < 10) {
+      showError('Please provide a reschedule reason (at least 10 characters).');
+      return;
+    }
+
+    setRescheduleSubmitting(true);
+    try {
+      console.log('Rescheduling service:', selectedService.id, rescheduleData);
+      await manageRequestAPI.reschedule(selectedService.id, rescheduleData);
+      closeRescheduleModal();
+      setShowDetailModal(false);
+      setSelectedService(null);
+      await fetchServices();
+      showSuccess('Service rescheduled successfully. The calendar has been updated.');
+    } catch (error) {
+      console.error('Reschedule error:', error);
+      showError(
+        axios.isAxiosError(error)
+          ? error.response?.data?.message || 'Failed to reschedule service.'
+          : 'Failed to reschedule service.'
+      );
+    } finally {
+      setRescheduleSubmitting(false);
+    }
+  };
+
+  const handleChangePriest = async () => {
+    if (!selectedService) return;
+
+    setShowPriestModal(true);
+    setPriestsLoading(true);
+
+    const priestList = await fetchPriests();
+    setPriests(priestList);
+
+    const currentId =
+      selectedService.requestDetails?.assignedPriestId ??
+      selectedService.assignedPriestId ??
+      null;
+    const currentInList =
+      currentId !== null && priestList.some((priest) => priest.user_id === currentId);
+    setSelectedPriestId(currentInList ? currentId : null);
+    setPriestsLoading(false);
+  };
+
+  const closePriestModal = () => {
+    setShowPriestModal(false);
+    setSelectedPriestId(null);
+    setPriests([]);
+  };
+
+  const submitChangePriest = async () => {
+    if (!selectedService || !selectedPriestId) {
+      showError('Please select a priest.');
+      return;
+    }
+
+    setPriestSubmitting(true);
+    try {
+      console.log('Changing priest for service:', selectedService.id, selectedPriestId);
+      await manageRequestAPI.assignPriest(selectedService.id, selectedPriestId);
+
+      const priest = priests.find((p) => p.user_id === selectedPriestId);
+      const priestName = priest ? getUserFullName(priest) : 'Assigned';
+
+      setSelectedService((prev) =>
+        prev
+          ? {
+              ...prev,
+              assignedPriestId: selectedPriestId,
+              requestDetails: {
+                ...prev.requestDetails,
+                assignedPriest: priestName,
+                assignedPriestId: selectedPriestId,
+              },
+            }
+          : prev
+      );
+
+      setAllServices((prev) =>
+        prev.map((service) =>
+          service.id === selectedService.id
+            ? {
+                ...service,
+                assignedPriestId: selectedPriestId,
+                requestDetails: {
+                  ...service.requestDetails,
+                  assignedPriest: priestName,
+                  assignedPriestId: selectedPriestId,
+                },
+              }
+            : service
+        )
+      );
+
+      closePriestModal();
+      showSuccess('Assigned priest updated successfully.');
+    } catch (error) {
+      console.error('Change priest error:', error);
+      showError(
+        axios.isAxiosError(error)
+          ? error.response?.data?.message || 'Failed to change assigned priest.'
+          : 'Failed to change assigned priest.'
+      );
+    } finally {
+      setPriestSubmitting(false);
+    }
   };
 
   const handleViewDetails = (service: ScheduledServices) => {
@@ -512,7 +725,17 @@ const ScheduledServices: React.FC = () => {
            day === today.getDate();
   };
 
-  const getServiceColor = (_type: string) => "bg-blue-50 border-blue-300 text-blue-800";
+  const getServiceColor = (service: ScheduledServices) => {
+    if (service.status === 'done' || service.isCompleted) {
+      return 'bg-green-50 border-green-400 text-green-800';
+    }
+    return 'bg-blue-50 border-blue-300 text-blue-800';
+  };
+
+  const getDayBadgeColor = (servicesOnDay: ScheduledServices[]) => {
+    const allCompleted = servicesOnDay.every((service) => service.status === 'done');
+    return allCompleted ? 'bg-green-500' : 'bg-blue-500';
+  };
 
   const handleDateClick = (dateKey: string) => {
     const servicesOnDate = getServicesForDate(dateKey);
@@ -529,13 +752,19 @@ const ScheduledServices: React.FC = () => {
 
   // ============ RENDER COMPONENTS ============
 
-  const renderStats = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-      <SecretaryStatCard icon={BarChart3} label="Total Scheduled" value={allServices.length} />
-      <SecretaryStatCard icon={Tags} label="Service Types" value={new Set(allServices.map(s => s.type)).size} />
-      <SecretaryStatCard icon={CalendarDays} label="Today" value={getServicesForDate(new Date().toISOString().split('T')[0]).length} />
-    </div>
-  );
+  const renderStats = () => {
+    const completedCount = allServices.filter((service) => service.status === 'done').length;
+    const scheduledCount = allServices.filter((service) => service.status === 'approved').length;
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+        <SecretaryStatCard icon={BarChart3} label="Total on Calendar" value={allServices.length} />
+        <SecretaryStatCard icon={CalendarDays} label="Scheduled" value={scheduledCount} />
+        <SecretaryStatCard icon={CheckCircle2} label="Completed" value={completedCount} />
+        <SecretaryStatCard icon={Tags} label="Service Types" value={new Set(allServices.map((s) => s.type)).size} />
+      </div>
+    );
+  };
 
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
@@ -563,6 +792,7 @@ const ScheduledServices: React.FC = () => {
       const servicesOnDay = getServicesForDate(dateKey);
       const isTodayDate = isToday(year, month, day);
       const hasServices = servicesOnDay.length > 0;
+      const allCompleted = hasServices && servicesOnDay.every((service) => service.status === 'done');
 
       cells.push(
         <div
@@ -571,10 +801,12 @@ const ScheduledServices: React.FC = () => {
           className={`
             h-28 border border-gray-100 p-1.5 transition-all duration-200
             ${hasServices 
-              ? 'cursor-pointer hover:bg-blue-50 hover:shadow-inner hover:scale-[1.02] hover:z-10 relative' 
+              ? allCompleted
+                ? 'cursor-pointer hover:bg-green-50 hover:shadow-inner hover:scale-[1.02] hover:z-10 relative'
+                : 'cursor-pointer hover:bg-blue-50 hover:shadow-inner hover:scale-[1.02] hover:z-10 relative'
               : 'bg-gray-50/30 cursor-default opacity-60'}
             ${isTodayDate ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
-            ${selectedDate === dateKey ? 'bg-blue-100 ring-2 ring-blue-400' : ''}
+            ${selectedDate === dateKey ? (allCompleted ? 'bg-green-100 ring-2 ring-green-400' : 'bg-blue-100 ring-2 ring-blue-400') : ''}
           `}
         >
           <div className="flex justify-between items-start">
@@ -585,7 +817,7 @@ const ScheduledServices: React.FC = () => {
               {day}
             </span>
             {hasServices && (
-              <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-500 text-white rounded-full shadow-sm">
+              <span className={`px-2 py-0.5 text-[10px] font-semibold text-white rounded-full shadow-sm ${getDayBadgeColor(servicesOnDay)}`}>
                 {servicesOnDay.length}
               </span>
             )}
@@ -596,7 +828,7 @@ const ScheduledServices: React.FC = () => {
               {servicesOnDay.slice(0, 2).map((service, idx) => (
                 <div 
                   key={idx}
-                  className={`text-[10px] truncate px-1.5 py-0.5 rounded border-l-2 ${getServiceColor(service.type)}`}
+                  className={`text-[10px] truncate px-1.5 py-0.5 rounded border-l-2 ${getServiceColor(service)}`}
                   title={service.name}
                 >
                   <span className="mr-0.5 inline-flex align-middle">
@@ -652,10 +884,17 @@ const ScheduledServices: React.FC = () => {
 
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
             <div className="space-y-3">
-              {servicesOnDate.map((service) => (
+              {servicesOnDate.map((service) => {
+                const isCompleted = service.status === 'done' || service.isCompleted;
+
+                return (
                 <div 
                   key={service.id} 
-                  className="flex items-center justify-between p-4 rounded-xl transition-all duration-200 bg-blue-50/50 border border-blue-100 hover:shadow-md hover:scale-[1.01]"
+                  className={`flex items-center justify-between p-4 rounded-xl transition-all duration-200 border hover:shadow-md hover:scale-[1.01] ${
+                    isCompleted
+                      ? 'bg-green-50/70 border-green-200'
+                      : 'bg-blue-50/50 border-blue-100'
+                  }`}
                 >
                   <div className="flex items-center gap-4">
                     <ServiceTypeIcon serviceName={service.type} size={28} />
@@ -670,21 +909,28 @@ const ScheduledServices: React.FC = () => {
                         {formatTimeDisplay12Hour(service.time || '')}
                       </div>
                     </div>
-                    <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                      Scheduled
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${
+                      isCompleted
+                        ? 'bg-green-100 text-green-700 border-green-200'
+                        : 'bg-blue-100 text-blue-700 border-blue-200'
+                    }`}>
+                      {service.displayStatus}
                     </span>
                     <button
                       onClick={() => {
                         closeModal();
                         handleViewDetails(service);
                       }}
-                      className="px-4 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm hover:shadow"
+                      className={`px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-colors shadow-sm hover:shadow ${
+                        isCompleted ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
                     >
                       View Details
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
 
@@ -705,6 +951,7 @@ const ScheduledServices: React.FC = () => {
     if (!showDetailModal || !selectedService) return null;
 
     const details = selectedService.requestDetails;
+    const isCompleted = selectedService.status === 'done' || selectedService.isCompleted;
 
     const DetailField = ({ label, value }: { label: string; value?: string | number }) => (
       <div>
@@ -747,8 +994,12 @@ const ScheduledServices: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</label>
-                  <span className="inline-block mt-1 px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                    Scheduled
+                  <span className={`inline-block mt-1 px-3 py-1 text-sm font-semibold rounded-full border ${
+                    isCompleted
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : 'bg-blue-100 text-blue-700 border-blue-200'
+                  }`}>
+                    {selectedService.displayStatus}
                   </span>
                 </div>
                 <DetailField label="Name" value={selectedService.name} />
@@ -798,6 +1049,7 @@ const ScheduledServices: React.FC = () => {
               </div>
 
               {/* Actions */}
+              {!isCompleted && (
               <div className="border-t border-gray-200 pt-6">
                 <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                   <Zap size={16} className="text-blue-600" /> Actions
@@ -838,6 +1090,18 @@ const ScheduledServices: React.FC = () => {
                   </button>
                 </div>
               </div>
+              )}
+
+              {isCompleted && (
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+                    <CheckCircle2 size={20} className="text-green-600" />
+                    <p className="text-sm text-green-800 font-medium">
+                      This service has been completed and is kept on the calendar for record keeping.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -899,7 +1163,7 @@ const ScheduledServices: React.FC = () => {
                 Scheduled Services
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Manage all approved services. Click on a date to view details.
+                Manage scheduled and completed services. Completed events stay on the calendar in green.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -957,6 +1221,136 @@ const ScheduledServices: React.FC = () => {
       {/* Modals */}
       {renderModal()}
       {renderDetailModal()}
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && selectedService && (
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-800">Reschedule Service</h3>
+              <ModalCloseButton onClick={closeRescheduleModal} />
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium">{selectedService.type}</span> — {selectedService.name}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">New Date *</label>
+                <input
+                  type="date"
+                  value={rescheduleData.preferred_date}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">New Time *</label>
+                <select
+                  value={rescheduleData.preferred_time}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_time: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select time</option>
+                  {timeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
+                <textarea
+                  value={rescheduleData.reschedule_reason}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, reschedule_reason: e.target.value })}
+                  placeholder="Explain why this service is being rescheduled..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+                <p className="text-xs text-slate-400 mt-1">Minimum 10 characters. Conflicts with other schedules are blocked.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={closeRescheduleModal}
+                disabled={rescheduleSubmitting}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReschedule}
+                disabled={rescheduleSubmitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+              >
+                {rescheduleSubmitting ? 'Processing...' : 'Confirm Reschedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Priest Modal */}
+      {showPriestModal && selectedService && (
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h3 className="text-xl font-bold text-slate-800">Change Assigned Priest</h3>
+              <ModalCloseButton onClick={closePriestModal} />
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="bg-slate-50 p-3 rounded-lg text-sm space-y-1">
+                <p><span className="font-medium">Service:</span> {selectedService.type}</p>
+                <p><span className="font-medium">Name:</span> {selectedService.name}</p>
+                <p><span className="font-medium">Current Priest:</span> {selectedService.requestDetails?.assignedPriest || 'Not assigned'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Select Priest *</label>
+                {priestsLoading ? (
+                  <div className="flex items-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                    <span className="ml-2 text-sm text-slate-500">Loading priests...</span>
+                  </div>
+                ) : priests.length === 0 ? (
+                  <p className="text-sm text-amber-600">No available priests right now. Priests marked unavailable are hidden from this list.</p>
+                ) : (
+                  <select
+                    value={selectedPriestId || ''}
+                    onChange={(e) => setSelectedPriestId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select a priest...</option>
+                    {priests.map((priest) => (
+                      <option key={priest.user_id} value={priest.user_id}>
+                        {getUserFullName(priest)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
+              <button
+                onClick={closePriestModal}
+                disabled={priestSubmitting}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitChangePriest}
+                disabled={priestSubmitting || priestsLoading || !selectedPriestId || priests.length === 0}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50"
+              >
+                {priestSubmitting ? 'Saving...' : 'Save Priest'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       <ConfirmationModal

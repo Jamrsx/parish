@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { manageRequestAPI } from '../../../../library/manage-request';
-import { api } from '../../../../library/api';
+import { usersAPI } from '../../../../library/api';
 import type { User } from '../../../../library/api';
 import type { ManageRequest, ManageRequestFilters, RescheduleData } from '../../../../library/manage-request';
 import { FileArchive, BarChart3, CheckCircle, CircleCheck, Ban, Church, CheckCircle2, AlertTriangle, Info, XCircle, Clock, Mail, Phone, MapPin, RefreshCw } from 'lucide-react';
@@ -474,9 +474,7 @@ const ServiceRecords: React.FC = () => {
 
   const fetchPriests = useCallback(async (): Promise<User[]> => {
     try {
-      const response = await api.get('/admin/users', {
-        params: { role: 'priest', per_page: 100, active_only: 1 },
-      });
+      const response = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
       if (response.data?.success) {
         const responseData = response.data.data;
         if (responseData && typeof responseData === 'object') {

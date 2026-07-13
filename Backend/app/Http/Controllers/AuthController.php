@@ -322,6 +322,7 @@ class AuthController extends Controller
             'role' => $user->role,
             'role_label' => $user->role_label,
             'is_active' => $user->is_active,
+            'is_available' => $user->is_available ?? true,
             'last_login' => $user->last_login,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
@@ -418,6 +419,10 @@ class AuthController extends Controller
 
         if ($request->boolean('active_only')) {
             $query->where('is_active', true);
+        }
+
+        if ($request->boolean('available_only')) {
+            $query->where('is_available', true);
         }
 
         if ($request->has('search')) {
@@ -559,6 +564,44 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Priest account enabled successfully.',
+            'data' => $this->formatUserData($user->fresh())
+        ]);
+    }
+
+    /**
+     * Priest only: Update availability for new assignments
+     */
+    public function updatePriestAvailability(Request $request)
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (!$user || !$user->isPriest()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Priest authentication required.'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'is_available' => 'required|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $isAvailable = $request->boolean('is_available');
+        $user->update(['is_available' => $isAvailable]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $isAvailable
+                ? 'You are now available for new assignments.'
+                : 'You are now unavailable for new assignments.',
             'data' => $this->formatUserData($user->fresh())
         ]);
     }

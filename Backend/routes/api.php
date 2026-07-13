@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============ PRIEST ROUTES ============
     Route::middleware('role:priest')->prefix('priest')->group(function () {
         Route::get('/profile', [AuthController::class, 'profile']);
+        Route::put('/availability', [AuthController::class, 'updatePriestAvailability']);
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);
     });

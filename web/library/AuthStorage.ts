@@ -19,6 +19,7 @@ export interface User {
   role: UserRole;
   role_label: string;
   is_active?: boolean;
+  is_available?: boolean;
   last_login?: string | null;
   created_at?: string;
   updated_at?: string;

@@ -27,6 +27,7 @@ class User extends Authenticatable
         'role',
         'last_login',
         'is_active',
+        'is_available',
     ];
 
     protected $hidden = [
@@ -36,6 +37,7 @@ class User extends Authenticatable
     protected $casts = [
         'last_login' => 'datetime',
         'is_active' => 'boolean',
+        'is_available' => 'boolean',
     ];
 
     /**
@@ -98,6 +100,11 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->is_active !== false;
+    }
+
+    public function isAvailableForAssignment(): bool
+    {
+        return $this->isActive() && $this->is_available !== false;
     }
 
     /**
@@ -168,6 +175,11 @@ class User extends Authenticatable
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeAvailable($query)
+    {
+        return $query->where('is_available', true);
     }
 
     public function scopeParishioners($query)
