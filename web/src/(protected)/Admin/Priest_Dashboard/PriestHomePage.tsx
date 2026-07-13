@@ -160,7 +160,7 @@ const PriestHomePage: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
       alert('Failed to logout. Please try again.');

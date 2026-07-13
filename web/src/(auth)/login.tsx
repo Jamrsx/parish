@@ -99,7 +99,8 @@ const Login: React.FC = () => {
       const result = await loginUser(login, password);
       
       if (result.success) {
-        navigate(result.redirectPath);
+        console.log('Web login success — navigate with replace (no back to login)');
+        navigate(result.redirectPath, { replace: true });
       }
     } catch (err: unknown) {
       const loginError = err as LoginError;

@@ -249,7 +249,8 @@ const SignUpScreen = () => {
       });
 
       showCustomAlert('Success', 'Registration successful! Welcome to the parish community.');
-
+      console.log('Signup success — replacing stack to home (no back to login)');
+      router.replace('/Parishioner/(protected)/(tabs)/home');
     } catch (error: any) {
       const errorMessage = error?.message || 'Registration failed. Please try again.';
       showCustomAlert('Registration Failed', errorMessage);

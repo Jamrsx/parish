@@ -108,15 +108,17 @@ export default function LoginScreen() {
   };
 
   // HANDLE LOGIN
-const handleLogin = async () => {
-  if (!validateAllFields()) return;
+  const handleLogin = async () => {
+    if (!validateAllFields()) return;
 
-  try {
-    await login(loginField.trim(), password);
-  } catch {
-    showCustomAlert('Login Failed', 'Invalid email/username or password');
-  }
-};
+    try {
+      await login(loginField.trim(), password);
+      console.log('Login success — replacing stack to home (no back to login)');
+      router.replace('/Parishioner/(protected)/(tabs)/home');
+    } catch {
+      showCustomAlert('Login Failed', 'Invalid email/username or password');
+    }
+  };
 
   // NAVIGATION
   const handleSignUp = () => {

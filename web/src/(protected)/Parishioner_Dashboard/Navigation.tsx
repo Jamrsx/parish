@@ -41,7 +41,7 @@ const Navigation = () => {
   const handleLogout = async (): Promise<void> => {
     if (confirm('Are you sure you want to logout?')) {
       await logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
     }
   };
 

@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
     if (window.confirm("Are you sure you want to logout?")) {
       try {
         await logout();
-        navigate("/login");
+        navigate("/login", { replace: true });
       } catch (error) {
         console.error("Logout failed:", error);
       }

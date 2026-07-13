@@ -40,7 +40,7 @@ const SecretarySidebar: React.FC = () => {
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || user?.role !== "secretary")) {
-      navigate("/login");
+      navigate("/login", { replace: true });
     }
   }, [isAuthenticated, user, authLoading, navigate]);
 
@@ -95,7 +95,7 @@ const SecretarySidebar: React.FC = () => {
   const handleConfirmLogout = async () => {
     setShowLogoutModal(false);
     await logout();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (

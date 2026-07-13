@@ -1,6 +1,8 @@
 // App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "../context/AuthContext";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import { GuestOnly, RequireAuth } from "./components/AuthRoute";
+import { authStorage } from "../library/AuthStorage";
 
 // Auth Pages
 import Login from "./(auth)/login";
@@ -28,59 +30,128 @@ import ParishionerHome from "./(protected)/Parishioner_Dashboard/ParishionerHome
 import ParishionerChurchService from "./(protected)/Parishioner_Dashboard/Church_service";
 import ParishionerProfile from "./(protected)/Parishioner_Dashboard/Profile";
 
+function HomeRedirect() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated && user) {
+    return <Navigate to={authStorage.getRedirectPath(user.role)} replace />;
+  }
+
+  return <Navigate to="/login" replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Public Routes — logged-in users cannot stay here */}
+          <Route
+            path="/login"
+            element={
+              <GuestOnly>
+                <Login />
+              </GuestOnly>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <GuestOnly>
+                <Signup />
+              </GuestOnly>
+            }
+          />
+          <Route path="/" element={<HomeRedirect />} />
 
-          {/* Admin Routes - Secretary & Cashier - WITH /admin/ PREFIX */}
-          <Route>
-            {/* Secretary Routes - NOW WITH /admin/ */}
-            <Route path="admin/secretary" element={<SecretarySidebar />}>
-              <Route path="dashboard" element={<SecretaryDashboard />} />
-              <Route path="manage-requests" element={<ManageRequests />} />
-              <Route path="manage-inventory" element={<ManageInventory />} />
-              <Route path="scheduled-services" element={<ScheduledServices />} />
-              <Route path="service-records" element={<ServiceRecords />} />
-              <Route path="manage-priests" element={<ManagePriests />} />
-            </Route>
-
-            {/* Cashier Routes - NOW WITH /admin/ */}
-            <Route
-              path="admin/cashier/dashboard"
-              element={<CashierDashboard />}
-            />
-            <Route
-              path="admin/cashier/manage-unpaid-request"
-              element={<ManageUnpaidRequest />}
-            />
-            <Route
-              path="admin/cashier/mass-financial"
-              element={<MassFinancial />}
-            />
+          {/* Secretary */}
+          <Route
+            path="admin/secretary"
+            element={
+              <RequireAuth roles={['secretary']}>
+                <SecretarySidebar />
+              </RequireAuth>
+            }
+          >
+            <Route path="dashboard" element={<SecretaryDashboard />} />
+            <Route path="manage-requests" element={<ManageRequests />} />
+            <Route path="manage-inventory" element={<ManageInventory />} />
+            <Route path="scheduled-services" element={<ScheduledServices />} />
+            <Route path="service-records" element={<ServiceRecords />} />
+            <Route path="manage-priests" element={<ManagePriests />} />
           </Route>
 
-          {/* Priest Routes */}
-          <Route path="/priest/PriestHomePage" element={<PriestHomePage />} />
+          {/* Cashier */}
+          <Route
+            path="admin/cashier/dashboard"
+            element={
+              <RequireAuth roles={['cashier']}>
+                <CashierDashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/cashier/manage-unpaid-request"
+            element={
+              <RequireAuth roles={['cashier']}>
+                <ManageUnpaidRequest />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="admin/cashier/mass-financial"
+            element={
+              <RequireAuth roles={['cashier']}>
+                <MassFinancial />
+              </RequireAuth>
+            }
+          />
 
-          {/* Parishioner Routes */}
+          {/* Priest */}
+          <Route
+            path="/priest/PriestHomePage"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestHomePage />
+              </RequireAuth>
+            }
+          />
+
+          {/* Parishioner (web legacy) */}
           <Route
             path="/parishioner/ParishionerHomePage"
-            element={<ParishionerHome />}
+            element={
+              <RequireAuth roles={['parishioner']}>
+                <ParishionerHome />
+              </RequireAuth>
+            }
           />
           <Route
             path="/parishioner/church-service"
-            element={<ParishionerChurchService />}
+            element={
+              <RequireAuth roles={['parishioner']}>
+                <ParishionerChurchService />
+              </RequireAuth>
+            }
           />
-          <Route path="/parishioner/profile" element={<ParishionerProfile />} />
+          <Route
+            path="/parishioner/profile"
+            element={
+              <RequireAuth roles={['parishioner']}>
+                <ParishionerProfile />
+              </RequireAuth>
+            }
+          />
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<HomeRedirect />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

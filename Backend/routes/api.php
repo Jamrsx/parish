@@ -175,8 +175,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
             Route::get('/unread', [NotificationController::class, 'unreadNotifications']);
             Route::get('/deleted', [NotificationController::class, 'deleted']);
-            Route::post('/{id}/mark-read', [NotificationController::class, 'markAsRead']);
             Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+            Route::post('/{id}/mark-read', [NotificationController::class, 'markAsRead']);
             Route::post('/{id}/restore', [NotificationController::class, 'restore']);
             Route::delete('/{id}', [NotificationController::class, 'destroy']);
         });

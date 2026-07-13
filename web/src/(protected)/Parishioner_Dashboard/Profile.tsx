@@ -74,14 +74,14 @@ const ParishionerProfile = () => {
   }
 
   if (!isAuthenticated) {
-    navigate('/login');
+    navigate('/login', { replace: true });
     return null;
   }
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
       setErrorMessage('Failed to logout. Please try again.');

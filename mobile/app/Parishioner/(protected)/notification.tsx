@@ -10,6 +10,8 @@ import {
   Animated,
   PanResponder,
   useWindowDimensions,
+  Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -45,8 +47,13 @@ const getExpiryRemainingMs = (
   notification: NotificationItem,
   currentTime: number
 ): number | null => {
-  const status = getNotificationStatus(notification);
-  if (status !== 'pending') return null;
+  // Countdown only for active pending requests — not for historical "submitted" events
+  // after the request is already approved/cancelled.
+  const isPendingEvent =
+    notification.type === 'request_pending' || notification.type === 'new_request';
+  const requestStillPending = notification.request?.status === 'pending';
+
+  if (!isPendingEvent || !requestStillPending) return null;
 
   const createdAt = notification.request?.created_at || notification.created_at;
   const expiresAt = new Date(createdAt).getTime() + REQUEST_EXPIRY_MS;
@@ -111,27 +118,23 @@ const getStatusColorConfig = (status: string) => {
   return config[status as keyof typeof config] || { bg: 'bg-gray-100', text: 'text-gray-700' };
 };
 
+/**
+ * Badge/icon status must come from the notification event type, NOT the live
+ * request status. Otherwise older "New Request Submitted" cards incorrectly
+ * show CANCELLED after the request is later cancelled.
+ */
 const getNotificationStatus = (notification: NotificationItem): string | null => {
-  if (notification.request?.status) {
-    if (notification.request.status === 'done') return 'completed';
-    return notification.request.status;
-  }
   return getStatusFromType(notification.type);
 };
 
 const getNotificationDisplayType = (notification: NotificationItem): string => {
-  const status = notification.request?.status;
-  if (status === 'cancelled') return 'request_cancelled';
-  if (status === 'approved') return 'request_approved';
-  if (status === 'done') return 'request_completed';
-  if (status === 'pending') return 'request_pending';
-  return notification.type;
+  return notification.type || 'default';
 };
 
 export default function NotificationScreen() {
   const { width } = useWindowDimensions();
   const { user, isLoading } = useAuth();
-  const { refreshUnreadCount, decrementUnreadCount } = useNotifications();
+  const { refreshUnreadCount, decrementUnreadCount, setUnreadCount } = useNotifications();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [deletedNotifications, setDeletedNotifications] = useState<NotificationItem[]>([]);
   const [loadingDeleted, setLoadingDeleted] = useState(false);
@@ -140,6 +143,8 @@ export default function NotificationScreen() {
   const [selectedTab, setSelectedTab] = useState<'all' | 'unread' | 'deleted'>('all');
   const [swipeAnimations, setSwipeAnimations] = useState<{ [key: number]: Animated.Value }>({});
   const [now, setNow] = useState(Date.now());
+  const [showMarkAllModal, setShowMarkAllModal] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   
   // State for feedback
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -360,35 +365,50 @@ export default function NotificationScreen() {
     }
   };
 
-  const handleMarkAllRead = async () => {
+  const handleMarkAllRead = () => {
     if (!user || !isMounted.current) {
-      Alert.alert('Error', 'Please login to manage notifications');
+      showFeedback('Please login to manage notifications', 'error');
       return;
     }
 
-    Alert.alert(
-      'Mark All as Read',
-      'Are you sure you want to mark all notifications as read?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark All Read',
-          onPress: async () => {
-            try {
-              await api.markAllNotificationsAsRead();
-              if (isMounted.current) {
-                setNotifications(prev => prev.map(n => ({ ...n, status: 'read' })));
-                await refreshUnreadCount();
-                showFeedback('All notifications marked as read', 'success');
-              }
-            } catch (error) {
-              console.error('Error marking all as read:', error);
-              showFeedback('Failed to mark all as read', 'error');
-            }
-          },
-        },
-      ]
-    );
+    if (unreadCount === 0) {
+      showFeedback('No unread notifications', 'info');
+      return;
+    }
+
+    console.log('Opening mark-all-read confirmation. Unread count:', unreadCount);
+    setShowMarkAllModal(true);
+  };
+
+  const confirmMarkAllRead = async () => {
+    if (!user || !isMounted.current || markingAllRead) return;
+
+    setMarkingAllRead(true);
+    console.log('Marking all notifications as read...');
+
+    try {
+      const response = await api.markAllNotificationsAsRead();
+      console.log('Mark all read response:', response);
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to mark all as read');
+      }
+
+      if (isMounted.current) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' as const })));
+        setUnreadCount(0);
+        await refreshUnreadCount();
+        setShowMarkAllModal(false);
+        showFeedback('All notifications marked as read', 'success');
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      showFeedback('Failed to mark all as read', 'error');
+    } finally {
+      if (isMounted.current) {
+        setMarkingAllRead(false);
+      }
+    }
   };
 
   const onRefresh = () => {
@@ -435,11 +455,11 @@ export default function NotificationScreen() {
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     notifications.forEach((notification) => {
-      const isPending =
-        notification.request?.status === 'pending' ||
-        notification.type === 'request_pending';
+      const isPendingEvent =
+        notification.type === 'request_pending' || notification.type === 'new_request';
+      const requestStillPending = notification.request?.status === 'pending';
 
-      if (!isPending) return;
+      if (!isPendingEvent || !requestStillPending) return;
 
       const createdAt = notification.request?.created_at || notification.created_at;
       const expiresAt = new Date(createdAt).getTime() + REQUEST_EXPIRY_MS;
@@ -503,6 +523,54 @@ export default function NotificationScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
+
+      {/* Mark All Read Confirm Modal */}
+      <Modal
+        visible={showMarkAllModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!markingAllRead) setShowMarkAllModal(false);
+        }}
+      >
+        <View
+          className="flex-1 justify-center items-center bg-black/50"
+          style={
+            Platform.OS === 'web'
+              ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 } as any)
+              : undefined
+          }
+        >
+          <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm shadow-lg">
+            <Text className="text-xl font-bold text-gray-800 text-center mb-2">
+              Mark All as Read
+            </Text>
+            <Text className="text-gray-600 text-center text-base mb-6">
+              Mark {unreadCount} unread notification{unreadCount === 1 ? '' : 's'} as read?
+            </Text>
+            <View className="flex-row gap-3 justify-center">
+              <TouchableOpacity
+                onPress={() => setShowMarkAllModal(false)}
+                disabled={markingAllRead}
+                className="flex-1 px-4 py-3 rounded-xl bg-gray-200"
+              >
+                <Text className="text-center font-semibold text-gray-700">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmMarkAllRead}
+                disabled={markingAllRead}
+                className="flex-1 px-4 py-3 rounded-xl bg-blue-600"
+              >
+                {markingAllRead ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-center font-semibold text-white">Mark All Read</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Feedback Toast */}
       {feedbackMessage && (

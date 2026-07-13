@@ -105,7 +105,7 @@ const Signup: React.FC = () => {
           address: '',
         });
         setTimeout(() => {
-          navigate('/login');
+          navigate('/login', { replace: true });
         }, 3000);
       }
     } catch (error: unknown) {
