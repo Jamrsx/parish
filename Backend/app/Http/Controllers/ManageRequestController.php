@@ -253,16 +253,27 @@ class ManageRequestController extends Controller
 
             DB::commit();
 
+            $expiryMinutes = ManageRequest::expiryMinutes();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Request created successfully!',
-                'data' => $this->transformRequest($manageRequest->load([
-                    'user',
-                    'service',
-                    'baptismForm',
-                    'serviceForm',
-                    'certificateForm'
-                ]))
+                'data' => array_merge(
+                    $this->transformRequest($manageRequest->load([
+                        'user',
+                        'service',
+                        'baptismForm',
+                        'serviceForm',
+                        'certificateForm'
+                    ])),
+                    [
+                        'expires_at' => $manageRequest->created_at
+                            ->copy()
+                            ->addMinutes($expiryMinutes)
+                            ->toIso8601String(),
+                        'expiry_minutes' => $expiryMinutes,
+                    ]
+                )
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1348,6 +1359,42 @@ class ManageRequestController extends Controller
     // PARISHIONER METHODS
 
     /**
+     * Expire pending requests for the authenticated parishioner (called by mobile after 2 min).
+     */
+    public function expirePendingRequests(Request $request)
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.'
+            ], 401);
+        }
+
+        if (!$user->isParishioner()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only parishioners can expire their requests.'
+            ], 403);
+        }
+
+        $expiredCount = ManageRequest::expirePendingRequests($user->user_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => $expiredCount > 0
+                ? "{$expiredCount} request(s) expired and marked as cancelled."
+                : 'No requests to expire.',
+            'data' => [
+                'expired_count' => $expiredCount,
+                'expiry_minutes' => ManageRequest::expiryMinutes(),
+            ],
+        ]);
+    }
+
+    /**
      * Get requests for authenticated user (parishioner)
      */
     public function getUserRequests(Request $request)
@@ -1368,6 +1415,8 @@ class ManageRequestController extends Controller
                 'message' => 'Unauthorized. Only parishioners can access their requests.'
             ], 403);
         }
+
+        ManageRequest::expirePendingRequests($user->user_id);
 
         $requests = ManageRequest::where('user_id', $user->user_id)
             ->with(['service', 'baptismForm', 'serviceForm', 'certificateForm', 'processedBy', 'assignedPriest'])

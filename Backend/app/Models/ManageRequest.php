@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class ManageRequest extends Model
 {
@@ -361,6 +362,63 @@ class ManageRequest extends Model
         ]);
 
         return true;
+    }
+
+    /**
+     * System auto-cancel for expired pending requests (no admin user).
+     */
+    public function autoCancel(string $reason): bool
+    {
+        if ($this->status !== 'pending') {
+            return false;
+        }
+
+        $oldStatus = $this->status;
+
+        $this->update([
+            'status' => 'cancelled',
+            'cancelled_reason' => $reason,
+            'cancelled_by' => null,
+        ]);
+
+        $this->createStatusNotification($oldStatus);
+
+        return true;
+    }
+
+    public static function expiryMinutes(): int
+    {
+        return max(1, (int) env('REQUEST_EXPIRY_MINUTES', 60));
+    }
+
+    /**
+     * Cancel pending requests older than the expiry window.
+     */
+    public static function expirePendingRequests(?int $userId = null): int
+    {
+        $minutes = static::expiryMinutes();
+        $reason = "Automatically cancelled after {$minutes} minutes without approval.";
+
+        $query = static::where('status', 'pending')
+            ->where('created_at', '<=', now()->subMinutes($minutes));
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        $expired = 0;
+
+        foreach ($query->get() as $request) {
+            if ($request->autoCancel($reason)) {
+                $expired++;
+                Log::info('Request auto-expired', [
+                    'request_id' => $request->request_id,
+                    'user_id' => $request->user_id,
+                ]);
+            }
+        }
+
+        return $expired;
     }
 
     //Now uses User instead of Admin

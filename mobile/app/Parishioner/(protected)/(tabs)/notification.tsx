@@ -28,13 +28,43 @@ interface NotificationItem {
   message: string;
   status: 'unread' | 'read';
   created_at: string;
+  deleted_at?: string | null;
   request?: {
     request_id: number;
     status: string;
+    created_at?: string;
   };
 }
 
 const SWIPE_THRESHOLD = 80;
+const REQUEST_EXPIRY_MS = 60 * 60 * 1000;
+const REQUEST_EXPIRY_MINUTES = REQUEST_EXPIRY_MS / 60000;
+
+const getExpiryRemainingMs = (
+  notification: NotificationItem,
+  currentTime: number
+): number | null => {
+  const status = getNotificationStatus(notification);
+  if (status !== 'pending') return null;
+
+  const createdAt = notification.request?.created_at || notification.created_at;
+  const expiresAt = new Date(createdAt).getTime() + REQUEST_EXPIRY_MS;
+  const remaining = expiresAt - currentTime;
+  return remaining > 0 ? remaining : 0;
+};
+
+const formatExpiryCountdown = (remainingMs: number): string => {
+  if (remainingMs <= 0) return 'Expiring now...';
+
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes > 0) {
+    return `Expires in ${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+  }
+  return `Expires in ${seconds}s`;
+};
 
 // Notification type icons and colors - UPDATED with rescheduled
 const NOTIFICATION_CONFIG = {
@@ -80,15 +110,35 @@ const getStatusColorConfig = (status: string) => {
   return config[status as keyof typeof config] || { bg: 'bg-gray-100', text: 'text-gray-700' };
 };
 
+const getNotificationStatus = (notification: NotificationItem): string | null => {
+  if (notification.request?.status) {
+    if (notification.request.status === 'done') return 'completed';
+    return notification.request.status;
+  }
+  return getStatusFromType(notification.type);
+};
+
+const getNotificationDisplayType = (notification: NotificationItem): string => {
+  const status = notification.request?.status;
+  if (status === 'cancelled') return 'request_cancelled';
+  if (status === 'approved') return 'request_approved';
+  if (status === 'done') return 'request_completed';
+  if (status === 'pending') return 'request_pending';
+  return notification.type;
+};
+
 export default function NotificationScreen() {
   const { width } = useWindowDimensions();
   const { user, isLoading } = useAuth();
   const { refreshUnreadCount, decrementUnreadCount } = useNotifications();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [deletedNotifications, setDeletedNotifications] = useState<NotificationItem[]>([]);
+  const [loadingDeleted, setLoadingDeleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'all' | 'unread'>('all');
+  const [selectedTab, setSelectedTab] = useState<'all' | 'unread' | 'deleted'>('all');
   const [swipeAnimations, setSwipeAnimations] = useState<{ [key: number]: Animated.Value }>({});
+  const [now, setNow] = useState(Date.now());
   
   // State for feedback
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -160,6 +210,50 @@ export default function NotificationScreen() {
       }
     }
   }, [user]);
+
+  const fetchDeletedNotifications = useCallback(async () => {
+    if (!isMounted.current || !user) return;
+
+    setLoadingDeleted(true);
+    try {
+      const response = await api.getDeletedNotifications();
+      console.log('Deleted notifications fetched:', response.data?.total);
+      if (response.success && isMounted.current) {
+        setDeletedNotifications((response.data.data || []) as NotificationItem[]);
+      }
+    } catch (error) {
+      console.error('Error fetching deleted notifications:', error);
+      showFeedback('Failed to load deleted notifications', 'error');
+    } finally {
+      if (isMounted.current) {
+        setLoadingDeleted(false);
+        setRefreshing(false);
+      }
+    }
+  }, [user]);
+
+  const handleRestore = async (notificationId: number) => {
+    if (!user || !isMounted.current) {
+      Alert.alert('Error', 'Please login to manage notifications');
+      return;
+    }
+
+    try {
+      await api.restoreNotification(notificationId);
+      console.log('Notification restored:', notificationId);
+      if (isMounted.current) {
+        setDeletedNotifications(prev =>
+          prev.filter(n => n.notification_id !== notificationId)
+        );
+        fetchNotifications();
+        refreshUnreadCount();
+        showFeedback('Notification restored', 'success');
+      }
+    } catch (error) {
+      console.error('Error restoring notification:', error);
+      showFeedback('Failed to restore notification', 'error');
+    }
+  };
 
   const createPanResponder = (notificationId: number) => {
     const pan = swipeAnimations[notificationId] || new Animated.Value(0);
@@ -257,7 +351,7 @@ export default function NotificationScreen() {
         if (wasUnread) {
           decrementUnreadCount();
         }
-        showFeedback('Notification deleted', 'success');
+        showFeedback('Moved to Deleted — you can restore it anytime', 'success');
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -299,9 +393,20 @@ export default function NotificationScreen() {
   const onRefresh = () => {
     if (!isMounted.current) return;
     setRefreshing(true);
-    fetchNotifications();
-    refreshUnreadCount();
+    if (selectedTab === 'deleted') {
+      fetchDeletedNotifications();
+    } else {
+      fetchNotifications();
+      refreshUnreadCount();
+    }
   };
+
+  // Load deleted notifications when the Deleted tab is opened
+  useEffect(() => {
+    if (selectedTab === 'deleted' && user) {
+      fetchDeletedNotifications();
+    }
+  }, [selectedTab, user, fetchDeletedNotifications]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -324,11 +429,60 @@ export default function NotificationScreen() {
     };
   }, [user]); // Remove fetchNotifications from dependencies to prevent loops
 
+  // Schedule precise expiry refresh for pending request notifications
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    notifications.forEach((notification) => {
+      const isPending =
+        notification.request?.status === 'pending' ||
+        notification.type === 'request_pending';
+
+      if (!isPending) return;
+
+      const createdAt = notification.request?.created_at || notification.created_at;
+      const expiresAt = new Date(createdAt).getTime() + REQUEST_EXPIRY_MS;
+      const delay = expiresAt - Date.now();
+
+      if (delay > 0 && delay <= REQUEST_EXPIRY_MS) {
+        const timer = setTimeout(async () => {
+          console.log('Request expiry timer fired:', notification.notification_id);
+          try {
+            await api.expirePendingRequests();
+          } catch (error) {
+            console.error('Expiry timer failed:', error);
+          }
+          if (isMounted.current) {
+            fetchNotifications();
+            refreshUnreadCount();
+          }
+        }, delay);
+        timers.push(timer);
+      }
+    });
+
+    return () => timers.forEach(clearTimeout);
+  }, [notifications, fetchNotifications, refreshUnreadCount]);
+
   const filteredNotifications = notifications.filter(n => 
     selectedTab === 'all' || (selectedTab === 'unread' && n.status === 'unread')
   );
 
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
+
+  const hasPendingExpiry = notifications.some(
+    (notification) => getNotificationStatus(notification) === 'pending'
+  );
+
+  useEffect(() => {
+    if (!hasPendingExpiry) return;
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasPendingExpiry]);
 
   // Show loading state
   if (isLoading || loading) {
@@ -433,6 +587,27 @@ export default function NotificationScreen() {
               Unread {unreadCount > 0 && `(${unreadCount})`}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSelectedTab('deleted')}
+            className={`flex-1 py-2 rounded-lg ${
+              selectedTab === 'deleted' ? 'bg-white' : ''
+            }`}
+          >
+            <View className="flex-row items-center justify-center gap-1">
+              <Ionicons
+                name="trash-outline"
+                size={14}
+                color={selectedTab === 'deleted' ? '#2563EB' : '#6B7280'}
+              />
+              <Text
+                className={`text-center font-medium ${
+                  selectedTab === 'deleted' ? 'text-blue-600' : 'text-gray-500'
+                }`}
+              >
+                Deleted
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -442,7 +617,78 @@ export default function NotificationScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ResponsiveContainer>
-        {filteredNotifications.length === 0 ? (
+        {selectedTab === 'deleted' ? (
+          loadingDeleted ? (
+            <View className="flex-1 justify-center items-center py-20">
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text className="text-gray-400 mt-3">Loading deleted notifications...</Text>
+            </View>
+          ) : deletedNotifications.length === 0 ? (
+            <View className="flex-1 justify-center items-center py-20">
+              <View className="w-24 h-24 bg-gray-100 rounded-full items-center justify-center mb-4">
+                <Ionicons name="trash-outline" size={40} color="#9CA3AF" />
+              </View>
+              <Text className="text-lg font-semibold text-gray-800">No Deleted Notifications</Text>
+              <Text className="text-gray-400 text-center mt-2">
+                Notifications you delete will appear here
+              </Text>
+            </View>
+          ) : (
+            deletedNotifications.map((notification) => {
+              const config = getNotificationConfig(getNotificationDisplayType(notification));
+              const status = getNotificationStatus(notification);
+              const statusColors = status ? getStatusColorConfig(status) : null;
+
+              return (
+                <View
+                  key={notification.notification_id}
+                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100 opacity-90"
+                >
+                  <View className="flex-row items-start">
+                    <View
+                      className="w-12 h-12 rounded-full items-center justify-center mr-3"
+                      style={{ backgroundColor: config.bgColor }}
+                    >
+                      <Ionicons name={config.icon as any} size={24} color={config.color} />
+                    </View>
+
+                    <View className="flex-1">
+                      <Text className="font-semibold text-gray-700 text-base">
+                        {notification.title}
+                      </Text>
+                      <Text className="text-gray-500 text-sm mt-1 leading-5">
+                        {notification.message}
+                      </Text>
+
+                      {status && statusColors && (
+                        <View className="mt-2 flex-row flex-wrap items-center gap-2">
+                          <View className={`px-3 py-1 rounded-full ${statusColors.bg}`}>
+                            <Text className={`text-xs font-medium ${statusColors.text}`}>
+                              {status.toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      <View className="flex-row justify-between items-center mt-3 pt-2 border-t border-gray-50">
+                        <Text className="text-xs text-gray-400">
+                          Deleted {notification.deleted_at ? getTimeAgo(notification.deleted_at) : ''}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => handleRestore(notification.notification_id)}
+                          className="flex-row items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50"
+                        >
+                          <Ionicons name="arrow-undo-outline" size={14} color="#2563EB" />
+                          <Text className="text-blue-600 text-xs font-semibold">Restore</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )
+        ) : filteredNotifications.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
             <View className="w-24 h-24 bg-gray-100 rounded-full items-center justify-center mb-4">
               <Ionicons name="notifications-off-outline" size={40} color="#9CA3AF" />
@@ -456,12 +702,13 @@ export default function NotificationScreen() {
           </View>
         ) : (
           filteredNotifications.map((notification) => {
-            const config = getNotificationConfig(notification.type);
+            const config = getNotificationConfig(getNotificationDisplayType(notification));
             const { pan, panResponder } = createPanResponder(notification.notification_id);
             const isUnread = notification.status === 'unread';
             
-            const status = getStatusFromType(notification.type);
+            const status = getNotificationStatus(notification);
             const statusColors = status ? getStatusColorConfig(status) : null;
+            const expiryRemainingMs = getExpiryRemainingMs(notification, now);
 
             return (
               <Animated.View
@@ -510,15 +757,29 @@ export default function NotificationScreen() {
                       </View>
 
                       {status && statusColors && (
-                        <View className="mt-2">
+                        <View className="mt-2 flex-row flex-wrap items-center gap-2">
                           <View
-                            className={`px-3 py-1 rounded-full self-start ${statusColors.bg}`}
+                            className={`px-3 py-1 rounded-full ${statusColors.bg}`}
                           >
                             <Text className={`text-xs font-medium ${statusColors.text}`}>
                               {status.toUpperCase()}
                             </Text>
                           </View>
+                          {expiryRemainingMs !== null && (
+                            <View className="flex-row items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200">
+                              <Ionicons name="timer-outline" size={13} color="#D97706" />
+                              <Text className="text-xs font-medium text-amber-700">
+                                {formatExpiryCountdown(expiryRemainingMs)}
+                              </Text>
+                            </View>
+                          )}
                         </View>
+                      )}
+
+                      {status === 'pending' && expiryRemainingMs !== null && (
+                        <Text className="text-xs text-amber-600 mt-1.5">
+                          Request will be cancelled if not approved within {REQUEST_EXPIRY_MINUTES} minutes
+                        </Text>
                       )}
 
                       <View className="flex-row justify-between items-center mt-3 pt-2 border-t border-gray-50">

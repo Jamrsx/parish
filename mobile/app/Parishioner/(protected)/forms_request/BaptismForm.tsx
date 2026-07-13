@@ -20,6 +20,7 @@ import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
 import { useResponsive } from '../../../../hooks/useResponsive';
+import { useFormDraft } from '../../../../hooks/useFormDraft';
 
 // TYPE
 interface BaptismFormData {
@@ -442,6 +443,13 @@ export default function BaptismForm() {
   // Time dropdown state
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
+  const { draftRestored, clearDraft } = useFormDraft<BaptismFormData>({
+    formKey: 'baptism',
+    userId: user?.user_id,
+    formData,
+    setFormData,
+  });
+
   // HELPERS
   const goToChurchService = () => {
     router.replace('/Parishioner/(protected)/(tabs)/church_service');
@@ -490,6 +498,26 @@ export default function BaptismForm() {
     });
   };
 
+  const handleYearChange = (year: number) => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setFullYear(year);
+      return newDate;
+    });
+  };
+
+  const openBirthDatePicker = () => {
+    setActiveDateField('child_birth_date');
+    if (formData.child_birth_date) {
+      setSelectedMonth(new Date(formData.child_birth_date));
+    } else {
+      const defaultDate = new Date();
+      defaultDate.setFullYear(defaultDate.getFullYear() - 5);
+      setSelectedMonth(defaultDate);
+    }
+    setShowDatePicker(true);
+  };
+
   // VALIDATION
   const validateAllFields = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -517,11 +545,11 @@ export default function BaptismForm() {
       }
     }
 
-    // Validate contact number format
+    // Validate contact number: exactly 11 digits, starts with 09
     if (formData.contact_number) {
-      const phoneRegex = /^(09|\+639)\d{9}$/;
-      if (!phoneRegex.test(formData.contact_number.trim().replace(/\s/g, ''))) {
-        newErrors.contact_number = 'Enter valid PH number (e.g., 09123456789)';
+      const phoneRegex = /^09\d{9}$/;
+      if (!phoneRegex.test(formData.contact_number)) {
+        newErrors.contact_number = 'Enter 11-digit PH number (e.g., 09123456789)';
         isValid = false;
       }
     }
@@ -551,6 +579,12 @@ export default function BaptismForm() {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleContactNumberChange = (text: string) => {
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 11);
+    console.log('BaptismForm contact number input:', digitsOnly);
+    handleChange('contact_number', digitsOnly);
   };
 
   //Godparent handlers with full name construction
@@ -669,6 +703,8 @@ export default function BaptismForm() {
 
       setIsSubmitting(false);
 
+      await clearDraft();
+
       showCustomAlert(
         'Request Submitted!',
         `Your Baptism request has been submitted successfully!\n\nChild: ${formData.child_first_name} ${formData.child_last_name}\nPreferred Date: ${formData.preferred_date}\nTime: ${getDisplayTime(formData.preferred_time)}`,
@@ -737,6 +773,9 @@ export default function BaptismForm() {
         <View className="flex-1">
           <Text className="text-xl font-bold text-gray-800">Baptism Form</Text>
           <Text className="text-xs text-gray-400">Fill in all required fields</Text>
+          {draftRestored && (
+            <Text className="text-xs text-blue-600 mt-1">Draft restored — your previous entries were saved</Text>
+          )}
         </View>
       </View>
 
@@ -786,11 +825,7 @@ export default function BaptismForm() {
           <View className="flex-1">
             <Text className="text-sm text-gray-600 font-medium mb-1">Birth Date *</Text>
             <TouchableOpacity
-              onPress={() => {
-                setActiveDateField('child_birth_date');
-                setSelectedMonth(formData.child_birth_date ? new Date(formData.child_birth_date) : new Date());
-                setShowDatePicker(true);
-              }}
+              onPress={openBirthDatePicker}
               className={`border rounded-xl px-4 py-3 bg-gray-50 ${
                 errors.child_birth_date ? 'border-red-500' : 'border-gray-300'
               }`}
@@ -960,12 +995,16 @@ export default function BaptismForm() {
             className={`border rounded-xl px-4 py-3 text-gray-800 bg-gray-50 ${
               errors.contact_number ? 'border-red-500' : 'border-gray-300'
             }`}
-            placeholder="09XX XXX XXXX"
+            placeholder="09123456789"
             placeholderTextColor="#9CA3AF"
-            keyboardType={isWeb ? 'default' : 'phone-pad'}
+            keyboardType="phone-pad"
+            maxLength={11}
             value={formData.contact_number}
-            onChangeText={text => handleChange('contact_number', text)}
+            onChangeText={handleContactNumberChange}
           />
+          <Text className="text-xs text-gray-400 mt-1">
+            {formData.contact_number.length}/11 digits
+          </Text>
           <ErrorMessage message={errors.contact_number} />
         </View>
       </SectionCard>
@@ -1085,26 +1124,56 @@ export default function BaptismForm() {
 
       {/* Date Picker Modal */}
       <Modal visible={showDatePicker} transparent={true} animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-4" style={{ maxHeight: '90%' }}>
-            <View className="flex-row justify-between items-center mb-4 px-2">
-              <Text className="text-xl font-bold text-gray-800">
-                Select {activeDateField === 'preferred_date' ? 'Preferred Date' : 'Birth Date'}
-              </Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)} className="p-2">
-                <Feather name="x" size={22} color="#6B7280" />
+        <View
+          className="flex-1 bg-black/50 justify-end"
+          style={isWeb ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 } as object) : undefined}
+        >
+          <View
+            className="bg-white rounded-t-3xl"
+            style={{
+              maxHeight: '90%',
+              ...(isWeb
+                ? {
+                    maxWidth: 440,
+                    width: '100%',
+                    alignSelf: 'center',
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                  }
+                : {}),
+            }}
+          >
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+              bounces={false}
+            >
+              <View className="flex-row justify-between items-center mb-2 px-1">
+                <Text className="text-xl font-bold text-gray-800">
+                  Select {activeDateField === 'preferred_date' ? 'Preferred Date' : 'Birth Date'}
+                </Text>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)} className="p-2">
+                  <Feather name="x" size={22} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+              <DatePickerCalendar
+                selectedMonth={selectedMonth}
+                selectedDate={formData[activeDateField]}
+                onMonthChange={changeMonth}
+                onYearChange={handleYearChange}
+                onDateSelect={handleDateSelect}
+                isDateDisabled={isDateDisabled}
+                enableYearPicker={activeDateField === 'child_birth_date'}
+                minYear={new Date().getFullYear() - 100}
+                maxYear={new Date().getFullYear()}
+              />
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(false)}
+                className="mt-4 bg-blue-600 py-3 rounded-xl"
+              >
+                <Text className="text-white text-center font-semibold">Close</Text>
               </TouchableOpacity>
-            </View>
-            <DatePickerCalendar
-              selectedMonth={selectedMonth}
-              selectedDate={formData[activeDateField]}
-              onMonthChange={changeMonth}
-              onDateSelect={handleDateSelect}
-              isDateDisabled={isDateDisabled}
-            />
-            <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-600 py-3 rounded-xl mx-2">
-              <Text className="text-white text-center font-semibold">Close</Text>
-            </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>

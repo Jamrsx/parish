@@ -25,6 +25,7 @@ return new class extends Migration
             $table->enum('status', ['unread', 'read'])->default('unread');
             
             $table->timestamps();
+            $table->softDeletes();
             
         });
     }

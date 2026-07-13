@@ -100,6 +100,7 @@ export interface Notification {
   message: string;
   status: 'unread' | 'read';
   created_at: string;
+  deleted_at?: string | null;
   request?: Request;
 }
 
@@ -358,6 +359,26 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
 
   async deleteNotification(notificationId: number): Promise<ApiResponse<null>> {
     return this.request(`/parishioner/notifications/${notificationId}`, { method: 'DELETE' });
+  }
+
+  async getDeletedNotifications(): Promise<
+    ApiResponse<{
+      current_page: number;
+      data: Notification[];
+      total: number;
+    }>
+  > {
+    return this.request('/parishioner/notifications/deleted');
+  }
+
+  async restoreNotification(notificationId: number): Promise<ApiResponse<null>> {
+    return this.request(`/parishioner/notifications/${notificationId}/restore`, { method: 'POST' });
+  }
+
+  async expirePendingRequests(): Promise<
+    ApiResponse<{ expired_count: number; expiry_minutes: number }>
+  > {
+    return this.request('/parishioner/manage-requests/expire-pending', { method: 'POST' });
   }
 
   // SERVICES

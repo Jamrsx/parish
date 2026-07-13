@@ -35,6 +35,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [user, isParishioner]);
 
+  const checkRequestExpiration = useCallback(async () => {
+    if (!user || !isParishioner) return;
+
+    try {
+      const response = await api.expirePendingRequests();
+      console.log('Request expiration check:', response.data);
+      if (response.success && response.data.expired_count > 0) {
+        await refreshUnreadCount();
+      }
+    } catch (error) {
+      console.error('Failed to check request expiration:', error);
+    }
+  }, [user, isParishioner, refreshUnreadCount]);
+
 
   // INCREMENT UNREAD COUNT
 
@@ -54,14 +68,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (user && isParishioner) {
+      checkRequestExpiration();
       refreshUnreadCount();
       
-      const interval = setInterval(refreshUnreadCount, 30000);
+      const interval = setInterval(() => {
+        checkRequestExpiration();
+        refreshUnreadCount();
+      }, 15000);
       return () => clearInterval(interval);
     } else {
       setUnreadCount(0);
     }
-  }, [user, isParishioner, refreshUnreadCount]);
+  }, [user, isParishioner, refreshUnreadCount, checkRequestExpiration]);
 
 
   // PROVIDER VALUE

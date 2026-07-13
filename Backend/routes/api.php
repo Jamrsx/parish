@@ -162,6 +162,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Manage Requests
         Route::post('/manage-requests', [ManageRequestController::class, 'store']);
+        Route::post('/manage-requests/expire-pending', [ManageRequestController::class, 'expirePendingRequests']);
         Route::get('/requests', [ManageRequestController::class, 'getUserRequests']);
         Route::get('/statistics', [ManageRequestController::class, 'getUserStatistics']);
 
@@ -170,8 +171,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
             Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
             Route::get('/unread', [NotificationController::class, 'unreadNotifications']);
+            Route::get('/deleted', [NotificationController::class, 'deleted']);
             Route::post('/{id}/mark-read', [NotificationController::class, 'markAsRead']);
             Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+            Route::post('/{id}/restore', [NotificationController::class, 'restore']);
             Route::delete('/{id}', [NotificationController::class, 'destroy']);
         });
     });
