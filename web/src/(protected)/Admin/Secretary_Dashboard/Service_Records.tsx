@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import { manageRequestAPI } from '../../../../library/manage-request';
-import { usersAPI } from '../../../../library/api';
+import type { ManageRequest, ManageRequestFilters } from '../../../../library/manage-request';
 import type { User } from '../../../../library/api';
-import type { ManageRequest, ManageRequestFilters, RescheduleData } from '../../../../library/manage-request';
-import { FileArchive, BarChart3, CheckCircle, CircleCheck, Ban, Church, CheckCircle2, AlertTriangle, Info, XCircle, Clock, Mail, Phone, MapPin, RefreshCw } from 'lucide-react';
+import { FileArchive, BarChart3, CheckCircle, CircleCheck, Ban, Church, CheckCircle2, AlertTriangle, Info, XCircle, Clock, Mail, Phone, MapPin } from 'lucide-react';
 import PageHeader from './components/PageHeader';
 import SecretaryStatCard from './components/SecretaryStatCard';
 import FilterPill from './components/FilterPill';
@@ -13,6 +11,7 @@ import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
 import StatusBadge from './components/StatusBadge';
 import RequestFormDetails from './components/RequestFormDetails';
+import { getFormattedRequestContactNumber } from './components/requestHelpers';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
 
 // TYPE DEFINITIONS
@@ -37,20 +36,6 @@ const parsePage = (value: string | null): number => {
   return Number.isFinite(page) && page >= 1 ? page : 1;
 };
 
-const timeOptions = [
-  { label: '8:00 AM', value: '08:00' },
-  { label: '9:00 AM', value: '09:00' },
-  { label: '10:00 AM', value: '10:00' },
-  { label: '11:00 AM', value: '11:00' },
-  { label: '12:00 PM', value: '12:00' },
-  { label: '1:00 PM', value: '13:00' },
-  { label: '2:00 PM', value: '14:00' },
-  { label: '3:00 PM', value: '15:00' },
-  { label: '4:00 PM', value: '16:00' },
-  { label: '5:00 PM', value: '17:00' },
-];
-
-// Extend the ChurchService type to include service_type
 interface ExtendedChurchService {
   service_id: number;
   service_name?: string;
@@ -59,7 +44,6 @@ interface ExtendedChurchService {
   form_type?: string | null;
 }
 
-// Extend ManageRequest to use ExtendedChurchService
 interface ExtendedManageRequest extends Omit<ManageRequest, 'service'> {
   service?: ExtendedChurchService | null;
 }
@@ -76,30 +60,6 @@ interface AlertModalState {
 interface ViewDetailsModalState {
   isOpen: boolean;
   request: ExtendedManageRequest | null;
-  loading: boolean;
-}
-
-interface ConfirmModalState {
-  isOpen: boolean;
-  title?: string;
-  message: string;
-  onConfirm: () => void;
-  variant?: 'danger' | 'warning' | 'info';
-  confirmText?: string;
-  cancelText?: string;
-}
-
-interface DeclineModalState {
-  isOpen: boolean;
-  request: ExtendedManageRequest | null;
-  reason: string;
-}
-
-interface PriestAssignmentModalState {
-  isOpen: boolean;
-  request: ExtendedManageRequest | null;
-  selectedPriestId: number | null;
-  priests: User[];
   loading: boolean;
 }
 
@@ -152,33 +112,6 @@ const ServiceRecords: React.FC = () => {
     request: null,
     loading: false,
   });
-
-  const [updating, setUpdating] = useState<number | null>(null);
-  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
-    isOpen: false,
-    message: '',
-    onConfirm: () => {},
-  });
-  const [declineModal, setDeclineModal] = useState<DeclineModalState>({
-    isOpen: false,
-    request: null,
-    reason: '',
-  });
-  const [priestModal, setPriestModal] = useState<PriestAssignmentModalState>({
-    isOpen: false,
-    request: null,
-    selectedPriestId: null,
-    priests: [],
-    loading: false,
-  });
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<ExtendedManageRequest | null>(null);
-  const [rescheduleData, setRescheduleData] = useState<RescheduleData>({
-    preferred_date: '',
-    preferred_time: '',
-    reschedule_reason: '',
-  });
-  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
 
   // Alert Modal
   const [alertModal, setAlertModal] = useState<AlertModalState>({
@@ -237,13 +170,10 @@ const ServiceRecords: React.FC = () => {
       setError('Failed to load service records. Please try again.');
 
       let errorMessage = 'Failed to load service records.';
-      if (axios.isAxiosError(err)) {
-        console.error('API Error Details:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status
-        });
-        errorMessage = err.response?.data?.message || 'Failed to load service records.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const apiErr = err as { response?: { data?: { message?: string } }; message?: string };
+        console.error('API Error Details:', apiErr);
+        errorMessage = apiErr.response?.data?.message || apiErr.message || errorMessage;
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
@@ -457,301 +387,6 @@ const ServiceRecords: React.FC = () => {
     updateSearchParams({ page });
   };
 
-  const handleError = (err: unknown) => {
-    console.error('Service records action error:', err);
-    let errorMessage = 'An error occurred';
-    if (axios.isAxiosError(err)) {
-      errorMessage = err.response?.data?.message || errorMessage;
-    } else if (err instanceof Error) {
-      errorMessage = err.message;
-    }
-    setAlertModal({
-      isOpen: true,
-      message: errorMessage,
-      variant: 'error',
-    });
-  };
-
-  const fetchPriests = useCallback(async (): Promise<User[]> => {
-    try {
-      const response = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
-      if (response.data?.success) {
-        const responseData = response.data.data;
-        if (responseData && typeof responseData === 'object') {
-          if ('data' in responseData && Array.isArray(responseData.data)) {
-            return responseData.data;
-          }
-          if (Array.isArray(responseData)) {
-            return responseData;
-          }
-        }
-      }
-      return [];
-    } catch (error) {
-      console.error('Error fetching priests:', error);
-      return [];
-    }
-  }, []);
-
-  const refreshAfterAction = async (requestId?: number) => {
-    await fetchRequests();
-    if (requestId && viewModal.isOpen && viewModal.request?.request_id === requestId) {
-      try {
-        const response = await manageRequestAPI.getById(requestId);
-        if (response.data?.success && response.data.data) {
-          setViewModal({
-            isOpen: true,
-            request: response.data.data as ExtendedManageRequest,
-            loading: false,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to refresh view modal:', error);
-      }
-    }
-  };
-
-  const openPriestAssignmentModal = async (request: ExtendedManageRequest) => {
-    setPriestModal({
-      isOpen: true,
-      request,
-      selectedPriestId: request.assigned_priest || null,
-      priests: [],
-      loading: true,
-    });
-    const priests = await fetchPriests();
-    setPriestModal((prev) => ({ ...prev, priests, loading: false }));
-  };
-
-  const closePriestAssignmentModal = () => {
-    setPriestModal({
-      isOpen: false,
-      request: null,
-      selectedPriestId: null,
-      priests: [],
-      loading: false,
-    });
-  };
-
-  const handleAccept = (request: ExtendedManageRequest) => {
-    if (request.status !== 'pending') return;
-
-    if (request.assigned_priest) {
-      setConfirmModal({
-        isOpen: true,
-        title: 'Confirm Approval',
-        message: 'This request already has an assigned priest. Proceed with approval?',
-        variant: 'warning',
-        confirmText: 'Yes, Approve',
-        onConfirm: async () => {
-          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-          setUpdating(request.request_id);
-          try {
-            await manageRequestAPI.approve(request.request_id);
-            setAlertModal({
-              isOpen: true,
-              message: 'Request approved successfully!',
-              variant: 'success',
-            });
-            await refreshAfterAction(request.request_id);
-          } catch (err) {
-            handleError(err);
-          } finally {
-            setUpdating(null);
-          }
-        },
-      });
-      return;
-    }
-
-    openPriestAssignmentModal(request);
-  };
-
-  const handlePriestAssignment = async () => {
-    const { request, selectedPriestId } = priestModal;
-    if (!request || !selectedPriestId) {
-      setAlertModal({
-        isOpen: true,
-        message: 'Please select a priest to assign.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    setUpdating(request.request_id);
-    try {
-      await manageRequestAPI.assignPriest(request.request_id, selectedPriestId);
-      await manageRequestAPI.approve(request.request_id);
-      setAlertModal({
-        isOpen: true,
-        message: 'Request approved and priest assigned successfully!',
-        variant: 'success',
-      });
-      closePriestAssignmentModal();
-      await refreshAfterAction(request.request_id);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const openDeclineModal = (request: ExtendedManageRequest) => {
-    setDeclineModal({
-      isOpen: true,
-      request,
-      reason: '',
-    });
-  };
-
-  const closeDeclineModal = () => {
-    setDeclineModal({
-      isOpen: false,
-      request: null,
-      reason: '',
-    });
-  };
-
-  const handleDecline = async () => {
-    if (!declineModal.request) return;
-
-    const reason = declineModal.reason.trim();
-    if (reason.length < 10) {
-      setAlertModal({
-        isOpen: true,
-        message: 'Please provide a cancellation reason (at least 10 characters).',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    const requestId = declineModal.request.request_id;
-    setUpdating(requestId);
-    try {
-      await manageRequestAPI.cancel(requestId, { cancelled_reason: reason });
-      setAlertModal({
-        isOpen: true,
-        message: 'Request declined and cancelled successfully.',
-        variant: 'success',
-      });
-      closeDeclineModal();
-      await refreshAfterAction(requestId);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const openRescheduleModal = (request: ExtendedManageRequest) => {
-    let timeValue = request.preferred_time || '';
-    const timeMatch = timeValue.match(/(\d{2}):(\d{2})/);
-    if (timeMatch) {
-      timeValue = timeMatch[0];
-    }
-
-    setSelectedRequest(request);
-    setRescheduleData({
-      preferred_date: request.preferred_date || '',
-      preferred_time: timeValue,
-      reschedule_reason: '',
-    });
-    setShowRescheduleModal(true);
-  };
-
-  const closeRescheduleModal = () => {
-    setShowRescheduleModal(false);
-    setSelectedRequest(null);
-    setRescheduleData({
-      preferred_date: '',
-      preferred_time: '',
-      reschedule_reason: '',
-    });
-  };
-
-  const handleReschedule = async () => {
-    if (!selectedRequest) return;
-
-    if (!rescheduleData.preferred_date || !rescheduleData.preferred_time) {
-      setAlertModal({
-        isOpen: true,
-        message: 'Please select a new date and time.',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    if (!rescheduleData.reschedule_reason || rescheduleData.reschedule_reason.trim().length < 10) {
-      setAlertModal({
-        isOpen: true,
-        message: 'Please provide a reschedule reason (at least 10 characters).',
-        variant: 'warning',
-      });
-      return;
-    }
-
-    setRescheduleSubmitting(true);
-    try {
-      await manageRequestAPI.reschedule(selectedRequest.request_id, rescheduleData);
-      setAlertModal({
-        isOpen: true,
-        message: 'Request rescheduled successfully!',
-        variant: 'success',
-      });
-      closeRescheduleModal();
-      await refreshAfterAction(selectedRequest.request_id);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setRescheduleSubmitting(false);
-    }
-  };
-
-  const canAccept = (request: ExtendedManageRequest) => request.status === 'pending';
-  const canDecline = (request: ExtendedManageRequest) =>
-    request.status === 'pending' || request.status === 'approved';
-  const canReschedule = (request: ExtendedManageRequest) =>
-    request.can_be_rescheduled ?? (request.status === 'pending' || request.status === 'approved');
-
-  const renderActionButtons = (request: ExtendedManageRequest, compact = false) => (
-    <div className={`flex ${compact ? 'flex-col' : 'flex-wrap'} gap-2`}>
-      <button
-        onClick={() => openViewModal(request)}
-        className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-      >
-        View Details
-      </button>
-      {canAccept(request) && (
-        <button
-          onClick={() => handleAccept(request)}
-          disabled={updating === request.request_id}
-          className="px-3 py-1.5 text-sm bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-50"
-        >
-          Accept
-        </button>
-      )}
-      {canDecline(request) && (
-        <button
-          onClick={() => openDeclineModal(request)}
-          disabled={updating === request.request_id}
-          className="px-3 py-1.5 text-sm bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors disabled:opacity-50"
-        >
-          Decline
-        </button>
-      )}
-      {canReschedule(request) && (
-        <button
-          onClick={() => openRescheduleModal(request)}
-          disabled={updating === request.request_id}
-          className="px-3 py-1.5 text-sm bg-violet-100 text-violet-700 rounded-lg hover:bg-violet-200 transition-colors disabled:opacity-50 flex items-center gap-1"
-        >
-          <RefreshCw size={14} />
-          Reschedule
-        </button>
-      )}
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -934,7 +569,7 @@ const ServiceRecords: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-gray-600">
-                      {request.user?.contact_number || 'N/A'}
+                      {getFormattedRequestContactNumber(request)}
                     </td>
                     <td className="px-4 py-4">
                       <StatusBadge status={request.status} label={request.status.toUpperCase()} />
@@ -948,7 +583,12 @@ const ServiceRecords: React.FC = () => {
                       {formatDateTime(request.created_at)}
                     </td>
                     <td className="px-4 py-4">
-                      {renderActionButtons(request)}
+                      <button
+                        onClick={() => openViewModal(request)}
+                        className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                      >
+                        View Details
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1040,7 +680,7 @@ const ServiceRecords: React.FC = () => {
                     </p>
                     <p className="flex items-center gap-2">
                       <Phone size={14} className="text-slate-400" />
-                      {viewModal.request.user.contact_number || 'N/A'}
+                      {getFormattedRequestContactNumber(viewModal.request)}
                     </p>
                     <p className="flex items-center gap-2">
                       <MapPin size={14} className="text-slate-400" />
@@ -1136,219 +776,12 @@ const ServiceRecords: React.FC = () => {
               )}
             </div>
 
-            <div className="flex flex-wrap justify-end gap-2 p-4 border-t border-gray-200 sticky bottom-0 bg-white">
-              {viewModal.request && !viewModal.loading && renderActionButtons(viewModal.request, true)}
+            <div className="flex justify-end p-4 border-t border-gray-200 sticky bottom-0 bg-white">
               <button
                 onClick={closeViewModal}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Decline Modal */}
-      {declineModal.isOpen && declineModal.request && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="text-xl font-bold text-slate-800">Decline Request</h3>
-              <ModalCloseButton onClick={closeDeclineModal} />
-            </div>
-            <div className="p-4 space-y-3">
-              <p className="text-sm text-slate-600">
-                Please provide a reason for declining this request. The parishioner will be notified.
-              </p>
-              <textarea
-                value={declineModal.reason}
-                onChange={(e) => setDeclineModal((prev) => ({ ...prev, reason: e.target.value }))}
-                placeholder="Enter cancellation reason..."
-                rows={4}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
-              />
-              <p className="text-xs text-slate-400">Minimum 10 characters</p>
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
-              <button
-                onClick={closeDeclineModal}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDecline}
-                disabled={updating === declineModal.request.request_id}
-                className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50"
-              >
-                {updating === declineModal.request.request_id ? 'Processing...' : 'Confirm Decline'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reschedule Modal */}
-      {showRescheduleModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-800">Reschedule Request</h3>
-              <ModalCloseButton onClick={closeRescheduleModal} />
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">User</label>
-                <p className="text-slate-600">{getUserFullName(selectedRequest.user)}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Service</label>
-                <p className="text-slate-600">{getServiceLabel(selectedRequest)}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">New Preferred Date *</label>
-                <input
-                  type="date"
-                  value={rescheduleData.preferred_date}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">New Preferred Time *</label>
-                <select
-                  value={rescheduleData.preferred_time}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_time: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
-                >
-                  <option value="">Select time</option>
-                  {timeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reschedule Reason *</label>
-                <textarea
-                  value={rescheduleData.reschedule_reason}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, reschedule_reason: e.target.value })}
-                  placeholder="Explain why this request is being rescheduled..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm"
-                />
-                <p className="text-xs text-slate-400 mt-1">Minimum 10 characters. Conflicts with pending or approved schedules are blocked.</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-              <button
-                onClick={closeRescheduleModal}
-                disabled={rescheduleSubmitting}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReschedule}
-                disabled={rescheduleSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg disabled:opacity-50"
-              >
-                {rescheduleSubmitting ? 'Processing...' : 'Confirm Reschedule'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Priest Assignment Modal */}
-      {priestModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="text-xl font-bold text-slate-800">Assign Priest &amp; Accept</h3>
-              <ModalCloseButton onClick={closePriestAssignmentModal} />
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="bg-slate-50 p-3 rounded-lg space-y-1 text-sm">
-                <p><span className="font-medium">User:</span> {priestModal.request ? getUserFullName(priestModal.request.user) : 'N/A'}</p>
-                <p><span className="font-medium">Service:</span> {priestModal.request ? getServiceLabel(priestModal.request) : 'N/A'}</p>
-                <p><span className="font-medium">Date:</span> {priestModal.request ? formatDateOnly(priestModal.request.preferred_date) : 'N/A'}</p>
-                <p><span className="font-medium">Time:</span> {priestModal.request ? formatTimeDisplay12Hour(priestModal.request.preferred_time) : 'N/A'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Select Priest *</label>
-                {priestModal.loading ? (
-                  <div className="flex items-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
-                    <span className="ml-2 text-sm text-slate-500">Loading priests...</span>
-                  </div>
-                ) : (
-                  <select
-                    value={priestModal.selectedPriestId || ''}
-                    onChange={(e) =>
-                      setPriestModal((prev) => ({
-                        ...prev,
-                        selectedPriestId: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
-                  >
-                    <option value="">Select a priest...</option>
-                    {priestModal.priests.map((priest) => (
-                      <option key={priest.user_id} value={priest.user_id}>
-                        {getUserFullName(priest)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
-              <button
-                onClick={closePriestAssignmentModal}
-                disabled={priestModal.loading}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePriestAssignment}
-                disabled={priestModal.loading || !priestModal.selectedPriestId}
-                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50"
-              >
-                Assign &amp; Accept
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm Modal */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="text-xl font-bold text-slate-800">{confirmModal.title || 'Confirm Action'}</h3>
-              <ModalCloseButton onClick={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))} />
-            </div>
-            <div className="p-4">
-              <p className="text-slate-600">{confirmModal.message}</p>
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
-              <button
-                onClick={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
-              >
-                {confirmModal.cancelText || 'Cancel'}
-              </button>
-              <button
-                onClick={confirmModal.onConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-              >
-                {confirmModal.confirmText || 'Confirm'}
               </button>
             </div>
           </div>

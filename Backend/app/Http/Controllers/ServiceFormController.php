@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ServiceForm;
 use App\Models\ChurchService;
+use App\Models\ManageRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -146,17 +147,15 @@ class ServiceFormController extends Controller
             ], 422);
         }
 
-        // Check time slot availability
-        $existingBookings = $churchService->requests()
-            ->whereDate('preferred_date', $request->preferred_date)
-            ->where('preferred_time', $request->preferred_time)
-            ->whereIn('status', ['pending', 'approved', 'ongoing'])  
-            ->count();
+        $scheduleError = ManageRequest::validateGlobalSchedule(
+            $request->preferred_date,
+            $request->preferred_time
+        );
 
-        if ($existingBookings > 0) {
+        if ($scheduleError) {
             return response()->json([
                 'success' => false,
-                'message' => 'The selected time slot is already booked. Please choose another time.'
+                'message' => $scheduleError,
             ], 422);
         }
 

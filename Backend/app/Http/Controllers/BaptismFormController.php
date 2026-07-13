@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BaptismForm;
 use App\Models\Godparent;
 use App\Models\ChurchService;
+use App\Models\ManageRequest;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -99,17 +100,15 @@ class BaptismFormController extends Controller
             ], 422);
         }
 
-        // Check if time slot is available
-        $existingBookings = $churchService->requests()
-            ->whereDate('preferred_date', $validated['preferred_date'])
-            ->where('preferred_time', $validated['preferred_time'])
-            ->whereIn('status', ['pending', 'approved'])
-            ->count();
+        $scheduleError = ManageRequest::validateGlobalSchedule(
+            $validated['preferred_date'],
+            $validated['preferred_time']
+        );
 
-        if ($existingBookings > 0) {
+        if ($scheduleError) {
             return response()->json([
                 'success' => false,
-                'message' => 'The selected time slot is already booked. Please choose another time.'
+                'message' => $scheduleError,
             ], 422);
         }
 

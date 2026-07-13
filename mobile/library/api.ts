@@ -436,6 +436,17 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     const url = date ? `/availability?date=${date}` : '/availability';
     return this.request(url);
   }
+
+  async getBookedTimeSlots(
+    date: string,
+    excludeRequestId?: number
+  ): Promise<ApiResponse<{ date: string; booked_times: string[] }>> {
+    const params = new URLSearchParams({ date });
+    if (excludeRequestId) {
+      params.set('exclude_request_id', String(excludeRequestId));
+    }
+    return this.request(`/availability/booked-slots?${params.toString()}`);
+  }
 }
 
 export const api = new API();

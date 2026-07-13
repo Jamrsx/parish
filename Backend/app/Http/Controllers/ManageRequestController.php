@@ -232,6 +232,14 @@ class ManageRequestController extends Controller
             ], 422);
         }
 
+        $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
+        if ($scheduleError) {
+            return response()->json([
+                'success' => false,
+                'message' => $scheduleError,
+            ], 422);
+        }
+
         DB::beginTransaction();
 
         try {

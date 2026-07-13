@@ -16,6 +16,8 @@ import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCirc
 import SecretaryStatCard from "./components/SecretaryStatCard";
 import ModalCloseButton from "./components/ModalCloseButton";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
+import { getFormattedRequestContactNumber } from "./components/requestHelpers";
+import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 
 const timeOptions = [
   { label: '8:00 AM', value: '08:00' },
@@ -145,7 +147,7 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
   const formattedDate = formatDateToYYYYMMDD(request.preferred_date);
 
   const requestDetails: RequestDetails = {
-    contactNumber: request.user?.contact_number || request.user?.email || 'N/A',
+    contactNumber: getFormattedRequestContactNumber(request),
     address: request.serviceForm?.address || request.baptismForm?.address || request.certificateForm?.address || 'N/A',
     serviceFee: request.service?.fee || 0,
     paymentStatus: request.payment_status || 'unpaid',
@@ -404,6 +406,10 @@ const ScheduledServices: React.FC = () => {
     reschedule_reason: '',
   });
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  const { bookedSlots } = useBookedTimeSlots(
+    showRescheduleModal ? rescheduleData.preferred_date : '',
+    selectedService?.id
+  );
 
   const [showPriestModal, setShowPriestModal] = useState(false);
   const [priests, setPriests] = useState<User[]>([]);
@@ -1241,7 +1247,7 @@ const ScheduledServices: React.FC = () => {
                 <input
                   type="date"
                   value={rescheduleData.preferred_date}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value })}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value, preferred_time: '' })}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -1254,11 +1260,14 @@ const ScheduledServices: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Select time</option>
-                  {timeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  {timeOptions.map((option) => {
+                    const isBooked = bookedSlots.includes(option.value);
+                    return (
+                      <option key={option.value} value={option.value} disabled={isBooked}>
+                        {option.label}{isBooked ? ' (Booked)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div>

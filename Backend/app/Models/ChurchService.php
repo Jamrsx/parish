@@ -85,16 +85,7 @@ class ChurchService extends Model
      */
     public function isTimeSlotTaken($date, $time, $excludeRequestId = null): bool
     {
-        $query = $this->requests()
-            ->whereDate('preferred_date', $date)
-            ->where('preferred_time', $time)
-            ->whereIn('status', ['pending', 'approved']);
-
-        if ($excludeRequestId) {
-            $query->where('request_id', '!=', $excludeRequestId);
-        }
-
-        return $query->exists();
+        return ManageRequest::isTimeSlotTakenGlobally($date, $time, $excludeRequestId);
     }
 
     /**

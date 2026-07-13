@@ -6,6 +6,7 @@ use App\Models\ChurchService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\ManageRequest;
 
 class AvailabilityController extends Controller
 {
@@ -121,6 +122,45 @@ class AvailabilityController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch availability: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get booked time slots for a specific date (parish-wide).
+     */
+    public function getBookedSlots(Request $request)
+    {
+        try {
+            $validator = validator($request->all(), [
+                'date' => 'required|date',
+                'exclude_request_id' => 'nullable|integer|exists:manage_requests,request_id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
+            $date = Carbon::parse($request->date)->format('Y-m-d');
+            $excludeRequestId = $request->integer('exclude_request_id') ?: null;
+            $bookedTimes = ManageRequest::getBookedTimeSlotsForDate($date, $excludeRequestId);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'date' => $date,
+                    'booked_times' => $bookedTimes,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getBookedSlots: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch booked time slots.',
             ], 500);
         }
     }

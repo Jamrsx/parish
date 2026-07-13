@@ -1,6 +1,7 @@
 import React from 'react';
 import { User as UserIcon, Users } from 'lucide-react';
 import type { BaptismForm, CertificateForm, FormType, ServiceForm } from '../../../../../library/manage-request';
+import { formatPhilippinePhone } from './requestHelpers';
 
 interface BaptismFormGodparent {
   godparent_name: string;
@@ -74,7 +75,7 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
           </div>
           <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
-            <p className="font-medium text-slate-800">{form.contact_number}</p>
+            <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
           {godparents.length > 0 && (
             <div className="md:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
@@ -146,7 +147,7 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
           </div>
           <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
-            <p className="font-medium text-slate-800">{form.contact_number}</p>
+            <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
         </div>
       </div>
@@ -188,7 +189,7 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
           </div>
           <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
-            <p className="font-medium text-slate-800">{form.contact_number}</p>
+            <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
         </div>
       </div>

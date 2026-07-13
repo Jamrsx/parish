@@ -11,6 +11,8 @@ import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
 import StatusBadge from './components/StatusBadge';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
+import { getFormattedRequestContactNumber, formatPhilippinePhone } from './components/requestHelpers';
+import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
 
 // TYPE DEFINITIONS
 type ServiceFilterType = 'all' | 'baptism' | 'service' | 'certificate';
@@ -143,6 +145,10 @@ const ManageRequests: React.FC = () => {
     reschedule_reason: '',
   });
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  const { bookedSlots } = useBookedTimeSlots(
+    showRescheduleModal ? rescheduleData.preferred_date : '',
+    selectedRequest?.request_id
+  );
 
   // Priest Assignment Modal State
   const [priestModal, setPriestModal] = useState<PriestAssignmentModalState>({
@@ -716,7 +722,7 @@ const ManageRequests: React.FC = () => {
             </div>
             <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
-              <p className="font-medium">{form.contact_number}</p>
+              <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
             {godparents.length > 0 && (
               <div className="col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
@@ -785,7 +791,7 @@ const ManageRequests: React.FC = () => {
             </div>
             <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
-              <p className="font-medium">{form.contact_number}</p>
+              <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
           </div>
         </div>
@@ -820,7 +826,7 @@ const ManageRequests: React.FC = () => {
             </div>
             <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
-              <p className="font-medium">{form.contact_number}</p>
+              <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
           </div>
         </div>
@@ -972,7 +978,7 @@ const ManageRequests: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-gray-600">
-                      {request.user?.contact_number || 'N/A'}
+                      {getFormattedRequestContactNumber(request)}
                     </td>
                     <td className="px-4 py-4">
                       <StatusBadge status={request.status} label={request.status.toUpperCase()} />
@@ -1142,7 +1148,7 @@ const ManageRequests: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-gray-500">Contact Number</span>
-                      <p className="font-medium">{detailsModal.request.user?.contact_number || 'N/A'}</p>
+                      <p className="font-medium">{getFormattedRequestContactNumber(detailsModal.request)}</p>
                     </div>
                     <div className="col-span-2">
                       <span className="text-gray-500">Email</span>
@@ -1277,7 +1283,7 @@ const ManageRequests: React.FC = () => {
                 <input
                   type="date"
                   value={rescheduleData.preferred_date}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value })}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value, preferred_time: '' })}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -1293,11 +1299,14 @@ const ManageRequests: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Select time</option>
-                  {timeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  {timeOptions.map((option) => {
+                    const isBooked = bookedSlots.includes(option.value);
+                    return (
+                      <option key={option.value} value={option.value} disabled={isBooked}>
+                        {option.label}{isBooked ? ' (Booked)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

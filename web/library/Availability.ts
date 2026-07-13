@@ -75,7 +75,19 @@ export const availabilityAPI = {
         bookings: number;
       }>;
     }>>('/availability/range', { params: data });
-  }
+  },
+
+  getBookedTimeSlots: async (date: string, excludeRequestId?: number) => {
+    const params: Record<string, string> = { date };
+    if (excludeRequestId) {
+      params.exclude_request_id = String(excludeRequestId);
+    }
+    const response = await api.get<ApiResponse<{ date: string; booked_times: string[] }>>(
+      '/availability/booked-slots',
+      { params }
+    );
+    return response.data;
+  },
 };
 
 // For backward compatibility

@@ -19,8 +19,11 @@ import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useFormDraft } from '../../../../hooks/useFormDraft';
+import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
+import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
 
 // TYPE
 interface BaptismFormData {
@@ -305,87 +308,6 @@ const GodparentSheet = ({
   );
 };
 
-// TIME OPTION
-const timeOptions = [
-  { label: '8:00 AM', value: '08:00' },
-  { label: '9:00 AM', value: '09:00' },
-  { label: '10:00 AM', value: '10:00' },
-  { label: '11:00 AM', value: '11:00' },
-  { label: '12:00 PM', value: '12:00' },
-  { label: '1:00 PM', value: '13:00' },
-  { label: '2:00 PM', value: '14:00' },
-  { label: '3:00 PM', value: '15:00' },
-  { label: '4:00 PM', value: '16:00' },
-  { label: '5:00 PM', value: '17:00' },
-];
-
-// TIME DROPDOWN MODAL
-const TimeDropdownModal = ({
-  visible,
-  selectedValue,
-  onSelect,
-  onClose,
-}: {
-  visible: boolean;
-  selectedValue: string;
-  onSelect: (value: string) => void;
-  onClose: () => void;
-}) => {
-  const isWeb = Platform.OS === 'web';
-
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType={isWeb ? 'fade' : 'slide'}
-      onRequestClose={onClose}
-    >
-      <View 
-        className="flex-1 bg-black/50 justify-end"
-        style={isWeb ? ({ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 } as any) : {}}
-      >
-        <View 
-          className="bg-white rounded-t-3xl p-4 max-h-[60%]"
-          style={isWeb ? ({ maxWidth: 500, alignSelf: 'center', width: '100%', borderRadius: 16 } as any) : {}}
-        >
-          <View className="flex-row justify-between items-center mb-4 px-4">
-            <Text className="text-xl font-bold text-gray-800">Select Time</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text className="text-2xl text-gray-500">✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={timeOptions}
-            keyExtractor={(item) => item.value}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => {
-                  onSelect(item.value);
-                  onClose();
-                }}
-                className={`py-4 px-4 rounded-xl mb-1 ${
-                  selectedValue === item.value ? 'bg-blue-500' : 'bg-gray-50'
-                }`}
-              >
-                <Text
-                  className={`text-center text-base font-medium ${
-                    selectedValue === item.value ? 'text-white' : 'text-gray-700'
-                  }`}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
 // MAIN COMPONENT
 export default function BaptismForm() {
   const router = useRouter();
@@ -442,6 +364,7 @@ export default function BaptismForm() {
 
   // Time dropdown state
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const { bookedSlots } = useBookedTimeSlots(formData.preferred_date);
 
   const { draftRestored, clearDraft } = useFormDraft<BaptismFormData>({
     formKey: 'baptism',
@@ -460,11 +383,7 @@ export default function BaptismForm() {
     setAlertVisible(true);
   };
 
-  const getDisplayTime = (time24Hour: string): string => {
-    if (!time24Hour) return 'Select time';
-    const option = timeOptions.find(t => t.value === time24Hour);
-    return option ? option.label : 'Select time';
-  };
+  const getDisplayTime = getDisplayTimeLabel;
 
   // CALENDAR FUNCTIONS
   const isDateDisabled = (year: number, month: number, day: number): boolean => {
@@ -485,7 +404,12 @@ export default function BaptismForm() {
     const month = selectedMonth.getMonth();
     if (!isDateDisabled(year, month, day)) {
       const formattedDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      handleChange(activeDateField, formattedDate);
+      if (activeDateField === 'preferred_date') {
+        setFormData(prev => ({ ...prev, preferred_date: formattedDate, preferred_time: '' }));
+        setErrors(prev => ({ ...prev, preferred_time: '' }));
+      } else {
+        handleChange(activeDateField, formattedDate);
+      }
       setShowDatePicker(false);
     }
   };
@@ -568,6 +492,11 @@ export default function BaptismForm() {
         newErrors.child_birth_date = 'Birth date cannot be in the future';
         isValid = false;
       }
+    }
+
+    if (formData.preferred_time && bookedSlots.includes(formData.preferred_time)) {
+      newErrors.preferred_time = 'This time is already booked. Please choose another time.';
+      isValid = false;
     }
 
     setErrors(newErrors);
@@ -1179,9 +1108,10 @@ export default function BaptismForm() {
       </Modal>
 
       {/* Time Dropdown Modal */}
-      <TimeDropdownModal
+      <ServiceTimeDropdownModal
         visible={showTimeDropdown}
         selectedValue={formData.preferred_time}
+        bookedSlots={bookedSlots}
         onSelect={(value) => handleChange('preferred_time', value)}
         onClose={() => setShowTimeDropdown(false)}
       />

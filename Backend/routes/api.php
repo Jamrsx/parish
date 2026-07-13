@@ -33,6 +33,7 @@ Route::prefix('auth')->group(function () {
 });
 
 // Availability (public)
+Route::get('/availability/booked-slots', [AvailabilityController::class, 'getBookedSlots']);
 Route::get('/availability', [AvailabilityController::class, 'getAvailability']);
 Route::get('/availability/{serviceName}', [AvailabilityController::class, 'getServiceAvailability']);
 

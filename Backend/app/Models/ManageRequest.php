@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Log;
@@ -248,6 +249,83 @@ class ManageRequest extends Model
     public function scopeDateBetween($query, $start, $end)
     {
         return $query->whereBetween('preferred_date', [$start, $end]);
+    }
+
+    public function scopeBlockingSchedule($query)
+    {
+        return $query->whereIn('status', self::blockingStatuses());
+    }
+
+    // ============ GLOBAL SCHEDULE CONFLICTS ============
+
+    public static function blockingStatuses(): array
+    {
+        return ['pending', 'approved'];
+    }
+
+    public static function normalizeTime($time): string
+    {
+        if ($time instanceof Carbon) {
+            return $time->format('H:i');
+        }
+
+        if (empty($time)) {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($time)->format('H:i');
+        } catch (\Exception $e) {
+            return substr((string) $time, 0, 5);
+        }
+    }
+
+    public static function isTimeSlotTakenGlobally(string $date, string $time, ?int $excludeRequestId = null): bool
+    {
+        $normalizedTime = self::normalizeTime($time);
+
+        if ($normalizedTime === '') {
+            return false;
+        }
+
+        $query = static::query()
+            ->whereDate('preferred_date', $date)
+            ->blockingSchedule();
+
+        if ($excludeRequestId) {
+            $query->where('request_id', '!=', $excludeRequestId);
+        }
+
+        return $query->get()->contains(function (self $request) use ($normalizedTime) {
+            return self::normalizeTime($request->preferred_time) === $normalizedTime;
+        });
+    }
+
+    public static function getBookedTimeSlotsForDate(string $date, ?int $excludeRequestId = null): array
+    {
+        $query = static::query()
+            ->whereDate('preferred_date', $date)
+            ->blockingSchedule();
+
+        if ($excludeRequestId) {
+            $query->where('request_id', '!=', $excludeRequestId);
+        }
+
+        return $query->get()
+            ->map(fn (self $request) => self::normalizeTime($request->preferred_time))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public static function validateGlobalSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
+    {
+        if (self::isTimeSlotTakenGlobally($date, $time, $excludeRequestId)) {
+            return 'The selected time slot is already booked. Please choose another time.';
+        }
+
+        return null;
     }
 
     // ============ HELPER METHODS ============
