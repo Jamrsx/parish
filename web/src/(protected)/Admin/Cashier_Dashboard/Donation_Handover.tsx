@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { massCollectionAPI, type MassCollectionRow } from "../../../../library/cashier";
+import { donationAPI, type DonationRow } from "../../../../library/cashier";
 import { formatDenomination } from "../../../../library/denominations";
 
 const formatPeso = (n: number) =>
@@ -9,12 +9,12 @@ interface Props {
   onChanged?: () => void;
 }
 
-const MassCollections: React.FC<Props> = ({ onChanged }) => {
-  const [rows, setRows] = useState<MassCollectionRow[]>([]);
+const DonationHandover: React.FC<Props> = ({ onChanged }) => {
+  const [rows, setRows] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [review, setReview] = useState<MassCollectionRow | null>(null);
+  const [review, setReview] = useState<DonationRow | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -22,8 +22,8 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
   const fetchRows = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("Cashier fetching mass collections...", statusFilter);
-      const res = await massCollectionAPI.list({
+      console.log("Fetching donations for cashier...", statusFilter);
+      const res = await donationAPI.list({
         status: statusFilter === "all" ? undefined : statusFilter,
         per_page: 50,
       });
@@ -32,7 +32,7 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
         setRows(Array.isArray(data) ? data : data?.data || []);
       }
     } catch (err) {
-      console.error("Mass collections error:", err);
+      console.error("Donations list error:", err);
     } finally {
       setLoading(false);
     }
@@ -52,10 +52,10 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
     setBusyId(id);
     setFeedback(null);
     try {
-      console.log("Cashier confirming mass collection:", id);
-      const res = await massCollectionAPI.approve(id);
+      console.log("Cashier confirming donation:", id);
+      const res = await donationAPI.approve(id);
       if (res.data?.success) {
-        setFeedback("Mass collection confirmed.");
+        setFeedback("Donation received and confirmed.");
         closeReview();
         fetchRows();
         onChanged?.();
@@ -64,7 +64,7 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
       }
     } catch (err: any) {
       console.error(err);
-      setFeedback(err?.response?.data?.message || "Failed to approve.");
+      setFeedback(err?.response?.data?.message || "Failed to approve donation.");
     } finally {
       setBusyId(null);
     }
@@ -75,11 +75,12 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
       setFeedback("Describe the discrepancy (at least 5 characters).");
       return;
     }
-    setBusyId(review.collection_id);
+    setBusyId(review.donation_id);
     try {
-      const res = await massCollectionAPI.reject(review.collection_id, rejectReason.trim());
+      console.log("Cashier declining donation for discrepancy:", review.donation_id);
+      const res = await donationAPI.reject(review.donation_id, rejectReason.trim());
       if (res.data?.success) {
-        setFeedback("Mass collection declined due to discrepancy.");
+        setFeedback("Donation declined due to discrepancy.");
         closeReview();
         fetchRows();
         onChanged?.();
@@ -95,9 +96,9 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Mass Collection Handovers</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Donation Handovers</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Preview denomination breakdown from the secretary, then confirm or decline if there is a discrepancy
+          Preview denomination breakdown, then confirm if cash matches or decline if there is a discrepancy
         </p>
       </div>
 
@@ -127,15 +128,15 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No mass collections in this filter</p>
+          <p className="py-16 text-center text-slate-500">No donations in this filter</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Mass</th>
+                  <th className="text-left px-4 py-3">Donor</th>
                   <th className="text-left px-4 py-3">Amount</th>
+                  <th className="text-left px-4 py-3">Donation date</th>
                   <th className="text-left px-4 py-3">Recorded by</th>
                   <th className="text-left px-4 py-3">Status</th>
                   <th className="text-left px-4 py-3">Action</th>
@@ -143,13 +144,10 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
-                  <tr key={row.collection_id}>
-                    <td className="px-4 py-3">
-                      {row.mass_date}
-                      {row.mass_time ? ` · ${row.mass_time}` : ""}
-                    </td>
-                    <td className="px-4 py-3 font-medium">{row.mass_type}</td>
+                  <tr key={row.donation_id}>
+                    <td className="px-4 py-3 font-medium">{row.donor_name}</td>
                     <td className="px-4 py-3 font-semibold text-emerald-700">{formatPeso(row.amount)}</td>
+                    <td className="px-4 py-3">{row.donation_date}</td>
                     <td className="px-4 py-3">{row.recorded_by || "—"}</td>
                     <td className="px-4 py-3">
                       <span
@@ -161,7 +159,7 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
                             : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {(row.status || "pending").toUpperCase()}
+                        {row.status.toUpperCase()}
                       </span>
                       {row.reject_reason && (
                         <p className="text-xs text-red-600 mt-1 max-w-[200px]">{row.reject_reason}</p>
@@ -202,19 +200,17 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
       {review && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-clear bg-opacity-20 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-800 mb-1">Mass Cash Preview</h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Cash Denomination Preview</h3>
             <p className="text-sm text-slate-500 mb-1">
-              {review.mass_type} · {review.mass_date}
-              {review.mass_time ? ` · ${review.mass_time}` : ""}
+              {review.donor_name} · Recorded by {review.recorded_by || "Secretary"}
             </p>
-            <p className="text-sm text-slate-500 mb-1">Recorded by {review.recorded_by || "Secretary"}</p>
             <p className="text-base font-bold text-emerald-700 mb-4">
               Expected total: {formatPeso(review.amount)}
             </p>
 
             {(review.denomination_breakdown || []).length === 0 ? (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
-                No denomination breakdown on this record.
+                No denomination breakdown on this record. Confirm the total amount only.
               </p>
             ) : (
               <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
@@ -239,6 +235,12 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
               </div>
             )}
 
+            {review.notes && (
+              <p className="text-sm text-slate-600 mb-4">
+                <span className="font-medium">Notes:</span> {review.notes}
+              </p>
+            )}
+
             {rejectMode && (
               <div className="mb-4">
                 <label className="text-sm font-medium text-slate-700">Discrepancy reason *</label>
@@ -247,7 +249,7 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                  placeholder="e.g. Counted less than recorded total"
+                  placeholder="e.g. Counted P3,500 only — missing one P500 bill"
                 />
               </div>
             )}
@@ -256,6 +258,7 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
               <button onClick={closeReview} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
                 Close
               </button>
+
               {review.status === "pending" && !rejectMode && (
                 <>
                   <button
@@ -265,21 +268,22 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
                     Decline (Discrepancy)
                   </button>
                   <button
-                    onClick={() => approve(review.collection_id)}
-                    disabled={busyId === review.collection_id}
+                    onClick={() => approve(review.donation_id)}
+                    disabled={busyId === review.donation_id}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                   >
-                    {busyId === review.collection_id ? "Confirming..." : "Confirm Match"}
+                    {busyId === review.donation_id ? "Confirming..." : "Confirm Match"}
                   </button>
                 </>
               )}
+
               {review.status === "pending" && rejectMode && (
                 <button
                   onClick={reject}
-                  disabled={busyId === review.collection_id}
+                  disabled={busyId === review.donation_id}
                   className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                 >
-                  {busyId === review.collection_id ? "Declining..." : "Confirm Decline"}
+                  {busyId === review.donation_id ? "Declining..." : "Confirm Decline"}
                 </button>
               )}
             </div>
@@ -290,4 +294,4 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
   );
 };
 
-export default MassCollections;
+export default DonationHandover;

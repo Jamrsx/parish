@@ -9,12 +9,13 @@ import {
   Package,
   FileArchive,
   UserPlus,
+  HandCoins,
+  Church,
   Menu,
   LogOut,
   ChevronDown,
   ChevronUp,
   AlertTriangle,
-  Church,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -22,6 +23,8 @@ const navItems: { path: string; label: string; icon: LucideIcon }[] = [
   { path: "/admin/secretary/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/secretary/scheduled-services", label: "Scheduled Services", icon: CalendarDays },
   { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
+  { path: "/admin/secretary/donations", label: "Donations", icon: HandCoins },
+  { path: "/admin/secretary/mass-collections", label: "Mass Collections", icon: Church },
   { path: "/admin/secretary/manage-inventory", label: "Manage Inventory", icon: Package },
   { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
   { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },

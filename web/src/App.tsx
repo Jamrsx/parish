@@ -16,11 +16,11 @@ import ManageInventory from "./(protected)/Admin/Secretary_Dashboard/Inventory/M
 import ScheduledServices from "./(protected)/Admin/Secretary_Dashboard/Scheduled_Services";
 import ServiceRecords from "./(protected)/Admin/Secretary_Dashboard/Service_Records";
 import ManagePriests from "./(protected)/Admin/Secretary_Dashboard/Manage_Priests";
+import ManageDonations from "./(protected)/Admin/Secretary_Dashboard/Manage_Donations";
+import ManageMassCollections from "./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections";
 
 // Admin - Cashier
 import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomePage";
-import ManageUnpaidRequest from "./(protected)/Admin/Cashier_Dashboard/Manage_Unpaid_Request";
-import MassFinancial from "./(protected)/Admin/Cashier_Dashboard/Mass_Financial";
 
 // Priest
 import PriestHomePage from "./(protected)/Admin/Priest_Dashboard/PriestHomePage";
@@ -87,6 +87,8 @@ function App() {
             <Route path="scheduled-services" element={<ScheduledServices />} />
             <Route path="service-records" element={<ServiceRecords />} />
             <Route path="manage-priests" element={<ManagePriests />} />
+            <Route path="donations" element={<ManageDonations />} />
+            <Route path="mass-collections" element={<ManageMassCollections />} />
           </Route>
 
           {/* Cashier */}
@@ -95,22 +97,6 @@ function App() {
             element={
               <RequireAuth roles={['cashier']}>
                 <CashierDashboard />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="admin/cashier/manage-unpaid-request"
-            element={
-              <RequireAuth roles={['cashier']}>
-                <ManageUnpaidRequest />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="admin/cashier/mass-financial"
-            element={
-              <RequireAuth roles={['cashier']}>
-                <MassFinancial />
               </RequireAuth>
             }
           />

@@ -1,299 +1,294 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../context/AuthContext";
+import { cashierAPI, type CashierDashboardData } from "../../../../library/cashier";
 import ManageUnpaidRequest from "./Manage_Unpaid_Request";
-import MassFinancial from "./Mass_Financial";
+import MassCollections from "./Mass_Financial";
+import TransactionHistory from "./Transaction_History";
+import DailyReport from "./Daily_Report";
+import DonationHandover from "./Donation_Handover";
 
-const initialTransactions: Transaction[] = [
-  {
-    id: 1,
-    donorName: "John Santos",
-    amount: 5000,
-    type: "donation",
-    date: "2024-03-20",
-    status: "completed",
-  },
-  {
-    id: 2,
-    donorName: "Maria Reyes",
-    amount: 3000,
-    type: "donation",
-    date: "2024-03-19",
-    status: "completed",
-  },
-  {
-    id: 3,
-    donorName: "Robert Cruz",
-    amount: 2000,
-    type: "payment",
-    date: "2024-03-18",
-    status: "pending",
-  },
-];
+type TabId =
+  | "dashboard"
+  | "payments"
+  | "transactions"
+  | "daily-report"
+  | "mass"
+  | "donations";
 
-interface Transaction {
-  id: number;
-  donorName: string;
-  amount: number;
-  type: "donation" | "payment";
-  date: string;
-  status: "completed" | "pending";
-}
+const formatPeso = (n: number) =>
+  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const Dashboard: React.FC = () => {
+const CashierHomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "requests" | "mass-financials">("dashboard");
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
-  const [transactions] = useState<Transaction[]>(initialTransactions);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [dashboard, setDashboard] = useState<CashierDashboardData | null>(null);
+  const [loadingDash, setLoadingDash] = useState(true);
 
-  // ✅ FIXED: Get cashier user data from context - use role_label from user
   const cashierUser = {
-    name: user?.username || user?.full_name || "Cashier User",
+    name: user?.username || user?.full_name || "Cashier",
     role: user?.role_label || "Cashier",
   };
 
-  const handleLogout = async () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      try {
-        await logout();
-        navigate("/login", { replace: true });
-      } catch (error) {
-        console.error("Logout failed:", error);
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setLoadingDash(true);
+      console.log("Fetching cashier dashboard...");
+      const res = await cashierAPI.dashboard();
+      if (res.data?.success) {
+        setDashboard(res.data.data);
+        console.log("Cashier dashboard loaded:", res.data.data);
       }
+    } catch (err) {
+      console.error("Cashier dashboard error:", err);
+    } finally {
+      setLoadingDash(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [activeTab, fetchDashboard]);
+
+  const handleConfirmLogout = async () => {
+    setShowLogoutModal(false);
+    await logout();
+    navigate("/login", { replace: true });
   };
 
-  const totalDonations = transactions
-    .filter(t => t.type === "donation" && t.status === "completed")
-    .reduce((sum, t) => sum + t.amount, 0);
-  
-  const totalPayments = transactions
-    .filter(t => t.type === "payment" && t.status === "completed")
-    .reduce((sum, t) => sum + t.amount, 0);
-  
-  const netIncome = totalDonations + totalPayments;
-
-  const tabs = [
+  const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "requests", label: "Manage Requests", icon: "📋" },
-    { id: "mass-financials", label: "Mass Records", icon: "⛪" },
-  ] as const;
+    { id: "payments", label: "Collect Payments", icon: "💵" },
+    { id: "transactions", label: "Transactions", icon: "🧾" },
+    { id: "daily-report", label: "Daily Report", icon: "📅" },
+    { id: "mass", label: "Mass Collections", icon: "⛪" },
+    { id: "donations", label: "Donations", icon: "🤝" },
+  ];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+    <div className="flex flex-col h-screen bg-slate-50">
+      {showLogoutModal && (
         <div
-          className={`${
-            sidebarCollapsed ? "w-20" : "w-64"
-          } bg-white border-r border-gray-200 shadow-sm flex flex-col transition-all duration-300`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 bg-opacity-20 backdrop-blur-sm"
+          onClick={() => setShowLogoutModal(false)}
         >
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            {!sidebarCollapsed ? (
-              <>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    San Guillermo de Maleval Parish
-                  </h2>
-                  <p className="text-gray-500 text-xs mt-0.5">Cashier Portal</p>
-                </div>
-                <button
-                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
-                >
-                  ☰
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="w-full p-2 hover:bg-gray-100 rounded-lg text-gray-600 flex justify-center"
-              >
-                ☰
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2 text-center">Confirm Logout</h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">Log out of the cashier account?</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setShowLogoutModal(false)} className="px-4 py-2 text-sm bg-slate-100 rounded-lg">
+                Cancel
               </button>
+              <button onClick={handleConfirmLogout} className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg">
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        <aside
+          className={`${sidebarCollapsed ? "w-[72px]" : "w-64"} bg-white border-r border-slate-200 flex flex-col transition-all shrink-0`}
+        >
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-900 truncate">San Guillermo de Maleval Parish</h2>
+                <p className="text-xs text-emerald-600 font-medium mt-0.5">Cashier Portal</p>
+              </div>
             )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-600"
+            >
+              ☰
+            </button>
           </div>
 
-          <nav className="flex-1 mt-6 px-3 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full px-4 py-3 text-sm font-medium flex items-center gap-3 rounded-lg transition-all ${
+                className={`w-full px-3 py-2.5 text-sm font-medium flex items-center gap-3 rounded-lg ${
                   activeTab === tab.id
-                    ? "bg-green-100 text-green-700 shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
+                } ${sidebarCollapsed ? "justify-center" : ""}`}
               >
-                <span className="text-xl">{tab.icon}</span>
+                <span>{tab.icon}</span>
                 {!sidebarCollapsed && <span>{tab.label}</span>}
+                {!sidebarCollapsed && tab.id === "donations" && (dashboard?.pending_donations || 0) > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[11px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center">
+                    {dashboard?.pending_donations}
+                  </span>
+                )}
+                {!sidebarCollapsed && tab.id === "mass" && (dashboard?.pending_mass_collections || 0) > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[11px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center">
+                    {dashboard?.pending_mass_collections}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
-            <div className="relative">
-              <button
-                onClick={() => setShowLogoutMenu(!showLogoutMenu)}
-                className={`w-full px-4 py-3 text-sm font-medium flex items-center gap-3 rounded-lg text-gray-700 hover:bg-green-50 ${
-                  sidebarCollapsed ? "justify-center" : ""
-                }`}
-              >
-                <div
-                  className={`${
-                    sidebarCollapsed ? "w-10 h-10" : "w-8 h-8"
-                  } bg-linear-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 shadow-sm`}
-                >
-                  {cashierUser.name.charAt(0).toUpperCase()}
-                </div>
-                {!sidebarCollapsed && (
-                  <>
-                    <div className="flex-1 text-left">
-                      <div className="text-sm font-semibold text-gray-800">
-                        {cashierUser.name}
-                      </div>
-                      <div className="text-xs text-green-600 font-medium">
-                        {cashierUser.role}
-                      </div>
-                    </div>
-                    <span className="text-gray-400 text-lg">
-                      {showLogoutMenu ? "▼" : "▲"}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              {showLogoutMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowLogoutMenu(false)}
-                  />
-                  <div className="absolute bottom-full mb-2 left-0 right-0 z-20 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center gap-2 transition-colors"
-                    >
-                      <span className="text-lg">🚪</span>
-                      <span>Sign out</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-6">
-            {activeTab === "dashboard" ? (
-              <div>
-                {/* Metrics Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-                  <div className="bg-linear-to-br from-green-50 to-green-100 rounded-xl shadow-sm p-5 border border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-green-700 text-sm font-semibold uppercase tracking-wide">
-                          Total Donations
-                        </p>
-                        <p className="text-3xl font-bold text-green-900 mt-2">
-                          ₱{totalDonations.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-4xl text-green-600">💰</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm p-5 border border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-blue-700 text-sm font-semibold uppercase tracking-wide">
-                          Total Payments
-                        </p>
-                        <p className="text-3xl font-bold text-blue-900 mt-2">
-                          ₱{totalPayments.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-4xl text-blue-600">💳</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-linear-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm p-5 border border-purple-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-purple-700 text-sm font-semibold uppercase tracking-wide">
-                          Net Income
-                        </p>
-                        <p className="text-3xl font-bold text-purple-900 mt-2">
-                          ₱{netIncome.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-4xl text-purple-600">📈</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Recent Activity */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="bg-linear-to-r from-gray-50 to-white px-6 py-4 border-b border-gray-200">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">📋</span>
-                      <h3 className="text-lg font-semibold text-gray-800">
-                        Recent Transactions
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-200">
-                    {transactions.length > 0 ? (
-                      transactions.slice(0, 5).map((transaction) => (
-                        <div key={transaction.id} className="px-6 py-3 hover:bg-gray-50">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {transaction.donorName}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {transaction.type} • {transaction.date}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-gray-900">
-                                ₱{transaction.amount.toLocaleString()}
-                              </p>
-                              <span
-                                className={`text-xs px-2 py-1 rounded-full ${
-                                  transaction.status === "completed"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {transaction.status}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-6 py-8 text-center text-gray-500">
-                        No recent transactions
-                      </div>
-                    )}
-                  </div>
-                </div>
+          <div className="p-3 border-t border-slate-200 relative">
+            <button
+              onClick={() => setShowLogoutMenu(!showLogoutMenu)}
+              className={`w-full px-3 py-2.5 text-sm flex items-center gap-3 rounded-lg hover:bg-emerald-50 ${
+                sidebarCollapsed ? "justify-center" : ""
+              }`}
+            >
+              <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                {cashierUser.name.charAt(0).toUpperCase()}
               </div>
-            ) : activeTab === "requests" ? (
-              <ManageUnpaidRequest />
-            ) : (
-              <MassFinancial />
+              {!sidebarCollapsed && (
+                <div className="flex-1 text-left min-w-0">
+                  <div className="text-sm font-semibold truncate">{cashierUser.name}</div>
+                  <div className="text-xs text-emerald-600">{cashierUser.role}</div>
+                </div>
+              )}
+            </button>
+            {showLogoutMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowLogoutMenu(false)} />
+                <div className="absolute bottom-full mb-2 left-3 right-3 z-20 bg-white rounded-lg shadow-lg border border-slate-200 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowLogoutMenu(false);
+                      setShowLogoutModal(true);
+                    }}
+                    className="w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-red-50 hover:text-red-600"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
             )}
           </div>
-        </div>
+        </aside>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-6 max-w-7xl mx-auto w-full">
+            {activeTab === "dashboard" && (
+              <div>
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Cashier Dashboard</h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Cash collections for {dashboard?.date || "today"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchDashboard}
+                    className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {loadingDash ? (
+                  <div className="flex justify-center py-20">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                        <p className="text-xs font-semibold text-amber-700 uppercase">Awaiting Payment</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-2">{dashboard?.unpaid_count ?? 0}</p>
+                        <p className="text-xs text-slate-500 mt-1">Unpaid / partial requests</p>
+                      </div>
+                      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                        <p className="text-xs font-semibold text-emerald-700 uppercase">Service Fees Today</p>
+                        <p className="text-2xl font-bold text-slate-900 mt-2">
+                          {formatPeso(dashboard?.service_payments_today || 0)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {dashboard?.service_payments_today_count || 0} cash receipt(s)
+                        </p>
+                      </div>
+                      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                        <p className="text-xs font-semibold text-blue-700 uppercase">Mass Today</p>
+                        <p className="text-2xl font-bold text-slate-900 mt-2">
+                          {formatPeso(dashboard?.mass_collections_today || 0)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">Mass offerings logged</p>
+                      </div>
+                      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                        <p className="text-xs font-semibold text-violet-700 uppercase">Pending Donations</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-2">{dashboard?.pending_donations ?? 0}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Received today: {formatPeso(dashboard?.donations_received_today || 0)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100">
+                          <h3 className="font-semibold text-slate-800">Recent Service Payments</h3>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {(dashboard?.recent_payments || []).length === 0 ? (
+                            <p className="px-5 py-8 text-center text-slate-500 text-sm">No payments yet</p>
+                          ) : (
+                            dashboard?.recent_payments.map((p) => (
+                              <div key={p.payment_id} className="px-5 py-3 flex justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-slate-800">{p.parishioner || "Parishioner"}</p>
+                                  <p className="text-xs text-slate-500">
+                                    {p.service_type} · {p.created_at ? new Date(p.created_at).toLocaleString() : ""}
+                                  </p>
+                                </div>
+                                <p className="text-sm font-semibold text-emerald-700">{formatPeso(p.amount)}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100">
+                          <h3 className="font-semibold text-slate-800">Recent Mass Collections</h3>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {(dashboard?.recent_mass_collections || []).length === 0 ? (
+                            <p className="px-5 py-8 text-center text-slate-500 text-sm">No mass collections yet</p>
+                          ) : (
+                            dashboard?.recent_mass_collections.map((m) => (
+                              <div key={m.collection_id} className="px-5 py-3 flex justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-slate-800">{m.mass_type}</p>
+                                  <p className="text-xs text-slate-500">{m.mass_date}</p>
+                                </div>
+                                <p className="text-sm font-semibold text-blue-700">{formatPeso(m.amount)}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeTab === "payments" && <ManageUnpaidRequest />}
+            {activeTab === "transactions" && <TransactionHistory />}
+            {activeTab === "daily-report" && <DailyReport />}
+            {activeTab === "mass" && <MassCollections onChanged={fetchDashboard} />}
+            {activeTab === "donations" && <DonationHandover onChanged={fetchDashboard} />}
+          </div>
+        </main>
       </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default CashierHomePage;

@@ -152,6 +152,11 @@ class ManageRequest extends Model
         return $this->hasMany(Notification::class, 'request_id', 'request_id');
     }
 
+    public function paymentTransactions()
+    {
+        return $this->hasMany(PaymentTransaction::class, 'request_id', 'request_id');
+    }
+
     // ============ ACCESSORS ============
 
     public function getStatusColorAttribute(): string
@@ -529,7 +534,7 @@ class ManageRequest extends Model
         return true;
     }
 
-    public function recordPayment(float $amount): bool
+    public function recordPayment(float $amount, ?User $receivedBy = null, ?string $orNumber = null, ?string $notes = null): bool
     {
         $newTotal = $this->amount_paid + $amount;
         $fee = $this->service->fee ?? 0;
@@ -541,6 +546,16 @@ class ManageRequest extends Model
             'payment_status' => $status,
             'payment_date' => now(),
         ]);
+
+        if ($receivedBy) {
+            PaymentTransaction::create([
+                'request_id' => $this->request_id,
+                'received_by' => $receivedBy->user_id,
+                'amount' => $amount,
+                'or_number' => $orNumber,
+                'notes' => $notes,
+            ]);
+        }
 
         return true;
     }

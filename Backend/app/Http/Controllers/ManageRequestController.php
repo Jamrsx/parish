@@ -615,10 +615,12 @@ class ManageRequestController extends Controller
     public function pay(Request $request, $id)
     {
         try {
-            $manageRequest = ManageRequest::findOrFail($id);
+            $manageRequest = ManageRequest::with('service')->findOrFail($id);
 
             $validator = Validator::make($request->all(), [
                 'amount' => 'required|numeric|min:0.01',
+                'or_number' => 'nullable|string|max:100',
+                'notes' => 'nullable|string|max:500',
             ]);
 
             if ($validator->fails()) {
@@ -636,7 +638,15 @@ class ManageRequestController extends Controller
                 ], 422);
             }
 
-            $manageRequest->recordPayment($request->amount);
+            /** @var User|null $user */
+            $user = auth('sanctum')->user();
+
+            $manageRequest->recordPayment(
+                (float) $request->amount,
+                $user,
+                $request->or_number,
+                $request->notes
+            );
 
             $message = $manageRequest->is_fully_paid ?
                 'Payment completed! Request is now fully paid.' :

@@ -11,6 +11,9 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AvailabilityController;
 use App\Http\Controllers\GodparentController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\CashierController;
+use App\Http\Controllers\DonationController;
+use App\Http\Controllers\MassCollectionController;
 
 // ============ PUBLIC ROUTES ============
 
@@ -73,6 +76,31 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/assign-priest', [ManageRequestController::class, 'assignPriest']);
             Route::get('/form-details', [ManageRequestController::class, 'getFormDetails']);
             Route::get('/export', [ManageRequestController::class, 'export']);
+        });
+
+        // Cashier finance
+        Route::prefix('cashier')->group(function () {
+            Route::get('/dashboard', [CashierController::class, 'dashboard']);
+            Route::get('/unpaid-requests', [CashierController::class, 'unpaidRequests']);
+            Route::get('/transactions', [CashierController::class, 'transactions']);
+            Route::get('/daily-report', [CashierController::class, 'dailyReport']);
+        });
+
+        // Mass collections (secretary records, cashier approves)
+        Route::prefix('mass-collections')->group(function () {
+            Route::get('/', [MassCollectionController::class, 'index']);
+            Route::post('/', [MassCollectionController::class, 'store']);
+            Route::post('/{id}/approve', [MassCollectionController::class, 'approve']);
+            Route::post('/{id}/reject', [MassCollectionController::class, 'reject']);
+            Route::delete('/{id}', [MassCollectionController::class, 'destroy']);
+        });
+
+        // Donations (secretary records, cashier approves)
+        Route::prefix('donations')->group(function () {
+            Route::get('/', [DonationController::class, 'index']);
+            Route::post('/', [DonationController::class, 'store']);
+            Route::post('/{id}/approve', [DonationController::class, 'approve']);
+            Route::post('/{id}/reject', [DonationController::class, 'reject']);
         });
 
         // Baptism Management
