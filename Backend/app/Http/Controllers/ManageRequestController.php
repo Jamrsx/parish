@@ -121,9 +121,15 @@ class ManageRequestController extends Controller
             'updated_at' => $request->updated_at,
 
             'can_be_rescheduled' => $request->can_be_rescheduled,
-            'rescheduled_by' => $request->rescheduledBy ? [
+            'rescheduled_by' => $request->rescheduled_by,
+            'rescheduledBy' => $request->rescheduledBy ? [
                 'user_id' => $request->rescheduledBy->user_id,
+                'first_name' => $request->rescheduledBy->first_name,
+                'middle_name' => $request->rescheduledBy->middle_name,
+                'last_name' => $request->rescheduledBy->last_name,
                 'full_name' => $request->rescheduledBy->full_name,
+                'email' => $request->rescheduledBy->email,
+                'role' => $request->rescheduledBy->role,
             ] : null,
             'reschedule_reason' => $request->reschedule_reason,
             'reschedule_count' => $request->reschedule_count,
@@ -859,6 +865,22 @@ class ManageRequestController extends Controller
 
             $oldDate = $manageRequest->preferred_date;
             $oldTime = $manageRequest->preferred_time;
+
+            $service = $manageRequest->service;
+            if ($service) {
+                $scheduleError = $service->validateSchedule(
+                    $request->preferred_date,
+                    $request->preferred_time,
+                    $manageRequest->request_id
+                );
+
+                if ($scheduleError) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $scheduleError,
+                    ], 422);
+                }
+            }
 
             $success = $manageRequest->reschedule([
                 'preferred_date' => $request->preferred_date,

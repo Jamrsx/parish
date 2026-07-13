@@ -54,16 +54,63 @@ class ChurchService extends Model
     }
 
     /**
-     * Get bookings count for a specific date
+     * Get active bookings count for a specific preferred date.
+     * Cancelled and completed requests do not block scheduling.
      */
-    public function getBookingsCount($date = null): int
+    public function getBookingsCount($date = null, $excludeRequestId = null): int
     {
         $date = $date ?: Carbon::today();
-        
-        return $this->requests()
-            ->whereDate('created_at', $date)
-            ->whereIn('status', ['pending', 'approved', 'ongoing'])
-            ->count();
+
+        $query = $this->requests()
+            ->whereDate('preferred_date', $date)
+            ->whereIn('status', ['pending', 'approved']);
+
+        if ($excludeRequestId) {
+            $query->where('request_id', '!=', $excludeRequestId);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * Check if a date still has available slots.
+     */
+    public function isDateAvailable($date, $excludeRequestId = null): bool
+    {
+        return $this->getBookingsCount($date, $excludeRequestId) < $this->getDailyLimit();
+    }
+
+    /**
+     * Check if a specific date/time is already taken by another active request.
+     */
+    public function isTimeSlotTaken($date, $time, $excludeRequestId = null): bool
+    {
+        $query = $this->requests()
+            ->whereDate('preferred_date', $date)
+            ->where('preferred_time', $time)
+            ->whereIn('status', ['pending', 'approved']);
+
+        if ($excludeRequestId) {
+            $query->where('request_id', '!=', $excludeRequestId);
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * Validate whether a schedule can be used for this service.
+     */
+    public function validateSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
+    {
+        if (!$this->isDateAvailable($date, $excludeRequestId)) {
+            return 'No available slots for the selected date. Please choose another date.';
+        }
+
+        if ($this->isTimeSlotTaken($date, $time, $excludeRequestId)) {
+            return 'The selected time slot is already booked. Please choose another time.';
+        }
+
+        return null;
     }
 
     /**
@@ -245,9 +292,9 @@ class ChurchService extends Model
                 'COALESCE(available_slots, 0) > 0 AND 
                  (SELECT COUNT(*) FROM manage_requests 
                   WHERE manage_requests.service_id = church_services.service_id 
-                  AND DATE(manage_requests.created_at) = ? 
-                  AND manage_requests.status IN (?, ?, ?)) < COALESCE(available_slots, 0)',
-                [$today->format('Y-m-d'), 'pending', 'approved', 'ongoing']
+                  AND DATE(manage_requests.preferred_date) = ? 
+                  AND manage_requests.status IN (?, ?)) < COALESCE(available_slots, 0)',
+                [$today->format('Y-m-d'), 'pending', 'approved']
             );
         });
     }
