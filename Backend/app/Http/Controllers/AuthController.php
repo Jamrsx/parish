@@ -91,6 +91,13 @@ class AuthController extends Controller
                 'message' => 'Invalid credentials'
             ], 401);
         }
+
+        if (!$user->isActive()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account has been disabled. Please contact the parish office.'
+            ], 403);
+        }
         
         $user->update(['last_login' => now()]);
         
@@ -134,6 +141,13 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Invalid credentials'
             ], 401);
+        }
+
+        if (!$user->isActive()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This account has been disabled. Please contact the parish office.'
+            ], 403);
         }
 
         if (!$user->isParishioner()) {
@@ -307,6 +321,7 @@ class AuthController extends Controller
             'address' => $user->address,
             'role' => $user->role,
             'role_label' => $user->role_label,
+            'is_active' => $user->is_active,
             'last_login' => $user->last_login,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
@@ -401,6 +416,10 @@ class AuthController extends Controller
             $query->where('role', $request->role);
         }
 
+        if ($request->boolean('active_only')) {
+            $query->where('is_active', true);
+        }
+
         if ($request->has('search')) {
             $query->search($request->search);
         }
@@ -466,6 +485,81 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User deleted successfully'
+        ]);
+    }
+
+    /**
+     * Disable a priest account (Admin only)
+     */
+    public function disableUser($id)
+    {
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        if (!$user->isPriest()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only priest accounts can be disabled from this action.'
+            ], 422);
+        }
+
+        if (!$user->isActive()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This priest account is already disabled.'
+            ], 422);
+        }
+
+        $user->update(['is_active' => false]);
+        $user->tokens()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Priest account disabled successfully.',
+            'data' => $this->formatUserData($user->fresh())
+        ]);
+    }
+
+    /**
+     * Re-enable a priest account (Admin only)
+     */
+    public function enableUser($id)
+    {
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        if (!$user->isPriest()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only priest accounts can be enabled from this action.'
+            ], 422);
+        }
+
+        if ($user->isActive()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This priest account is already active.'
+            ], 422);
+        }
+
+        $user->update(['is_active' => true]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Priest account enabled successfully.',
+            'data' => $this->formatUserData($user->fresh())
         ]);
     }
 }

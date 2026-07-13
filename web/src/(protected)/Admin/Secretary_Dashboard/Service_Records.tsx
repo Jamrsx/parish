@@ -475,7 +475,7 @@ const ServiceRecords: React.FC = () => {
   const fetchPriests = useCallback(async (): Promise<User[]> => {
     try {
       const response = await api.get('/admin/users', {
-        params: { role: 'priest', per_page: 100 },
+        params: { role: 'priest', per_page: 100, active_only: 1 },
       });
       if (response.data?.success) {
         const responseData = response.data.data;

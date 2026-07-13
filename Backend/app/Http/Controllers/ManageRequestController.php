@@ -970,6 +970,13 @@ class ManageRequestController extends Controller
                 ], 422);
             }
 
+            if (!$priest->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected priest account is disabled.'
+                ], 422);
+            }
+
             // Update the request with the assigned priest
             $manageRequest->update([
                 'assigned_priest' => $request->priest_id,

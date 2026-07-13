@@ -13,6 +13,7 @@ import ManageRequests from "./(protected)/Admin/Secretary_Dashboard/Manage_Reque
 import ManageInventory from "./(protected)/Admin/Secretary_Dashboard/Inventory/Manage_Inventory";
 import ScheduledServices from "./(protected)/Admin/Secretary_Dashboard/Scheduled_Services";
 import ServiceRecords from "./(protected)/Admin/Secretary_Dashboard/Service_Records";
+import ManagePriests from "./(protected)/Admin/Secretary_Dashboard/Manage_Priests";
 
 // Admin - Cashier
 import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomePage";
@@ -46,6 +47,7 @@ function App() {
               <Route path="manage-inventory" element={<ManageInventory />} />
               <Route path="scheduled-services" element={<ScheduledServices />} />
               <Route path="service-records" element={<ServiceRecords />} />
+              <Route path="manage-priests" element={<ManagePriests />} />
             </Route>
 
             {/* Cashier Routes - NOW WITH /admin/ */}

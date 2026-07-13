@@ -23,6 +23,8 @@ return new class extends Migration
             
             $table->enum('role', ['secretary', 'cashier', 'priest', 'parishioner'])
                   ->default('parishioner');
+
+            $table->boolean('is_active')->default(true);
             
             $table->timestamp('last_login')->nullable();
             $table->timestamps();

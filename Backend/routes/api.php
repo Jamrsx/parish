@@ -51,6 +51,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('users')->group(function () {
             Route::get('/', [AuthController::class, 'listUsers']);
             Route::get('/{id}', [AuthController::class, 'getUser']);
+            Route::post('/{id}/disable', [AuthController::class, 'disableUser']);
+            Route::post('/{id}/enable', [AuthController::class, 'enableUser']);
             Route::delete('/{id}', [AuthController::class, 'deleteUser']);
         });
 

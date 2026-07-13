@@ -143,5 +143,35 @@ export const authAPI = {
   }) => api.put<ApiResponse<User>>('/auth/profile', data),
 };
 
+// ============ USER / PRIEST MANAGEMENT (ADMIN) ============
+export interface CreatePriestData {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  email: string;
+  contact_number?: string | null;
+  password: string;
+}
+
+export const usersAPI = {
+  listPriests: (options?: { activeOnly?: boolean }) =>
+    api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
+      params: {
+        role: 'priest',
+        per_page: 100,
+        ...(options?.activeOnly ? { active_only: 1 } : {}),
+      },
+    }),
+
+  createPriest: (data: CreatePriestData) =>
+    api.post<ApiResponse<User>>('/admin/create-priest', data),
+
+  disablePriest: (userId: number) =>
+    api.post<ApiResponse<User>>(`/admin/users/${userId}/disable`),
+
+  enablePriest: (userId: number) =>
+    api.post<ApiResponse<User>>(`/admin/users/${userId}/enable`),
+};
+
 // Export types
 export type { User, UserRole } from './AuthStorage';

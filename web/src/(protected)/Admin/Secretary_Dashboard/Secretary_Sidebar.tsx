@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Package,
   FileArchive,
+  UserPlus,
   Menu,
   LogOut,
   ChevronDown,
@@ -22,6 +23,7 @@ const navItems: { path: string; label: string; icon: LucideIcon }[] = [
   { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
   { path: "/admin/secretary/manage-inventory", label: "Manage Inventory", icon: Package },
   { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
+  { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },
 ];
 
 const SecretarySidebar: React.FC = () => {

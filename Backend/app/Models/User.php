@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'role',
         'last_login',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -34,6 +35,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'last_login' => 'datetime',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -91,6 +93,11 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return in_array($this->role, ['secretary', 'cashier']);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->is_active !== false;
     }
 
     /**
@@ -156,6 +163,11 @@ class User extends Authenticatable
     public function scopePriests($query)
     {
         return $query->where('role', 'priest');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 
     public function scopeParishioners($query)

@@ -18,6 +18,7 @@ export interface User {
   address?: string | null;
   role: UserRole;
   role_label: string;
+  is_active?: boolean;
   last_login?: string | null;
   created_at?: string;
   updated_at?: string;
