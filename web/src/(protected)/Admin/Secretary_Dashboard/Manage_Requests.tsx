@@ -4,8 +4,15 @@ import { manageRequestAPI } from '../../../../library/manage-request';
 import { api } from '../../../../library/api';
 import type { ManageRequest, ManageRequestFilters, RescheduleData } from '../../../../library/manage-request';
 import type { User } from '../../../../library/AuthStorage';
+import { RefreshCw, Eye, Church, CheckCircle2, AlertTriangle, Info, XCircle, ClipboardList, Users, User as UserIcon } from 'lucide-react';
+import PageHeader from './components/PageHeader';
+import FilterPill from './components/FilterPill';
+import EmptyState from './components/EmptyState';
+import ModalCloseButton from './components/ModalCloseButton';
+import StatusBadge from './components/StatusBadge';
+import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
 
-// TYPE DEFINITIONS 
+// TYPE DEFINITIONS
 type ServiceFilterType = 'all' | 'baptism' | 'service' | 'certificate';
 
 // Time options for dropdown
@@ -584,26 +591,6 @@ const ManageRequests: React.FC = () => {
     return request.service?.service_type || request.service?.service_name;
   };
 
-  const getServiceIcon = (request: ExtendedManageRequest): string => {
-    const serviceName = getServiceName(request);
-    
-    if (serviceName) {
-      const serviceNameLower = serviceName.toLowerCase();
-      if (serviceNameLower.includes('baptism')) return '✝️';
-      if (serviceNameLower.includes('marriage')) return '💍';
-      if (serviceNameLower.includes('funeral')) return '⚰️';
-      if (serviceNameLower.includes('house blessing') || serviceNameLower.includes('blessing')) return '🏠';
-      if (serviceNameLower.includes('certificate')) return '📜';
-    }
-    
-    switch (request.form_type) {
-      case 'baptism': return '✝️';
-      case 'service': return '⚰️';
-      case 'certificate': return '📜';
-      default: return '📋';
-    }
-  };
-
   const getServiceLabel = (request: ExtendedManageRequest): string => {
     const serviceName = getServiceName(request);
     
@@ -619,22 +606,13 @@ const ManageRequests: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string): string => {
-    const colors: Record<string, string> = {
-      pending: 'bg-amber-100 text-amber-700',
-      approved: 'bg-emerald-100 text-emerald-700',
-      cancelled: 'bg-rose-100 text-rose-700',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-700';
-  };
-
   const getPaymentStatusColor = (status: string): string => {
     const colors: Record<string, string> = {
-      unpaid: 'bg-red-100 text-red-700',
-      partial: 'bg-amber-100 text-amber-700',
-      paid: 'bg-green-100 text-green-700',
+      unpaid: 'bg-slate-100 text-slate-700 border-slate-200',
+      partial: 'bg-blue-50 text-blue-700 border-blue-200',
+      paid: 'bg-blue-600 text-white border-blue-600',
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
   const handleServiceFilter = (filter: ServiceFilterType) => {
@@ -685,7 +663,7 @@ const ManageRequests: React.FC = () => {
   const getRescheduleButtonLabel = (request: ExtendedManageRequest): string => {
     const count = request.reschedule_count || 0;
     // Only show count if there are reschedules
-    return count > 0 ? `🔄 Reschedule (${count})` : '🔄 Reschedule';
+    return count > 0 ? `Reschedule (${count})` : 'Reschedule';
   };
 
   // Get assigned priest name
@@ -744,8 +722,9 @@ const ManageRequests: React.FC = () => {
             </div>
             {godparents.length > 0 && (
               <div className="col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <span className="text-gray-700 font-medium block mb-2">
-                  👨‍👩‍👧‍👦 Godparents ({godparents.length})
+                <span className="text-slate-700 font-medium block mb-2 flex items-center gap-2">
+                  <Users size={16} className="text-blue-600" />
+                  Godparents ({godparents.length})
                 </span>
                 <div className="space-y-1.5">
                   {godparents.map((gp, idx) => {
@@ -764,8 +743,8 @@ const ManageRequests: React.FC = () => {
                     
                     return (
                       <div key={idx} className="flex items-center gap-2 p-1.5 bg-white rounded-md shadow-sm">
-                        <span className="text-lg">
-                          {isGodfather ? '👨' : '👩'}
+                        <span className={`flex-shrink-0 p-1 rounded-full ${isGodfather ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                          <UserIcon size={14} />
                         </span>
                         <span className="font-medium text-gray-800">
                           {name}
@@ -884,20 +863,24 @@ const ManageRequests: React.FC = () => {
     );
   }
 
+  const serviceFilters: { value: ServiceFilterType; label: string }[] = [
+    { value: 'all', label: 'All Services' },
+    { value: 'baptism', label: 'Baptism' },
+    { value: 'service', label: 'Church Service' },
+    { value: 'certificate', label: 'Certificate' },
+  ];
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800">Pending Requests</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {requests.length} request{requests.length !== 1 ? 's' : ''} awaiting action
-            </p>
-          </div>
+    <div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Pending Requests"
+        description={`${requests.length} request${requests.length !== 1 ? 's' : ''} awaiting action`}
+        action={
           <button
             onClick={() => fetchRequests()}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
           >
             {loading ? (
               <>
@@ -906,33 +889,24 @@ const ManageRequests: React.FC = () => {
               </>
             ) : (
               <>
-                <span>🔄</span> Refresh
+                <RefreshCw size={16} />
+                Refresh
               </>
             )}
           </button>
-        </div>
+        }
+      />
 
-        {/* Service Type Filters */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            ['all', 'All Services'],
-            ['baptism', '✝️ Baptism'],
-            ['service', '⚰️ Church Service'],
-            ['certificate', '📜 Certificate'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => handleServiceFilter(value as ServiceFilterType)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                serviceFilter === value
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        {serviceFilters.map(({ value, label }) => (
+          <FilterPill
+            key={value}
+            label={label}
+            active={serviceFilter === value}
+            onClick={() => handleServiceFilter(value)}
+            icon={value === 'all' ? Church : getFilterServiceIcon(value)}
+          />
+        ))}
       </div>
 
       {/* Table */}
@@ -954,11 +928,8 @@ const ManageRequests: React.FC = () => {
           <tbody className="divide-y divide-gray-100">
             {requests.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-14 text-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-5xl mb-3">📭</span>
-                    <p className="text-gray-500 font-medium">No pending requests found</p>
-                  </div>
+                <td colSpan={9}>
+                  <EmptyState title="No pending requests found" description="All requests have been processed or no submissions yet." />
                 </td>
               </tr>
             ) : (
@@ -977,8 +948,14 @@ const ManageRequests: React.FC = () => {
                   >
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{getServiceIcon(request)}</span>
-                        <span className="font-medium text-gray-800">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                          <ServiceTypeIcon
+                            serviceName={getServiceName(request)}
+                            formType={request.form_type}
+                            size={18}
+                          />
+                        </div>
+                        <span className="font-medium text-slate-800">
                           {getServiceLabel(request)}
                         </span>
                       </div>
@@ -1000,9 +977,7 @@ const ManageRequests: React.FC = () => {
                       {request.user?.contact_number || 'N/A'}
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(request.status)}`}>
-                        {request.status.toUpperCase()}
-                      </span>
+                      <StatusBadge status={request.status} label={request.status.toUpperCase()} />
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
@@ -1024,7 +999,7 @@ const ManageRequests: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(request.payment_status)}`}>
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${getPaymentStatusColor(request.payment_status)}`}>
                         {request.payment_status.toUpperCase()}
                       </span>
                     </td>
@@ -1036,20 +1011,14 @@ const ManageRequests: React.FC = () => {
                         {/* View Details Button */}
                         <button
                           onClick={() => openDetailsModal(request)}
-                          className="text-sm px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                          className="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                         >
-                          <span>👁️</span> View Details
+                          <Eye size={14} /> View Details
                         </button>
                         
                         {isCancelled ? (
-                          // Cancelled - show status badge only
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(request.status)}`}>
-                              CANCELLED
-                            </span>
-                          </div>
+                          <StatusBadge status="cancelled" label="Cancelled" />
                         ) : isPending ? (
-                          // Pending - show dropdown
                           <select
                             onChange={(e) => updateStatus(request, e.target.value as ManageRequest['status'])}
                             value={request.status}
@@ -1063,12 +1032,7 @@ const ManageRequests: React.FC = () => {
                             ))}
                           </select>
                         ) : isApproved ? (
-                          // Approved - show status badge only
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(request.status)}`}>
-                              ✅ APPROVED
-                            </span>
-                          </div>
+                          <StatusBadge status="approved" label="Approved" />
                         ) : null}
                         
                         {/* Reschedule Button - only for pending and approved */}
@@ -1076,7 +1040,7 @@ const ManageRequests: React.FC = () => {
                           <button
                             onClick={() => openRescheduleModal(request)}
                             disabled={isUpdating}
-                            className="text-sm px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50"
+                            className="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                           >
                             {getRescheduleButtonLabel(request)}
                           </button>
@@ -1122,16 +1086,11 @@ const ManageRequests: React.FC = () => {
 
       {/* Request Details Modal */}
       {detailsModal.isOpen && detailsModal.request && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Request Details</h3>
-              <button
-                onClick={closeDetailsModal}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+            <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 border-b border-slate-200">
+              <h3 className="text-xl font-bold text-slate-800">Request Details</h3>
+              <ModalCloseButton onClick={closeDetailsModal} />
             </div>
             
             {detailsModal.loading ? (
@@ -1150,9 +1109,7 @@ const ManageRequests: React.FC = () => {
                   <div>
                     <span className="text-sm text-gray-500">Status</span>
                     <p>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(detailsModal.request.status)}`}>
-                        {detailsModal.request.status.toUpperCase()}
-                      </span>
+                      <StatusBadge status={detailsModal.request.status} label={detailsModal.request.status.toUpperCase()} />
                     </p>
                   </div>
                   <div>
@@ -1295,12 +1252,7 @@ const ManageRequests: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800">Reschedule Request</h3>
-              <button
-                onClick={closeRescheduleModal}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={closeRescheduleModal} />
             </div>
 
             <div className="space-y-4">
@@ -1396,13 +1348,7 @@ const ManageRequests: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-800">
                 Assign Priest & Approve Request
               </h3>
-              <button
-                onClick={closePriestAssignmentModal}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-                disabled={priestModal.loading}
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={closePriestAssignmentModal} />
             </div>
             
             <div className="p-4 space-y-4">
@@ -1474,9 +1420,9 @@ const ManageRequests: React.FC = () => {
               </div>
 
               {priestModal.selectedPriestId && (
-                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
-                  <p className="text-sm text-emerald-700 flex items-center gap-2">
-                    <span>✅</span>
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-700 flex items-center gap-2">
+                    <CheckCircle2 size={16} className="shrink-0" />
                     <span>This will assign the priest and approve the request in one step.</span>
                   </p>
                 </div>
@@ -1518,12 +1464,7 @@ const ManageRequests: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-800">
                 {confirmModal.title || 'Confirm Action'}
               </h3>
-              <button
-                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
             </div>
             <div className="p-4">
               <p className="text-gray-600">{confirmModal.message}</p>
@@ -1560,12 +1501,7 @@ const ManageRequests: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-800">
                 {promptModal.title || 'Enter Information'}
               </h3>
-              <button
-                onClick={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={() => setPromptModal(prev => ({ ...prev, isOpen: false }))} />
             </div>
             <div className="p-4">
               {promptModal.message && (
@@ -1611,42 +1547,29 @@ const ManageRequests: React.FC = () => {
 
       {/* Alert Modal */}
       {alertModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800">
                 {alertModal.title || 'Notification'}
               </h3>
-              <button
-                onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))} />
             </div>
-            <div className="p-4">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">
-                  {alertModal.variant === 'success' && '✅'}
-                  {alertModal.variant === 'error' && '❌'}
-                  {alertModal.variant === 'warning' && '⚠️'}
-                  {alertModal.variant === 'info' && 'ℹ️'}
-                </span>
-                <p className="text-gray-600">{alertModal.message}</p>
+            <div className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 mt-0.5">
+                  {alertModal.variant === 'success' && <CheckCircle2 className="text-blue-600" size={24} />}
+                  {alertModal.variant === 'error' && <XCircle className="text-red-600" size={24} />}
+                  {alertModal.variant === 'warning' && <AlertTriangle className="text-amber-600" size={24} />}
+                  {(alertModal.variant === 'info' || !alertModal.variant) && <Info className="text-blue-600" size={24} />}
+                </div>
+                <p className="text-slate-600 text-sm leading-relaxed">{alertModal.message}</p>
               </div>
             </div>
-            <div className="flex justify-end p-4 border-t border-gray-200">
+            <div className="flex justify-end p-4 border-t border-slate-200">
               <button
                 onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                  alertModal.variant === 'success' 
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : alertModal.variant === 'error'
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : alertModal.variant === 'warning'
-                    ? 'bg-amber-600 hover:bg-amber-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 OK
               </button>

@@ -1,4 +1,7 @@
 import React from "react";
+import { Package, CheckCircle, AlertTriangle, Handshake, Clock, RotateCcw } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { getCategoryInfo } from "../../components/inventoryCategories";
 
 interface InventoryStatsProps {
   stats: {
@@ -8,69 +11,65 @@ interface InventoryStatsProps {
     borrowed: number;
     overdue: number;
     returned: number;
-    category_counts?: Record<string, number>; 
+    category_counts?: Record<string, number>;
   };
 }
 
-const InventoryStats: React.FC<InventoryStatsProps> = ({ stats }) => {
-  const getCategoryInfo = (category: string) => {
-    const categories: Record<string, { label: string; icon: string; color: string }> = {
-      sacristy: { label: 'Sacristy', icon: '🕊️', color: 'bg-purple-100 text-purple-800' },
-      church: { label: 'Church', icon: '⛪', color: 'bg-blue-100 text-blue-800' },
-      office_supply: { label: 'Office Supply', icon: '📎', color: 'bg-green-100 text-green-800' },
-      office_equipment: { label: 'Office Equipment', icon: '💻', color: 'bg-indigo-100 text-indigo-800' },
-    };
-    return categories[category] || { label: category, icon: '📦', color: 'bg-gray-100 text-gray-800' };
-  };
+const statItems: { key: keyof InventoryStatsProps["stats"]; label: string; icon: LucideIcon }[] = [
+  { key: "total", label: "Total Items", icon: Package },
+  { key: "available", label: "Available", icon: CheckCircle },
+  { key: "outOfStock", label: "Out of Stock", icon: AlertTriangle },
+  { key: "borrowed", label: "Borrowed", icon: Handshake },
+  { key: "overdue", label: "Overdue", icon: Clock },
+  { key: "returned", label: "Returned", icon: RotateCcw },
+];
 
+const InventoryStats: React.FC<InventoryStatsProps> = ({ stats }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Total Items</div>
-        <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+    <div className="mb-8 space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {statItems.map(({ key, label, icon: Icon }) => (
+          <div
+            key={key}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm p-4"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-medium text-slate-500">{label}</div>
+                <div className="text-2xl font-bold text-blue-700 mt-1">
+                  {stats[key] as number}
+                </div>
+              </div>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <Icon size={18} />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Available</div>
-        <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-      </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Out of Stock</div>
-        <div className="text-2xl font-bold text-yellow-600">{stats.outOfStock}</div>
-      </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Borrowed</div>
-        <div className="text-2xl font-bold text-blue-600">{stats.borrowed}</div>
-      </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Overdue</div>
-        <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
-      </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="text-sm text-gray-500">Returned</div>
-        <div className="text-2xl font-bold text-gray-600">{stats.returned}</div>
-      </div>
-      
-      {/* Category Counts Row */}
+
       {stats.category_counts && (
-        <div className="col-span-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-            {Object.entries(stats.category_counts).map(([category, count]) => {
-              const info = getCategoryInfo(category);
-              return (
-                <div key={category} className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{info.icon}</span>
-                    <div>
-                      <div className="text-sm text-gray-500">{info.label}</div>
-                      <div className={`text-xl font-bold ${info.color.replace('bg-', 'text-').replace('100', '700')}`}>
-                        {count}
-                      </div>
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Object.entries(stats.category_counts).map(([category, count]) => {
+            const info = getCategoryInfo(category);
+            const CategoryIcon = info.Icon;
+            return (
+              <div
+                key={category}
+                className="bg-white rounded-xl border border-slate-200 shadow-sm p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <CategoryIcon size={18} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">{info.label}</div>
+                    <div className="text-xl font-bold text-blue-700">{count}</div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import React from "react";
 import type { InventoryItem } from "../../../../../../library/inventory";
+import { getCategoryInfo } from "../../components/inventoryCategories";
 
 interface InventoryTableProps {
   items: InventoryItem[];
@@ -21,20 +22,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     return 'available';
   };
 
-const getCategoryDisplay = (category?: string) => {
-    const categories: Record<string, { label: string; icon: string; color: string }> = {
-        sacristy: { label: 'Sacristy Items', icon: '🕊️', color: 'bg-purple-100 text-purple-800' },
-        church: { label: 'Church Items', icon: '⛪', color: 'bg-blue-100 text-blue-800' },
-        office_supply: { label: 'Office Supply', icon: '📎', color: 'bg-green-100 text-green-800' },
-        office_equipment: { label: 'Office Equipment', icon: '💻', color: 'bg-indigo-100 text-indigo-800' },
-    };
-    
-    if (!category || !categories[category]) {
-        return { label: 'Uncategorized', icon: '📦', color: 'bg-gray-100 text-gray-800' };
-    }
-    
-    return categories[category];
-};
+const getCategoryDisplay = (category?: string) => getCategoryInfo(category || '');
 
   if (loading) {
     return (
@@ -55,27 +43,27 @@ const getCategoryDisplay = (category?: string) => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className="bg-blue-600">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Item Name
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Category
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Type
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Quantity
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Available
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Actions
             </th>
           </tr>
@@ -84,21 +72,19 @@ const getCategoryDisplay = (category?: string) => {
           {items.map((item) => {
             const displayStatus = getMainInventoryStatus(item);
             const categoryInfo = getCategoryDisplay(item.category);
-            
+            const CategoryIcon = categoryInfo.Icon;
+
             return (
-              <tr key={item.inventory_id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">{item.name}</td>
+              <tr key={item.inventory_id} className="hover:bg-blue-50/50">
+                <td className="px-6 py-4 font-medium text-slate-900">{item.name}</td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${categoryInfo.color}`}>
-                    {categoryInfo.icon} {categoryInfo.label}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border ${categoryInfo.badgeClass}`}>
+                    <CategoryIcon size={12} />
+                    {categoryInfo.label}
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    item.type === "item"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-purple-100 text-purple-800"
-                  }`}>
+                  <span className="px-2.5 py-1 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                     {item.type}
                   </span>
                 </td>
@@ -106,10 +92,10 @@ const getCategoryDisplay = (category?: string) => {
                   {item.quantity}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${
+                  <span className={`px-2.5 py-1 text-xs rounded-full border ${
                     displayStatus === "available"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-yellow-100 text-yellow-800"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200"
                   }`}>
                     {displayStatus}
                   </span>
@@ -121,13 +107,13 @@ const getCategoryDisplay = (category?: string) => {
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => onEdit(item)}
-                      className="px-3 py-1 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => onDelete(item.inventory_id)}
-                      className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                      className="px-3 py-1.5 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
                     >
                       Delete
                     </button>

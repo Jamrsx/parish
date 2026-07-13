@@ -3,6 +3,14 @@ import axios from 'axios';
 import { manageRequestAPI } from '../../../../library/manage-request';
 import type { User } from '../../../../library/api';
 import type { ManageRequest, ManageRequestFilters } from '../../../../library/manage-request';
+import { FileArchive, BarChart3, CheckCircle, CircleCheck, Ban, Church, CheckCircle2, AlertTriangle, Info, XCircle } from 'lucide-react';
+import PageHeader from './components/PageHeader';
+import SecretaryStatCard from './components/SecretaryStatCard';
+import FilterPill from './components/FilterPill';
+import EmptyState from './components/EmptyState';
+import ModalCloseButton from './components/ModalCloseButton';
+import StatusBadge from './components/StatusBadge';
+import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
 
 // TYPE DEFINITIONS
 type RecordStatusFilter = 'all' | 'approved' | 'done' | 'cancelled';
@@ -144,26 +152,6 @@ const ServiceRecords: React.FC = () => {
     return request.service?.service_type || request.service?.service_name;
   };
 
-  const getServiceIcon = (request: ExtendedManageRequest): string => {
-    const serviceName = getServiceName(request);
-    
-    if (serviceName) {
-      const serviceNameLower = serviceName.toLowerCase();
-      if (serviceNameLower.includes('baptism')) return '✝️';
-      if (serviceNameLower.includes('marriage')) return '💍';
-      if (serviceNameLower.includes('funeral')) return '⚰️';
-      if (serviceNameLower.includes('house blessing') || serviceNameLower.includes('blessing')) return '🏠';
-      if (serviceNameLower.includes('certificate')) return '📜';
-    }
-    
-    switch (request.form_type) {
-      case 'baptism': return '✝️';
-      case 'service': return '⚰️';
-      case 'certificate': return '📜';
-      default: return '📋';
-    }
-  };
-
   const getServiceLabel = (request: ExtendedManageRequest): string => {
     const serviceName = getServiceName(request);
     
@@ -177,16 +165,6 @@ const ServiceRecords: React.FC = () => {
       case 'certificate': return 'Certificate';
       default: return 'Unknown';
     }
-  };
-
-  const getStatusColor = (status: string): string => {
-    const colors: Record<string, string> = {
-      pending: 'bg-amber-100 text-amber-700',
-      approved: 'bg-emerald-100 text-emerald-700',
-      done: 'bg-blue-100 text-blue-700',
-      cancelled: 'bg-rose-100 text-rose-700',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-700';
   };
 
   const getPaymentStatusColor = (status: string): string => {
@@ -268,15 +246,6 @@ const ServiceRecords: React.FC = () => {
     }
   };
 
-  const getStatusBadgeIcon = (status: string): string => {
-    switch (status) {
-      case 'approved': return '✅';
-      case 'done': return '✔️';
-      case 'cancelled': return '❌';
-      default: return '';
-    }
-  };
-
   // Count statistics
   const getRequestCounts = () => {
     const total = requests.length;
@@ -339,129 +308,90 @@ const ServiceRecords: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Service Records</h2>
-        <p className="text-gray-500">View and manage approved, completed, and cancelled requests</p>
+    <div>
+      <PageHeader
+        icon={FileArchive}
+        title="Service Records"
+        description="View and manage approved, completed, and cancelled requests."
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <SecretaryStatCard label="Total Records" value={counts.total} icon={BarChart3} />
+        <SecretaryStatCard label="Approved" value={counts.approved} icon={CheckCircle} />
+        <SecretaryStatCard label="Completed" value={counts.done} icon={CircleCheck} />
+        <SecretaryStatCard label="Cancelled" value={counts.cancelled} icon={Ban} />
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Total Records</p>
-              <p className="text-2xl font-bold text-gray-800">{counts.total}</p>
-            </div>
-            <span className="text-3xl">📊</span>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6 space-y-4">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Service Type</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['all', 'All Services'],
+              ['baptism', 'Baptism'],
+              ['service', 'Church Service'],
+              ['certificate', 'Certificate'],
+            ] as const).map(([value, label]) => (
+              <FilterPill
+                key={value}
+                label={label}
+                active={serviceFilter === value}
+                onClick={() => handleServiceFilter(value)}
+                icon={value === 'all' ? Church : getFilterServiceIcon(value)}
+              />
+            ))}
           </div>
-        </div>
-        <div className="bg-emerald-50 rounded-xl shadow-sm border border-emerald-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-emerald-600">Approved</p>
-              <p className="text-2xl font-bold text-emerald-700">{counts.approved}</p>
-            </div>
-            <span className="text-3xl">✅</span>
-          </div>
-        </div>
-        <div className="bg-blue-50 rounded-xl shadow-sm border border-blue-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-blue-600">Completed</p>
-              <p className="text-2xl font-bold text-blue-700">{counts.done}</p>
-            </div>
-            <span className="text-3xl">✔️</span>
-          </div>
-        </div>
-        <div className="bg-rose-50 rounded-xl shadow-sm border border-rose-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-rose-600">Cancelled</p>
-              <p className="text-2xl font-bold text-rose-700">{counts.cancelled}</p>
-            </div>
-            <span className="text-3xl">❌</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-6">
-        {/* Service Type Filters */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            ['all', 'All Services'],
-            ['baptism', '✝️ Baptism'],
-            ['service', '⚰️ Church Service'],
-            ['certificate', '📜 Certificate'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => handleServiceFilter(value as ServiceFilterType)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                serviceFilter === value
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
 
-        {/* Status Filters - Shows approved, done, cancelled */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            ['all', 'All', 'bg-gray-800'],
-            ['approved', '✅ Approved', 'bg-emerald-600'],
-            ['done', '✔️ Completed', 'bg-blue-600'],
-            ['cancelled', '❌ Cancelled', 'bg-rose-600'],
-          ].map(([value, label, activeColor]) => (
-            <button
-              key={value}
-              onClick={() => handleStatusFilter(value as RecordStatusFilter)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                statusFilter === value
-                  ? `${activeColor} text-white shadow-md`
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Status</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['all', 'All'],
+              ['approved', 'Approved'],
+              ['done', 'Completed'],
+              ['cancelled', 'Cancelled'],
+            ] as const).map(([value, label]) => (
+              <FilterPill
+                key={value}
+                label={label}
+                active={statusFilter === value}
+                onClick={() => handleStatusFilter(value)}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Date Range Filters */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">From:</label>
+            <label className="text-sm text-slate-600">From</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">To:</label>
+            <label className="text-sm text-slate-600">To</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           {(dateFrom || dateTo) && (
             <button
               onClick={clearDateFilters}
-              className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 text-sm"
             >
               Clear Dates
             </button>
           )}
           <button
             onClick={() => setCurrentPage(1)}
-            className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium"
           >
             Apply Filters
           </button>
@@ -486,12 +416,11 @@ const ServiceRecords: React.FC = () => {
           <tbody className="divide-y divide-gray-100">
             {requests.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-14 text-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-5xl mb-3">📭</span>
-                    <p className="text-gray-500 font-medium">No service records found</p>
-                    <p className="text-gray-400 text-sm mt-1">Try adjusting your filters</p>
-                  </div>
+                <td colSpan={8}>
+                  <EmptyState
+                    title="No service records found"
+                    description="Try adjusting your filters."
+                  />
                 </td>
               </tr>
             ) : (
@@ -505,8 +434,14 @@ const ServiceRecords: React.FC = () => {
                   >
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{getServiceIcon(request)}</span>
-                        <span className="font-medium text-gray-800">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                          <ServiceTypeIcon
+                            serviceName={getServiceName(request)}
+                            formType={request.form_type}
+                            size={18}
+                          />
+                        </div>
+                        <span className="font-medium text-slate-800">
                           {getServiceLabel(request)}
                         </span>
                       </div>
@@ -528,10 +463,7 @@ const ServiceRecords: React.FC = () => {
                       {request.user?.contact_number || 'N/A'}
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-fit ${getStatusColor(request.status)}`}>
-                        {getStatusBadgeIcon(request.status)}
-                        {request.status.toUpperCase()}
-                      </span>
+                      <StatusBadge status={request.status} label={request.status.toUpperCase()} />
                     </td>
                     <td className="px-4 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(request.payment_status)}`}>
@@ -582,35 +514,30 @@ const ServiceRecords: React.FC = () => {
 
       {/* View Details Modal */}
       {viewModal.isOpen && viewModal.request && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <h3 className="text-xl font-bold text-gray-800">Request Details</h3>
-              <button
-                onClick={closeViewModal}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+              <h3 className="text-xl font-bold text-slate-800">Request Details</h3>
+              <ModalCloseButton onClick={closeViewModal} />
             </div>
             
             <div className="p-6 space-y-4">
               {/* Status Badge */}
               <div className="flex items-center gap-3">
-                <span className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-2 ${getStatusColor(viewModal.request.status)}`}>
-                  {getStatusBadgeIcon(viewModal.request.status)}
-                  {viewModal.request.status.toUpperCase()}
-                </span>
-                <span className={`px-4 py-1.5 rounded-full text-sm font-semibold ${getPaymentStatusColor(viewModal.request.payment_status)}`}>
+                <StatusBadge status={viewModal.request.status} label={viewModal.request.status.toUpperCase()} />
+                <span className={`px-4 py-1.5 rounded-full text-sm font-semibold border ${getPaymentStatusColor(viewModal.request.payment_status)}`}>
                   {viewModal.request.payment_status.toUpperCase()}
                 </span>
               </div>
 
-              {/* Service Info */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-500">Service Type</p>
-                <p className="font-medium text-gray-800 flex items-center gap-2">
-                  <span className="text-2xl">{getServiceIcon(viewModal.request)}</span>
+              <div className="bg-slate-50 p-4 rounded-lg">
+                <p className="text-sm text-slate-500">Service Type</p>
+                <p className="font-medium text-slate-800 flex items-center gap-2">
+                  <ServiceTypeIcon
+                    serviceName={getServiceName(viewModal.request)}
+                    formType={viewModal.request.form_type}
+                    size={20}
+                  />
                   {getServiceLabel(viewModal.request)}
                 </p>
               </div>
@@ -726,28 +653,28 @@ const ServiceRecords: React.FC = () => {
 
       {/* Alert Modal */}
       {alertModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h3 className="text-xl font-bold text-slate-800">
                 {alertModal.title || 'Notification'}
               </h3>
-              <button
-                onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-500"
-              >
-                ✕
-              </button>
+              <ModalCloseButton onClick={() => setAlertModal(prev => ({ ...prev, isOpen: false }))} />
             </div>
             <div className="p-4">
               <div className="flex items-center gap-3">
-                <span className="text-3xl">
-                  {alertModal.variant === 'success' && '✅'}
-                  {alertModal.variant === 'error' && '❌'}
-                  {alertModal.variant === 'warning' && '⚠️'}
-                  {alertModal.variant === 'info' && 'ℹ️'}
+                <span className={`flex-shrink-0 p-2 rounded-full ${
+                  alertModal.variant === 'success' ? 'bg-emerald-100 text-emerald-600' :
+                  alertModal.variant === 'error' ? 'bg-rose-100 text-rose-600' :
+                  alertModal.variant === 'warning' ? 'bg-amber-100 text-amber-600' :
+                  'bg-blue-100 text-blue-600'
+                }`}>
+                  {alertModal.variant === 'success' && <CheckCircle2 size={24} />}
+                  {alertModal.variant === 'error' && <XCircle size={24} />}
+                  {alertModal.variant === 'warning' && <AlertTriangle size={24} />}
+                  {alertModal.variant === 'info' && <Info size={24} />}
                 </span>
-                <p className="text-gray-600">{alertModal.message}</p>
+                <p className="text-slate-600">{alertModal.message}</p>
               </div>
             </div>
             <div className="flex justify-end p-4 border-t border-gray-200">

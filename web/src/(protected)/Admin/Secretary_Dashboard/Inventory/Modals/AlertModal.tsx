@@ -1,4 +1,5 @@
 import React from "react";
+import { Check, X } from "lucide-react";
 
 interface AlertModalProps {
   isOpen: boolean;
@@ -23,19 +24,19 @@ const AlertModal: React.FC<AlertModalProps> = ({
           bg: "bg-green-100",
           iconBg: "bg-green-500",
           button: "bg-green-600 hover:bg-green-700",
-          icon: "✓",
+          icon: <Check size={32} />,
           defaultTitle: "Success",
         }
       : {
           bg: "bg-red-100",
           iconBg: "bg-red-500",
           button: "bg-red-600 hover:bg-red-700",
-          icon: "✕",
+          icon: <X size={32} />,
           defaultTitle: "Error",
         };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className={`${styles.bg} p-6 flex flex-col items-center`}>
           <div

@@ -111,8 +111,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                       onChange={(e) => setNewItem({ ...newItem, type: e.target.value as "item" | "consumable" })}
                       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
                     >
-                      <option value="item">📦 Item</option>
-                      <option value="consumable">🔄 Consumable</option>
+                      <option value="item">Item</option>
+                      <option value="consumable">Consumable</option>
                     </select>
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                       <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,10 +141,10 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
       className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
     >
       <option value="">Select Category</option>
-      <option value="sacristy">🕊️ Sacristy Items</option>
-      <option value="church">⛪ Church Items</option>
-      <option value="office_supply">📎 Office Supply</option>
-      <option value="office_equipment">💻 Office Equipment</option>
+      <option value="sacristy">Sacristy Items</option>
+      <option value="church">Church Items</option>
+      <option value="office_supply">Office Supply</option>
+      <option value="office_equipment">Office Equipment</option>
     </select>
   </div>
 </div>

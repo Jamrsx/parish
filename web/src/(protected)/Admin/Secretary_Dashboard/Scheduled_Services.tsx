@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { manageRequestAPI, getStatusLabel } from "../../../../library/manage-request";
 import type { RequestStatus, ManageRequest } from "../../../../library/manage-request";
 import type { User } from "../../../../library/api";
+import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCircle, ClipboardList, Zap, Calendar, UserCog } from "lucide-react";
+import SecretaryStatCard from "./components/SecretaryStatCard";
+import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
 
 // Define the request details interface
 interface RequestDetails {
@@ -120,10 +123,10 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   const getIcon = () => {
     switch(type) {
-      case 'danger': return '⚠️';
-      case 'warning': return '⚡';
-      case 'info': return 'ℹ️';
-      default: return '❓';
+      case 'danger': return <AlertTriangle className="text-red-600" size={32} />;
+      case 'warning': return <AlertTriangle className="text-amber-600" size={32} />;
+      case 'info': return <Info className="text-blue-600" size={32} />;
+      default: return <Info className="text-blue-600" size={32} />;
     }
   };
 
@@ -141,8 +144,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-4xl">{getIcon()}</span>
-            <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+            {getIcon()}
+            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
           </div>
           
           <p className="text-gray-600 leading-relaxed">{message}</p>
@@ -187,11 +190,11 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const getIcon = () => {
     switch(type) {
-      case 'success': return '✅';
-      case 'error': return '❌';
-      case 'warning': return '⚠️';
-      case 'info': return 'ℹ️';
-      default: return 'ℹ️';
+      case 'success': return <CheckCircle2 className="text-blue-600" size={32} />;
+      case 'error': return <XCircle className="text-red-600" size={32} />;
+      case 'warning': return <AlertTriangle className="text-amber-600" size={32} />;
+      case 'info': return <Info className="text-blue-600" size={32} />;
+      default: return <Info className="text-blue-600" size={32} />;
     }
   };
 
@@ -509,31 +512,7 @@ const ScheduledServices: React.FC = () => {
            day === today.getDate();
   };
 
-  const getServiceIcon = (type: string) => {
-    switch(type) {
-      case "House Blessing": return "🏠";
-      case "Funeral Mass": return "🕯️";
-      case "Baptism": return "💧";
-      case "Marriage": return "💒";
-      case "Baptismal Certificate": 
-      case "Marriage Certificate": return "📜";
-      case "Church Service": return "⛪";
-      default: return "📅";
-    }
-  };
-
-  const getServiceColor = (type: string) => {
-    switch(type) {
-      case "Baptism": return "bg-blue-100 border-blue-400 text-blue-700";
-      case "Funeral Mass": return "bg-purple-100 border-purple-400 text-purple-700";
-      case "House Blessing": return "bg-green-100 border-green-400 text-green-700";
-      case "Marriage": return "bg-pink-100 border-pink-400 text-pink-700";
-      case "Baptismal Certificate": 
-      case "Marriage Certificate": return "bg-amber-100 border-amber-400 text-amber-700";
-      case "Church Service": return "bg-gray-100 border-gray-400 text-gray-700";
-      default: return "bg-gray-100 border-gray-400 text-gray-700";
-    }
-  };
+  const getServiceColor = (_type: string) => "bg-blue-50 border-blue-300 text-blue-800";
 
   const handleDateClick = (dateKey: string) => {
     const servicesOnDate = getServicesForDate(dateKey);
@@ -552,45 +531,11 @@ const ScheduledServices: React.FC = () => {
 
   const renderStats = () => (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-      <StatCard 
-        icon="📊" 
-        label="Total Scheduled" 
-        value={allServices.length}
-        color="blue"
-      />
-      <StatCard 
-        icon="🏷️" 
-        label="Service Types" 
-        value={new Set(allServices.map(s => s.type)).size}
-        color="purple"
-      />
-      <StatCard 
-        icon="📆" 
-        label="Today" 
-        value={getServicesForDate(new Date().toISOString().split('T')[0]).length}
-        color="green"
-      />
+      <SecretaryStatCard icon={BarChart3} label="Total Scheduled" value={allServices.length} />
+      <SecretaryStatCard icon={Tags} label="Service Types" value={new Set(allServices.map(s => s.type)).size} />
+      <SecretaryStatCard icon={CalendarDays} label="Today" value={getServicesForDate(new Date().toISOString().split('T')[0]).length} />
     </div>
   );
-
-  const StatCard = ({ icon, label, value, color }: { icon: string; label: string; value: number; color: 'blue' | 'purple' | 'green' }) => {
-    const colorClasses = {
-      blue: 'text-blue-600',
-      purple: 'text-purple-600',
-      green: 'text-green-600'
-    };
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-gray-600 text-sm font-medium">{label}</p>
-            <p className={`text-3xl font-bold ${colorClasses[color]} mt-1`}>{value}</p>
-          </div>
-          <span className="text-4xl opacity-80">{icon}</span>
-        </div>
-      </div>
-    );
-  };
 
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
@@ -654,7 +599,9 @@ const ScheduledServices: React.FC = () => {
                   className={`text-[10px] truncate px-1.5 py-0.5 rounded border-l-2 ${getServiceColor(service.type)}`}
                   title={service.name}
                 >
-                  <span className="mr-0.5">{getServiceIcon(service.type)}</span>
+                  <span className="mr-0.5 inline-flex align-middle">
+                    <ServiceTypeIcon serviceName={service.type} size={12} />
+                  </span>
                   {service.name}
                 </div>
               ))}
@@ -711,7 +658,7 @@ const ScheduledServices: React.FC = () => {
                   className="flex items-center justify-between p-4 rounded-xl transition-all duration-200 bg-blue-50/50 border border-blue-100 hover:shadow-md hover:scale-[1.01]"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{getServiceIcon(service.type)}</span>
+                    <ServiceTypeIcon serviceName={service.type} size={28} />
                     <div>
                       <div className="font-semibold text-gray-800">{service.type}</div>
                       <div className="text-sm text-gray-600">{service.name}</div>
@@ -794,7 +741,7 @@ const ScheduledServices: React.FC = () => {
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Service Type</label>
                   <p className="text-lg font-bold text-gray-800 flex items-center gap-2 mt-0.5">
-                    <span>{getServiceIcon(selectedService.type)}</span>
+                    <ServiceTypeIcon serviceName={selectedService.type} size={18} />
                     {selectedService.type}
                   </p>
                 </div>
@@ -819,8 +766,8 @@ const ScheduledServices: React.FC = () => {
 
               {/* Request Details */}
               <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                  <span>📋</span> Complete Request Details
+                <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <ClipboardList size={16} className="text-blue-600" /> Complete Request Details
                 </h4>
                 <div className="grid grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl border border-gray-200">
                   {details && (
@@ -852,8 +799,8 @@ const ScheduledServices: React.FC = () => {
 
               {/* Actions */}
               <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                  <span>⚡</span> Actions
+                <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <Zap size={16} className="text-blue-600" /> Actions
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <button
@@ -868,7 +815,7 @@ const ScheduledServices: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <span>✅</span>
+                        <CheckCircle2 size={18} />
                         Mark as Completed
                       </>
                     )}
@@ -878,7 +825,7 @@ const ScheduledServices: React.FC = () => {
                     onClick={handleReschedule}
                     className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
                   >
-                    <span>📅</span>
+                    <Calendar size={18} />
                     Reschedule
                   </button>
 
@@ -886,7 +833,7 @@ const ScheduledServices: React.FC = () => {
                     onClick={handleChangePriest}
                     className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
                   >
-                    <span>👨‍⚖️</span>
+                    <UserCog size={18} />
                     Change Priest
                   </button>
                 </div>
@@ -927,7 +874,7 @@ const ScheduledServices: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-96">
         <div className="text-center bg-red-50 p-8 rounded-xl border border-red-200 max-w-md">
-          <div className="text-4xl mb-3">⚠️</div>
+          <AlertTriangle size={40} className="text-red-500 mx-auto mb-3" />
           <p className="text-red-600 font-medium">{error}</p>
           <button
             onClick={fetchServices}
@@ -947,8 +894,9 @@ const ScheduledServices: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                📅 Scheduled Services
+              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                <CalendarDays size={28} className="text-blue-600" />
+                Scheduled Services
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 Manage all approved services. Click on a date to view details.

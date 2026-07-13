@@ -1,5 +1,6 @@
 import React from "react";
 import type { BorrowRecord } from "../../../../../../library/borrowRecords";
+import { getCategoryInfo } from "../../components/inventoryCategories";
 
 interface BorrowerLogsTableProps {
   records: BorrowRecord[];
@@ -12,22 +13,6 @@ const BorrowerLogsTable: React.FC<BorrowerLogsTableProps> = ({
   loading,
   onReturn,
 }) => {
-
-  // Helper to get category display
-  const getCategoryDisplay = (category?: string) => {
-    const categories: Record<string, { label: string; icon: string; color: string }> = {
-      sacristy: { label: 'Sacristy Items', icon: '🕊️', color: 'bg-purple-100 text-purple-800' },
-      church: { label: 'Church Items', icon: '⛪', color: 'bg-blue-100 text-blue-800' },
-      office_supply: { label: 'Office Supply', icon: '📎', color: 'bg-green-100 text-green-800' },
-      office_equipment: { label: 'Office Equipment', icon: '💻', color: 'bg-indigo-100 text-indigo-800' },
-    };
-    
-    if (!category || !categories[category]) {
-      return { label: 'Uncategorized', icon: '📦', color: 'bg-gray-100 text-gray-800' };
-    }
-    
-    return categories[category];
-  };
 
   if (loading) {
     return (
@@ -48,33 +33,33 @@ const BorrowerLogsTable: React.FC<BorrowerLogsTableProps> = ({
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className="bg-blue-600">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Item Name
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Category
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Borrower
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Quantity Borrowed
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Location
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Borrowed At
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Expected Return
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Actions
             </th>
           </tr>
@@ -82,19 +67,21 @@ const BorrowerLogsTable: React.FC<BorrowerLogsTableProps> = ({
 
         <tbody className="divide-y divide-gray-200">
            {records.map((record) => {
-            const categoryInfo = getCategoryDisplay(record.inventory?.category);
+            const categoryInfo = getCategoryInfo(record.inventory?.category || '');
+            const CategoryIcon = categoryInfo.Icon;
           
           return(
-            <tr key={record.borrow_record_id} className="hover:bg-gray-50">
+            <tr key={record.borrow_record_id} className="hover:bg-blue-50/50">
               <td className="px-6 py-4">
-                <div className="font-medium text-gray-900">
+                <div className="font-medium text-slate-900">
                   {record.inventory?.name || "Unknown Item"}
                 </div>
               </td>
 
               <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${categoryInfo.color}`}>
-                    {categoryInfo.icon} {categoryInfo.label}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border ${categoryInfo.badgeClass}`}>
+                    <CategoryIcon size={12} />
+                    {categoryInfo.label}
                   </span>
                 </td>
               

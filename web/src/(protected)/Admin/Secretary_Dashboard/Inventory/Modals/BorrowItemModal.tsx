@@ -1,4 +1,5 @@
 import React from "react";
+import { AlertTriangle } from "lucide-react";
 import type {
   InventoryItem,
   BorrowFormData,
@@ -89,7 +90,7 @@ const BorrowItemModal: React.FC<BorrowItemModalProps> = ({
                 {selectedItem.type && (
                   <p className="text-sm text-gray-500">
                     Type:{" "}
-                    {selectedItem.type === "item" ? "📦 Item" : "🔄 Consumable"}
+                    {selectedItem.type === "item" ? "Item" : "Consumable"}
                   </p>
                 )}
               </div>
@@ -257,8 +258,9 @@ const BorrowItemModal: React.FC<BorrowItemModalProps> = ({
                   <span className="font-semibold">{availableQuantity}</span>
                 </p>
                 {isExceedingQuantity && (
-                  <p className="text-xs text-red-500">
-                    ⚠️ Exceeds available quantity
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertTriangle size={12} />
+                    Exceeds available quantity
                   </p>
                 )}
               </div>

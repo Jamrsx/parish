@@ -21,6 +21,8 @@ import EditItemModal from "./Modals/EditItemModal";
 import BorrowItemModal from "./Modals/BorrowItemModal";
 import AlertModal from "./Modals/AlertModal";
 import ConfirmationModal from "./Modals/ConfirmationModal";
+import PageHeader from "../components/PageHeader";
+import { Package, Plus } from "lucide-react";
 
 const Manage_Inventory: React.FC = () => {
   // State management
@@ -397,36 +399,20 @@ const fetchAllBorrowRecords = useCallback(async () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Inventory Management
-            </h1>
-            <p className="text-gray-600 mt-1">
-              Manage your items and consumables
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <PageHeader
+          icon={Package}
+          title="Inventory Management"
+          description="Manage parish items, consumables, and borrowing records."
+          action={
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Add New Item
-          </button>
-        </div>
+              <Plus size={18} />
+              Add New Item
+            </button>
+          }
+        />
 
         {/* Statistics Cards */}
         <InventoryStats stats={stats} />
