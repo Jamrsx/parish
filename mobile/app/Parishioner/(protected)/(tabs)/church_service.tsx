@@ -146,8 +146,9 @@ const getCertificateIcon = (title: string): { name: keyof typeof FontAwesome5.gl
   return { name: 'file-alt', color: '#2563EB' };
 };
 
-const formatServiceFee = (fee?: number | null) => {
+const formatServiceFee = (fee?: number | null, options?: { anyAmountLabel?: string }) => {
   if (fee === undefined || fee === null || Number.isNaN(Number(fee))) return null;
+  if (Number(fee) <= 0) return options?.anyAmountLabel || 'Any amount';
   return `₱${Number(fee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
@@ -540,15 +541,25 @@ export default function ChurchService() {
                     </Text>
 
                     <View className="mt-3 space-y-1">
-                      {formatServiceFee(service.fee) && (
+                      {formatServiceFee(service.fee, {
+                        anyAmountLabel: service.name.toLowerCase().includes('special intention')
+                          ? 'Any amount'
+                          : 'No fee',
+                      }) && (
                         <View className="flex-row justify-between">
                           <Text className="text-xs text-gray-500">
                             {service.name.toLowerCase().includes('special intention')
-                              ? 'Minimum Offering'
+                              ? Number(service.fee) <= 0
+                                ? 'Offering'
+                                : 'Minimum Offering'
                               : 'Service Fee'}
                           </Text>
                           <Text className="text-xs font-semibold text-blue-700">
-                            {formatServiceFee(service.fee)}
+                            {formatServiceFee(service.fee, {
+                              anyAmountLabel: service.name.toLowerCase().includes('special intention')
+                                ? 'Any amount'
+                                : 'No fee',
+                            })}
                           </Text>
                         </View>
                       )}

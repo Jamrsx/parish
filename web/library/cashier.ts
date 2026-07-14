@@ -97,6 +97,7 @@ export interface SpecialIntentionRow {
   reject_reason?: string | null;
   created_at?: string;
   min_offering?: number;
+  any_amount?: boolean;
 }
 
 export interface DailyReportData {
@@ -183,7 +184,8 @@ export const specialIntentionAPI = {
   secretaryReject: (id: number, reject_reason: string) =>
     api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/secretary-reject`, { reject_reason }),
 
-  approve: (id: number) => api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/approve`),
+  approve: (id: number, data?: { amount?: number }) =>
+    api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/approve`, data || {}),
 
   reject: (id: number, reject_reason: string) =>
     api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/reject`, { reject_reason }),

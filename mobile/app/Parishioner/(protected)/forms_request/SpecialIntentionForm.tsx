@@ -25,6 +25,15 @@ import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
 
 const FALLBACK_MIN_OFFERING = 500;
 
+const formatOfferingLabel = (fee: number | null | undefined, allowFallback = true): string => {
+  if (fee === null || fee === undefined || Number.isNaN(Number(fee))) {
+    return allowFallback ? `₱${FALLBACK_MIN_OFFERING.toFixed(2)}` : 'Any amount';
+  }
+  const value = Number(fee);
+  if (value <= 0) return 'Any amount';
+  return `₱${value.toFixed(2)}`;
+};
+
 interface FormData {
   parishioner_name: string;
   intention_text: string;
@@ -123,7 +132,10 @@ export default function SpecialIntentionForm() {
   const { bookedSlots } = useBookedTimeSlots(formData.intention_date);
   const initialFee = Number(params.fee);
   const [feeLabel, setFeeLabel] = useState(
-    `₱${(Number.isFinite(initialFee) && initialFee > 0 ? initialFee : FALLBACK_MIN_OFFERING).toFixed(2)}`
+    formatOfferingLabel(Number.isFinite(initialFee) ? initialFee : undefined)
+  );
+  const [isAnyAmount, setIsAnyAmount] = useState(
+    Number.isFinite(initialFee) ? initialFee <= 0 : false
   );
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
@@ -149,9 +161,11 @@ export default function SpecialIntentionForm() {
     (async () => {
       try {
         const service = await api.getServiceByName('Special Intention');
-        if (service?.fee) {
-          setFeeLabel(`₱${Number(service.fee).toFixed(2)}`);
-          console.log('Special Intention minimum offering:', service.fee);
+        if (service && typeof service.fee === 'number') {
+          const fee = Number(service.fee);
+          setIsAnyAmount(fee <= 0);
+          setFeeLabel(formatOfferingLabel(fee));
+          console.log('Special Intention offering config:', fee, fee <= 0 ? 'any amount' : 'minimum');
         }
       } catch (err) {
         console.error('Failed to load Special Intention fee', err);
@@ -232,7 +246,9 @@ export default function SpecialIntentionForm() {
 
       showCustomAlert(
         'Request Submitted',
-        `Your special intention has been submitted for secretary approval.\n\nDate: ${formData.intention_date}\nTime: ${getDisplayTimeLabel(formData.preferred_time)}\nMinimum offering: ${feeLabel}\nAfter approval, pay at the parish cashier.`,
+        `Your special intention has been submitted for secretary approval.\n\nDate: ${formData.intention_date}\nTime: ${getDisplayTimeLabel(formData.preferred_time)}\n${
+          isAnyAmount ? 'Offering: Any amount (including none)' : `Minimum offering: ${feeLabel}`
+        }\nAfter approval, visit the parish cashier.`,
         [
           {
             text: 'OK',
@@ -265,9 +281,13 @@ export default function SpecialIntentionForm() {
       </View>
 
       <View className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
-        <Text className="text-amber-900 font-semibold">Minimum offering: {feeLabel}</Text>
+        <Text className="text-amber-900 font-semibold">
+          {isAnyAmount ? `Offering: ${feeLabel}` : `Minimum offering: ${feeLabel}`}
+        </Text>
         <Text className="text-amber-800 text-sm mt-1">
-          The secretary will review your request first. After approval, pay in cash at the parish cashier.
+          {isAnyAmount
+            ? 'The secretary will review your request first. After approval, visit the parish cashier — any offering amount is accepted, including none.'
+            : 'The secretary will review your request first. After approval, pay in cash at the parish cashier.'}
         </Text>
       </View>
 

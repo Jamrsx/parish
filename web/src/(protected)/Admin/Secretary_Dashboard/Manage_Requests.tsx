@@ -598,16 +598,29 @@ const ManageRequests: React.FC = () => {
 
   const getServiceLabel = (request: ExtendedManageRequest): string => {
     const serviceName = getServiceName(request);
-    
+    const formHandler = request.service?.form_handler;
+
+    if (
+      serviceName === 'Special Intention' ||
+      formHandler === 'special_intention' ||
+      (serviceName || '').toLowerCase().includes('special intention')
+    ) {
+      return 'Special Intention';
+    }
+
     if (serviceName) {
       return serviceName;
     }
-    
+
     switch (request.form_type) {
-      case 'baptism': return 'Baptism';
-      case 'service': return 'Church Service';
-      case 'certificate': return 'Certificate';
-      default: return 'Unknown';
+      case 'baptism':
+        return 'Baptism';
+      case 'service':
+        return 'Church Service';
+      case 'certificate':
+        return 'Certificate';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -1262,7 +1275,7 @@ const ManageRequests: React.FC = () => {
                 {renderFormDetails(detailsModal.request)}
 
                 {/* Reschedule Info - Only show when there are actual reschedules */}
-                {detailsModal.request.reschedule_count && detailsModal.request.reschedule_count > 0 && (
+                {(detailsModal.request.reschedule_count ?? 0) > 0 && (
                   <div className="space-y-2">
                     <h4 className="font-semibold text-gray-700 border-b pb-2">Reschedule Information</h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">

@@ -21,6 +21,10 @@ class CashierController extends Controller
         $unpaidCount = ManageRequest::query()
             ->whereIn('status', ['approved', 'done'])
             ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->whereDoesntHave('service', function ($q) {
+                $q->where('form_handler', 'special_intention')
+                    ->orWhere('service_type', 'Special Intention');
+            })
             ->count();
 
         $servicePaymentsToday = PaymentTransaction::whereDate('created_at', $today)->sum('amount');
@@ -82,7 +86,12 @@ class CashierController extends Controller
     {
         $query = ManageRequest::with(['user', 'service', 'baptismForm', 'serviceForm', 'certificateForm'])
             ->whereIn('status', ['approved', 'done'])
-            ->whereIn('payment_status', ['unpaid', 'partial']);
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            // Special intentions use the dedicated Special Intentions cashier flow (any amount / ₱0).
+            ->whereDoesntHave('service', function ($q) {
+                $q->where('form_handler', 'special_intention')
+                    ->orWhere('service_type', 'Special Intention');
+            });
 
         if ($request->filled('search')) {
             $search = $request->search;

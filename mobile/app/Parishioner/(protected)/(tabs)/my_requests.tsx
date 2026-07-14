@@ -108,6 +108,19 @@ const getPaymentConfig = (request: Request) => {
   const status = (request.payment_status || 'unpaid').toLowerCase();
 
   if (fee <= 0) {
+    // Special Intention with ₱0 = any amount; still visit cashier until marked paid.
+    if (isSpecialIntentionRequest(request) && status !== 'paid') {
+      return {
+        label: request.status === 'pending' ? 'Awaiting secretary' : 'Any amount',
+        bg: 'bg-orange-100',
+        text: 'text-orange-800',
+        hint:
+          request.status === 'pending'
+            ? 'Await secretary approval, then visit the parish cashier. Any offering amount is accepted, including none.'
+            : 'Visit the parish cashier. Any offering amount is accepted, including none.',
+        needsAttention: true,
+      };
+    }
     return {
       label: 'No fee',
       bg: 'bg-gray-100',

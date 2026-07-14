@@ -207,16 +207,30 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
   }
 
   if (formType === 'service' || request.serviceForm || request.service_form_id) {
+    const formHandler = service?.form_handler || '';
     let serviceType = 'Church Service';
-    if (serviceName === 'Funeral Mass') serviceType = 'Funeral Mass';
-    else if (serviceName === 'House Blessing') serviceType = 'House Blessing';
-    else if (serviceName === 'Marriage') serviceType = 'Marriage';
+
+    if (
+      serviceName === 'Special Intention' ||
+      formHandler === 'special_intention' ||
+      serviceName.toLowerCase().includes('special intention')
+    ) {
+      serviceType = 'Special Intention';
+    } else if (serviceName === 'Funeral Mass') {
+      serviceType = 'Funeral Mass';
+    } else if (serviceName === 'House Blessing') {
+      serviceType = 'House Blessing';
+    } else if (serviceName === 'Marriage') {
+      serviceType = 'Marriage';
+    } else if (serviceName) {
+      serviceType = serviceName;
+    }
 
     return {
       ...base,
       type: serviceType,
       name: request.serviceForm?.full_name || getUserFullName(request.user) || 'N/A',
-      requestDetails: { ...requestDetails, serviceName },
+      requestDetails: { ...requestDetails, serviceName: serviceName || serviceType },
     };
   }
 

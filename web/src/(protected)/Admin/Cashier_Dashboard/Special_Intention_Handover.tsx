@@ -17,6 +17,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
   const [review, setReview] = useState<SpecialIntentionRow | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [amountReceived, setAmountReceived] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const fetchRows = useCallback(async () => {
@@ -42,20 +43,44 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
     fetchRows();
   }, [fetchRows]);
 
+  const isAnyAmount = (row: SpecialIntentionRow) =>
+    Boolean(row.any_amount) || Number(row.min_offering ?? row.amount) === 0;
+
+  const openReview = (row: SpecialIntentionRow) => {
+    setReview(row);
+    setRejectMode(false);
+    setRejectReason("");
+    // Prefill: expected amount, or blank/0 for any-amount so cashier enters what was paid
+    if (isAnyAmount(row) && row.source === "parishioner") {
+      setAmountReceived("0");
+    } else {
+      setAmountReceived(String(row.amount ?? 0));
+    }
+  };
+
   const closeReview = () => {
     setReview(null);
     setRejectMode(false);
     setRejectReason("");
+    setAmountReceived("");
   };
 
   const approve = async (id: number) => {
+    if (!review) return;
+
+    const value = Number(amountReceived);
+    if (Number.isNaN(value) || value < 0) {
+      setFeedback("Enter a valid amount received (0 or more).");
+      return;
+    }
+
     setBusyId(id);
     setFeedback(null);
     try {
-      console.log("Cashier confirming special intention:", id);
-      const res = await specialIntentionAPI.approve(id);
+      console.log("Cashier confirming special intention:", id, "amount:", value);
+      const res = await specialIntentionAPI.approve(id, { amount: value });
       if (res.data?.success) {
-        setFeedback("Special intention offering confirmed.");
+        setFeedback(res.data.message || "Special intention offering confirmed.");
         closeReview();
         fetchRows();
         onChanged?.();
@@ -92,12 +117,19 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
     }
   };
 
+  const amountLabel = (row: SpecialIntentionRow) => {
+    if (row.status === "received") return formatPeso(row.amount);
+    if (isAnyAmount(row)) return "Any amount";
+    return formatPeso(row.amount);
+  };
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Special Intention Handovers</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Confirm cash for special intentions already approved by the secretary
+          Confirm cash for special intentions already approved by the secretary. Fee ₱0 means any
+          amount (including none).
         </p>
       </div>
 
@@ -155,7 +187,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                     <td className="px-4 py-3 text-slate-600 max-w-[260px]">
                       <p className="line-clamp-2">{row.intention_text}</p>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">{formatPeso(row.amount)}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-700">{amountLabel(row)}</td>
                     <td className="px-4 py-3">{row.recorded_by || "—"}</td>
                     <td className="px-4 py-3">
                       <span
@@ -181,11 +213,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => {
-                          setReview(row);
-                          setRejectMode(false);
-                          setRejectReason("");
-                        }}
+                        onClick={() => openReview(row)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
                           row.status === "approved"
                             ? "bg-emerald-600 text-white"
@@ -204,7 +232,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
       </div>
 
       {review && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-clear bg-opacity-20 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 bg-opacity-20 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-800 mb-1">Special Intention Preview</h3>
             <p className="text-base font-semibold text-slate-900 mt-2">{review.parishioner_name}</p>
@@ -214,15 +242,23 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
             <p className="text-sm text-slate-600 mt-2 mb-3 whitespace-pre-wrap">{review.intention_text}</p>
             <p className="text-sm text-slate-500 mb-1">Date: {review.intention_date}</p>
             <p className="text-sm text-slate-500 mb-1">
-              {review.source === "parishioner" ? "Requested by parishioner" : `Recorded by ${review.recorded_by || "Secretary"}`}
+              {review.source === "parishioner"
+                ? "Requested by parishioner"
+                : `Recorded by ${review.recorded_by || "Secretary"}`}
             </p>
             <p className="text-base font-bold text-emerald-700 mb-4">
-              {review.source === "parishioner" ? "Minimum offering" : "Expected total"}: {formatPeso(review.amount)}
+              {isAnyAmount(review)
+                ? "Configured offering: Any amount"
+                : review.source === "parishioner"
+                ? `Minimum offering: ${formatPeso(review.amount)}`
+                : `Expected total: ${formatPeso(review.amount)}`}
             </p>
 
             {(review.denomination_breakdown || []).length === 0 ? (
               <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
-                {review.source === "parishioner"
+                {isAnyAmount(review)
+                  ? "Enter the cash amount the parishioner paid. Use 0 if they paid nothing — you can still confirm."
+                  : review.source === "parishioner"
                   ? "Collect the minimum cash offering from the parishioner, then confirm."
                   : "No denomination breakdown on this record."}
               </p>
@@ -246,6 +282,26 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {review.status === "approved" && !rejectMode && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Amount received (₱) {isAnyAmount(review) ? "— 0 allowed" : "*"}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amountReceived}
+                  onChange={(e) => setAmountReceived(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter what the parishioner actually paid. Confirm even if the amount is ₱0.
+                </p>
               </div>
             )}
 
@@ -279,7 +335,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                     disabled={busyId === review.intention_id}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                   >
-                    {busyId === review.intention_id ? "Confirming..." : "Confirm Match"}
+                    {busyId === review.intention_id ? "Confirming..." : "Confirm Received"}
                   </button>
                 </>
               )}

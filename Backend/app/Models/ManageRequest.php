@@ -99,8 +99,19 @@ class ManageRequest extends Model
     public function getFormTypeAttribute(): ?string
     {
         if ($this->baptism_form_id) return 'baptism';
-        if ($this->service_form_id) return 'service';
         if ($this->certificate_form_id) return 'certificate';
+        if ($this->service_form_id) {
+            $service = $this->relationLoaded('service') ? $this->service : $this->service()->first();
+            if (
+                $service && (
+                    $service->form_handler === 'special_intention' ||
+                    $service->service_type === 'Special Intention'
+                )
+            ) {
+                return 'special_intention';
+            }
+            return 'service';
+        }
         return null;
     }
 
@@ -108,8 +119,9 @@ class ManageRequest extends Model
     {
         return match ($this->form_type) {
             'baptism' => 'Baptism',
-            'service' => 'Service',
+            'service' => 'Church Service',
             'certificate' => 'Certificate',
+            'special_intention' => 'Special Intention',
             default => 'Unknown',
         };
     }
@@ -477,6 +489,13 @@ class ManageRequest extends Model
             'cancelled_by' => $admin->user_id,
         ]);
 
+        SpecialIntention::where('request_id', $this->request_id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->update([
+                'status' => 'rejected',
+                'reject_reason' => 'Request cancelled: ' . $reason,
+            ]);
+
         return true;
     }
 
@@ -554,6 +573,9 @@ class ManageRequest extends Model
             'approved_at' => now(),
         ]);
 
+        // Keep Special Intention handover in sync so cashier can see it.
+        $this->syncLinkedSpecialIntentionOnApprove();
+
         return true;
     }
 
@@ -569,6 +591,20 @@ class ManageRequest extends Model
         ]);
 
         return true;
+    }
+
+    /**
+     * When a linked manage_request is approved (Manage Requests / Special Intentions),
+     * mark the special_intentions row as approved for the cashier queue.
+     */
+    public function syncLinkedSpecialIntentionOnApprove(): void
+    {
+        SpecialIntention::where('request_id', $this->request_id)
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'approved',
+                'reject_reason' => null,
+            ]);
     }
 
     public function recordPayment(float $amount, ?User $receivedBy = null, ?string $orNumber = null, ?string $notes = null): bool

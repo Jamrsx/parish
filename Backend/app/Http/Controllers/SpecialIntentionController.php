@@ -9,6 +9,7 @@ use App\Models\ManageRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class SpecialIntentionController extends Controller
@@ -17,6 +18,17 @@ class SpecialIntentionController extends Controller
 
     public function index(Request $request)
     {
+        // Heal stuck special intentions: request already approved/done but SI still pending.
+        SpecialIntention::query()
+            ->where('status', 'pending')
+            ->whereHas('manageRequest', function ($q) {
+                $q->whereIn('status', ['approved', 'done']);
+            })
+            ->update([
+                'status' => 'approved',
+                'reject_reason' => null,
+            ]);
+
         $query = SpecialIntention::with(['recordedBy', 'receivedBy']);
 
         if ($request->filled('status') && $request->status !== 'all') {
@@ -169,7 +181,7 @@ class SpecialIntentionController extends Controller
             ], 422);
         }
 
-        $minOffering = (float) ($churchService->fee ?: SpecialIntention::MIN_OFFERING);
+        $minOffering = (float) ($churchService->fee ?? SpecialIntention::MIN_OFFERING);
         $intentionDate = $request->intention_date;
         $preferredTime = $request->preferred_time . ':00';
 
@@ -184,6 +196,7 @@ class SpecialIntentionController extends Controller
                     'preferred_time' => $preferredTime,
                 ]);
 
+                // Always unpaid until cashier records the offering (even when fee is ₱0 / any amount).
                 $manageRequest = ManageRequest::create([
                     'user_id' => $user->user_id,
                     'service_id' => $churchService->service_id,
@@ -191,7 +204,7 @@ class SpecialIntentionController extends Controller
                     'preferred_date' => $intentionDate,
                     'preferred_time' => $preferredTime,
                     'status' => 'pending',
-                    'payment_status' => $minOffering > 0 ? 'unpaid' : 'paid',
+                    'payment_status' => 'unpaid',
                     'amount_paid' => 0,
                 ]);
 
@@ -222,10 +235,13 @@ class SpecialIntentionController extends Controller
             ], 500);
         }
 
+        $payMessage = $minOffering > 0
+            ? 'Await secretary approval, then pay ₱' . number_format($minOffering, 2) . ' at the parish cashier.'
+            : 'Await secretary approval, then visit the parish cashier. Any offering amount is accepted, including none.';
+
         return response()->json([
             'success' => true,
-            'message' => 'Special intention submitted. Await secretary approval, then pay '
-                . '₱' . number_format($minOffering, 2) . ' at the parish cashier.',
+            'message' => 'Special intention submitted. ' . $payMessage,
             'data' => $this->transform($row->load(['recordedBy', 'receivedBy', 'user'])),
         ], 201);
     }
@@ -359,6 +375,7 @@ class SpecialIntentionController extends Controller
 
     /**
      * Cashier confirms cash offering (only after secretary approval).
+     * Amount received may be any value >= 0 when the service fee is ₱0 (any amount).
      */
     public function approve(Request $request, $id)
     {
@@ -372,6 +389,18 @@ class SpecialIntentionController extends Controller
             ], 403);
         }
 
+        $validator = Validator::make($request->all(), [
+            'amount' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => 'Enter a valid offering amount (0 or more).',
+            ], 422);
+        }
+
         $row = SpecialIntention::findOrFail($id);
 
         if ($row->status !== 'approved') {
@@ -381,9 +410,32 @@ class SpecialIntentionController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($row, $user) {
+        $configuredFee = (float) (
+            ChurchService::where('service_type', 'Special Intention')->value('fee')
+            ?? SpecialIntention::MIN_OFFERING
+        );
+
+        // Cashier-entered amount wins; otherwise keep expected/row amount (secretary records).
+        // For any-amount (fee 0) with no input, treat as ₱0 paid.
+        if ($request->filled('amount') || $request->has('amount')) {
+            $amountReceived = round((float) $request->input('amount', 0), 2);
+        } else {
+            $amountReceived = $configuredFee > 0
+                ? (float) $row->amount
+                : 0.0;
+        }
+
+        if ($amountReceived < 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Amount received cannot be negative.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($row, $user, $amountReceived) {
             $row->update([
                 'status' => 'received',
+                'amount' => $amountReceived,
                 'received_by' => $user->user_id,
                 'received_at' => now(),
                 'reject_reason' => null,
@@ -392,11 +444,10 @@ class SpecialIntentionController extends Controller
             if ($row->request_id) {
                 $manageRequest = ManageRequest::with('service')->find($row->request_id);
                 if ($manageRequest) {
-                    $fee = (float) ($manageRequest->service->fee ?? $row->amount);
                     $manageRequest->update([
                         'status' => 'done',
                         'payment_status' => 'paid',
-                        'amount_paid' => $fee > 0 ? $fee : $row->amount,
+                        'amount_paid' => $amountReceived,
                         'payment_date' => now(),
                         'completed_at' => now(),
                         'processed_by' => $user->user_id,
@@ -406,9 +457,17 @@ class SpecialIntentionController extends Controller
             }
         });
 
+        Log::info('Cashier confirmed special intention offering', [
+            'intention_id' => $row->intention_id,
+            'amount_received' => $amountReceived,
+            'cashier_id' => $user->user_id,
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => 'Special intention offering confirmed.',
+            'message' => $amountReceived > 0
+                ? 'Special intention offering of ₱' . number_format($amountReceived, 2) . ' confirmed.'
+                : 'Special intention confirmed with no cash offering.',
             'data' => $this->transform($row->fresh(['recordedBy', 'receivedBy'])),
         ]);
     }
@@ -551,6 +610,10 @@ class SpecialIntentionController extends Controller
 
     private function transform(SpecialIntention $row): array
     {
+        $configuredFee = ChurchService::where('service_type', 'Special Intention')->value('fee');
+        $minOffering = (float) ($configuredFee ?? SpecialIntention::MIN_OFFERING);
+        $anyAmount = $configuredFee !== null && (float) $configuredFee === 0.0;
+
         return [
             'intention_id' => $row->intention_id,
             'request_id' => $row->request_id,
@@ -568,10 +631,8 @@ class SpecialIntentionController extends Controller
             'received_at' => $row->received_at?->toIso8601String(),
             'reject_reason' => $row->reject_reason,
             'created_at' => $row->created_at?->toIso8601String(),
-            'min_offering' => (float) (
-                ChurchService::where('service_type', 'Special Intention')->value('fee')
-                ?: SpecialIntention::MIN_OFFERING
-            ),
+            'min_offering' => $minOffering,
+            'any_amount' => $anyAmount,
         ];
     }
 }

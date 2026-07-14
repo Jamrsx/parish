@@ -117,7 +117,7 @@ class SpecialIntention extends Model
                     ]);
 
                     $status = 'pending';
-                    $paymentStatus = ((float) ($service->fee ?: $row->amount)) > 0 ? 'unpaid' : 'paid';
+                    $paymentStatus = 'unpaid';
                     $amountPaid = 0;
                     $paymentDate = null;
                     $completedAt = null;
@@ -134,6 +134,8 @@ class SpecialIntention extends Model
                         $cancelledReason = $row->reject_reason
                             ? ('Special intention declined: ' . $row->reject_reason)
                             : 'Special intention declined.';
+                    } elseif ($row->status === 'approved') {
+                        $status = 'approved';
                     }
 
                     $manageRequest = ManageRequest::create([
