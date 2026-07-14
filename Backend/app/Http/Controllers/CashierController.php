@@ -6,6 +6,7 @@ use App\Models\Donation;
 use App\Models\ManageRequest;
 use App\Models\MassCollection;
 use App\Models\PaymentTransaction;
+use App\Models\SpecialIntention;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -30,7 +31,11 @@ class CashierController extends Controller
             ->sum('amount');
         $pendingDonations = Donation::pending()->count();
         $pendingMass = MassCollection::pending()->count();
+        $pendingIntentions = SpecialIntention::awaitingCashier()->count();
         $donationsReceivedToday = Donation::received()
+            ->whereDate('received_at', $today)
+            ->sum('amount');
+        $intentionsReceivedToday = SpecialIntention::received()
             ->whereDate('received_at', $today)
             ->sum('amount');
 
@@ -57,10 +62,12 @@ class CashierController extends Controller
                 'unpaid_count' => $unpaidCount,
                 'pending_donations' => $pendingDonations,
                 'pending_mass_collections' => $pendingMass,
+                'pending_special_intentions' => $pendingIntentions,
                 'service_payments_today' => (float) $servicePaymentsToday,
                 'service_payments_today_count' => $servicePaymentsTodayCount,
                 'mass_collections_today' => (float) $massCollectionsToday,
                 'donations_received_today' => (float) $donationsReceivedToday,
+                'special_intentions_today' => (float) $intentionsReceivedToday,
                 'recent_payments' => $recentPayments,
                 'recent_mass_collections' => $recentMass,
                 'date' => $today->format('Y-m-d'),
@@ -197,9 +204,17 @@ class CashierController extends Controller
             ->get()
             ->map(fn ($d) => $this->transformDonation($d));
 
+        $intentions = SpecialIntention::with(['recordedBy', 'receivedBy'])
+            ->where('status', 'received')
+            ->whereDate('received_at', $date)
+            ->orderBy('received_at')
+            ->get()
+            ->map(fn ($row) => $this->transformIntention($row));
+
         $serviceTotal = (float) $servicePayments->sum('amount');
         $massTotal = (float) $massCollections->sum('amount');
         $donationTotal = (float) $donations->sum('amount');
+        $intentionTotal = (float) $intentions->sum('amount');
 
         return response()->json([
             'success' => true,
@@ -211,7 +226,9 @@ class CashierController extends Controller
                 'mass_collections_total' => $massTotal,
                 'donations' => $donations,
                 'donations_total' => $donationTotal,
-                'income_for_date' => $serviceTotal + $massTotal + $donationTotal,
+                'special_intentions' => $intentions,
+                'special_intentions_total' => $intentionTotal,
+                'income_for_date' => $serviceTotal + $massTotal + $donationTotal + $intentionTotal,
             ],
         ]);
     }
@@ -274,6 +291,26 @@ class CashierController extends Controller
             'received_at' => $d->received_at?->toIso8601String(),
             'reject_reason' => $d->reject_reason,
             'created_at' => $d->created_at?->toIso8601String(),
+        ];
+    }
+
+    private function transformIntention(SpecialIntention $row): array
+    {
+        return [
+            'intention_id' => $row->intention_id,
+            'parishioner_name' => $row->parishioner_name,
+            'intention_text' => $row->intention_text,
+            'amount' => (float) $row->amount,
+            'denomination_breakdown' => $row->denomination_breakdown ?: [],
+            'intention_date' => $row->intention_date?->format('Y-m-d'),
+            'notes' => $row->notes,
+            'source' => $row->source ?: 'secretary',
+            'status' => $row->status,
+            'recorded_by' => $row->recordedBy?->full_name,
+            'received_by' => $row->receivedBy?->full_name,
+            'received_at' => $row->received_at?->toIso8601String(),
+            'reject_reason' => $row->reject_reason,
+            'created_at' => $row->created_at?->toIso8601String(),
         ];
     }
 }

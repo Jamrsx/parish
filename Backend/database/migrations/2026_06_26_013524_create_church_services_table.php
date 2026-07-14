@@ -10,10 +10,19 @@ return new class extends Migration
     {
         Schema::create('church_services', function (Blueprint $table) {
             $table->id('service_id');
-            $table->string('service_type', 50);
+            $table->string('service_type', 100);
+            $table->string('description', 255)->nullable();
+            $table->string('icon', 50)->nullable();
+            $table->string('category', 30)->default('service');
+            $table->string('form_handler', 50)->default('generic');
             $table->decimal('fee', 10, 2)->default(0);
             $table->integer('available_slots')->default(0);
+            $table->boolean('is_active')->default(true);
+            $table->boolean('is_system')->default(false);
             $table->timestamps();
+
+            $table->index('is_active');
+            $table->index('category');
         });
     }
 

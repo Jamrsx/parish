@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +20,10 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 
 type StatusFilter = 'all' | 'approved' | 'done' | 'cancelled' | 'pending';
 
+/** Match Backend ManageRequest::expiryMinutes() default (REQUEST_EXPIRY_MINUTES). */
+const REQUEST_EXPIRY_MINUTES = 60;
+const REQUEST_EXPIRY_MS = REQUEST_EXPIRY_MINUTES * 60 * 1000;
+
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
@@ -27,7 +32,52 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'pending', label: 'Pending' },
 ];
 
-const getStatusConfig = (status: Request['status']) => {
+const isSpecialIntentionRequest = (request: Request) =>
+  request.service?.service_type === 'Special Intention' ||
+  request.service?.form_handler === 'special_intention' ||
+  (request.service?.service_name || '').toLowerCase().includes('special intention') ||
+  (request.form_type || '').toLowerCase().includes('special_intention');
+
+/** Pending requests that auto-cancel after the expiry window (excludes Special Intention). */
+const canRequestExpire = (request: Request) =>
+  request.status === 'pending' && !isSpecialIntentionRequest(request);
+
+const getExpiryRemainingMs = (request: Request, currentTime: number): number | null => {
+  if (!canRequestExpire(request) || !request.created_at) return null;
+  const expiresAt = new Date(request.created_at).getTime() + REQUEST_EXPIRY_MS;
+  const remaining = expiresAt - currentTime;
+  return remaining > 0 ? remaining : 0;
+};
+
+const formatExpiryCountdown = (remainingMs: number): string => {
+  if (remainingMs <= 0) return 'Expiring now...';
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) {
+    return `Expires in ${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+  }
+  return `Expires in ${seconds}s`;
+};
+
+const getStatusConfig = (status: Request['status'], request?: Request) => {
+  if (request && isSpecialIntentionRequest(request) && status === 'pending') {
+    return {
+      label: 'Awaiting secretary',
+      bg: 'bg-yellow-100',
+      text: 'text-yellow-700',
+      icon: 'clock' as const,
+    };
+  }
+  if (request && isSpecialIntentionRequest(request) && status === 'approved') {
+    return {
+      label: 'Pay at cashier',
+      bg: 'bg-green-100',
+      text: 'text-green-700',
+      icon: 'check-circle' as const,
+    };
+  }
+
   switch (status) {
     case 'approved':
       return { label: 'Approved', bg: 'bg-green-100', text: 'text-green-700', icon: 'check-circle' as const };
@@ -40,6 +90,47 @@ const getStatusConfig = (status: Request['status']) => {
     default:
       return { label: status, bg: 'bg-gray-100', text: 'text-gray-700', icon: 'file-alt' as const };
   }
+};
+
+/** Clear pay / no-pay label for list cards and details */
+const getPaymentConfig = (request: Request) => {
+  if (request.status === 'cancelled') {
+    return {
+      label: 'No payment due',
+      bg: 'bg-gray-100',
+      text: 'text-gray-600',
+      hint: 'This request was cancelled. No payment is required.',
+    };
+  }
+
+  const fee = Number(request.service?.fee || 0);
+  const status = (request.payment_status || 'unpaid').toLowerCase();
+
+  if (fee <= 0) {
+    return { label: 'No fee', bg: 'bg-gray-100', text: 'text-gray-600', hint: 'This service has no payment required.' };
+  }
+  if (status === 'paid') {
+    return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', hint: 'Payment received.' };
+  }
+  if (status === 'partial') {
+    return { label: 'Partial', bg: 'bg-amber-100', text: 'text-amber-800', hint: 'Partial payment recorded. Balance still due.' };
+  }
+  if (request.status === 'pending') {
+    return {
+      label: 'Needs payment',
+      bg: 'bg-orange-100',
+      text: 'text-orange-800',
+      hint: isSpecialIntentionRequest(request)
+        ? 'Await secretary approval first, then pay at the parish cashier.'
+        : 'Pay at the parish cashier after your request is approved.',
+    };
+  }
+  return {
+    label: 'Needs payment',
+    bg: 'bg-orange-100',
+    text: 'text-orange-800',
+    hint: 'Pay at the parish cashier to complete this request.',
+  };
 };
 
 const formatDateLong = (value?: string | null) => {
@@ -84,10 +175,16 @@ const formatPeso = (amount: number) => `₱${Number(amount || 0).toLocaleString(
 const getServiceFee = (request: Request) => Number(request.service?.fee || 0);
 
 const getBalanceDue = (request: Request) => {
+  if (request.status === 'cancelled') return 0;
   if (typeof request.remaining_balance === 'number') {
     return Math.max(0, request.remaining_balance);
   }
   return Math.max(0, getServiceFee(request) - Number(request.amount_paid || 0));
+};
+
+const getAmountPaidDisplay = (request: Request) => {
+  if (request.status === 'cancelled') return 0;
+  return Number(request.amount_paid || 0);
 };
 
 const getServiceTitle = (request: Request) => {
@@ -143,6 +240,12 @@ export default function MyRequestsScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const expireRefreshInFlight = useRef(false);
 
   const fetchRequests = useCallback(async () => {
     if (!user) return;
@@ -175,6 +278,42 @@ export default function MyRequestsScreen() {
     load();
   }, [fetchRequests]);
 
+  const hasExpiringPending = requests.some((request) => canRequestExpire(request));
+
+  useEffect(() => {
+    if (!hasExpiringPending) return;
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [hasExpiringPending]);
+
+  useEffect(() => {
+    if (!hasExpiringPending || expireRefreshInFlight.current) return;
+
+    const anyExpired = requests.some((request) => {
+      const remaining = getExpiryRemainingMs(request, now);
+      return remaining === 0;
+    });
+
+    if (!anyExpired) return;
+
+    expireRefreshInFlight.current = true;
+    (async () => {
+      try {
+        console.log('Pending request expiry reached — syncing with server');
+        await api.expirePendingRequests();
+        await fetchRequests();
+      } catch (error) {
+        console.error('Failed to sync expired requests:', error);
+      } finally {
+        expireRefreshInFlight.current = false;
+      }
+    })();
+  }, [now, requests, hasExpiringPending, fetchRequests]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchRequests();
@@ -190,7 +329,53 @@ export default function MyRequestsScreen() {
   const closeDetails = () => {
     setShowDetailModal(false);
     setSelectedRequest(null);
+    setShowCancelModal(false);
+    setCancelReason('');
+    setCancelError('');
   };
+
+  const openCancelModal = () => {
+    setCancelReason('');
+    setCancelError('');
+    setShowCancelModal(true);
+  };
+
+  const handleCancelRequest = async () => {
+    if (!selectedRequest) return;
+    const reason = cancelReason.trim();
+    if (reason.length < 5) {
+      setCancelError('Please enter a reason (at least 5 characters).');
+      return;
+    }
+
+    setCancelling(true);
+    setCancelError('');
+    try {
+      console.log('Parishioner cancelling request:', selectedRequest.request_id);
+      const res = await api.cancelOwnRequest(selectedRequest.request_id, reason);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to cancel request');
+      }
+      console.log('Request cancelled successfully:', selectedRequest.request_id);
+      setShowCancelModal(false);
+      setCancelReason('');
+      closeDetails();
+      await fetchRequests();
+    } catch (error: any) {
+      console.error('Cancel request failed:', error);
+      setCancelError(error?.data?.message || error?.message || 'Unable to cancel. Please try again.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedRequest) return;
+    const fresh = requests.find((r) => r.request_id === selectedRequest.request_id);
+    if (fresh && fresh !== selectedRequest) {
+      setSelectedRequest(fresh);
+    }
+  }, [requests, selectedRequest]);
 
   if (!user) {
     return (
@@ -254,9 +439,11 @@ export default function MyRequestsScreen() {
             ) : (
               <View className="gap-3">
                 {requests.map((request) => {
-                  const statusConfig = getStatusConfig(request.status);
+                  const statusConfig = getStatusConfig(request.status, request);
+                  const paymentConfig = getPaymentConfig(request);
                   const scheduleText = getStatusScheduleText(request);
                   const rescheduled = wasRescheduled(request);
+                  const expiryRemainingMs = getExpiryRemainingMs(request, now);
 
                   return (
                     <TouchableOpacity
@@ -278,6 +465,19 @@ export default function MyRequestsScreen() {
                               {statusConfig.label}
                             </Text>
                           </View>
+                          <View className={`px-2 py-0.5 rounded-full ${paymentConfig.bg}`}>
+                            <Text className={`text-[10px] font-semibold ${paymentConfig.text}`}>
+                              {paymentConfig.label}
+                            </Text>
+                          </View>
+                          {expiryRemainingMs !== null ? (
+                            <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200">
+                              <Ionicons name="timer-outline" size={11} color="#D97706" />
+                              <Text className="text-[10px] font-semibold text-amber-700">
+                                {formatExpiryCountdown(expiryRemainingMs)}
+                              </Text>
+                            </View>
+                          ) : null}
                           {rescheduled ? (
                             <View className="px-2 py-0.5 rounded-full bg-purple-100">
                               <Text className="text-[10px] font-semibold text-purple-700">Rescheduled</Text>
@@ -301,7 +501,7 @@ export default function MyRequestsScreen() {
                         </View>
                       ) : null}
 
-                      <View className="flex-row flex-wrap gap-3">
+                      <View className="flex-row flex-wrap items-center gap-3">
                         {request.approved_at && request.status === 'approved' ? (
                           <View className="flex-row items-center">
                             <FontAwesome5 name="check-circle" size={12} color="#059669" />
@@ -316,6 +516,11 @@ export default function MyRequestsScreen() {
                             Fee: {formatPeso(getServiceFee(request))}
                           </Text>
                         </View>
+                        {getBalanceDue(request) > 0 ? (
+                          <Text className="text-xs font-semibold text-amber-700">
+                            Balance: {formatPeso(getBalanceDue(request))}
+                          </Text>
+                        ) : null}
                       </View>
                     </TouchableOpacity>
                   );
@@ -350,9 +555,10 @@ export default function MyRequestsScreen() {
                     <Text className="text-xs font-semibold text-gray-500 uppercase">Status</Text>
                     <View className="mt-2 gap-2">
                       {(() => {
-                        const statusConfig = getStatusConfig(selectedRequest.status);
+                        const statusConfig = getStatusConfig(selectedRequest.status, selectedRequest);
                         const scheduleText = getStatusScheduleText(selectedRequest);
                         const rescheduled = wasRescheduled(selectedRequest);
+                        const expiryRemainingMs = getExpiryRemainingMs(selectedRequest, now);
 
                         return (
                           <>
@@ -362,12 +568,27 @@ export default function MyRequestsScreen() {
                                   {statusConfig.label}
                                 </Text>
                               </View>
+                              {expiryRemainingMs !== null ? (
+                                <View className="flex-row items-center gap-1 px-3 py-1 rounded-full bg-amber-50 border border-amber-200">
+                                  <Ionicons name="timer-outline" size={14} color="#D97706" />
+                                  <Text className="text-xs font-semibold text-amber-700">
+                                    {formatExpiryCountdown(expiryRemainingMs)}
+                                  </Text>
+                                </View>
+                              ) : null}
                               {rescheduled ? (
                                 <View className="px-3 py-1 rounded-full bg-purple-100">
                                   <Text className="text-sm font-semibold text-purple-700">Rescheduled</Text>
                                 </View>
                               ) : null}
                             </View>
+
+                            {expiryRemainingMs !== null ? (
+                              <Text className="text-xs text-amber-700">
+                                This request will be cancelled automatically if not approved within{' '}
+                                {REQUEST_EXPIRY_MINUTES} minutes of submission.
+                              </Text>
+                            ) : null}
 
                             {scheduleText ? (
                               <View className="bg-blue-50 border border-blue-100 rounded-xl p-3">
@@ -418,30 +639,40 @@ export default function MyRequestsScreen() {
                   </View>
 
                   <View className="mb-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
-                    <Text className="text-xs font-semibold text-gray-500 uppercase mb-3">Payment Details</Text>
+                    <View className="flex-row items-center justify-between mb-3">
+                      <Text className="text-xs font-semibold text-gray-500 uppercase">Payment Details</Text>
+                      {(() => {
+                        const paymentConfig = getPaymentConfig(selectedRequest);
+                        return (
+                          <View className={`px-3 py-1 rounded-full ${paymentConfig.bg}`}>
+                            <Text className={`text-xs font-semibold ${paymentConfig.text}`}>
+                              {paymentConfig.label}
+                            </Text>
+                          </View>
+                        );
+                      })()}
+                    </View>
+
+                    <Text className="text-sm text-gray-600 mb-3">{getPaymentConfig(selectedRequest).hint}</Text>
 
                     <View className="flex-row gap-4 mb-3">
                       <View className="flex-1">
                         <Text className="text-xs font-semibold text-gray-500 uppercase">Service Fee</Text>
                         <Text className="text-sm font-bold text-gray-800 mt-1">
-                          {formatPeso(getServiceFee(selectedRequest))}
+                          {getServiceFee(selectedRequest) > 0
+                            ? formatPeso(getServiceFee(selectedRequest))
+                            : 'Free'}
                         </Text>
                       </View>
                       <View className="flex-1">
-                        <Text className="text-xs font-semibold text-gray-500 uppercase">Payment Status</Text>
-                        <Text className="text-sm text-gray-800 mt-1 capitalize">
-                          {selectedRequest.payment_status}
+                        <Text className="text-xs font-semibold text-gray-500 uppercase">Amount Paid</Text>
+                        <Text className="text-sm text-gray-800 mt-1">
+                          {formatPeso(getAmountPaidDisplay(selectedRequest))}
                         </Text>
                       </View>
                     </View>
 
                     <View className="flex-row gap-4">
-                      <View className="flex-1">
-                        <Text className="text-xs font-semibold text-gray-500 uppercase">Amount Paid</Text>
-                        <Text className="text-sm text-gray-800 mt-1">
-                          {formatPeso(selectedRequest.amount_paid)}
-                        </Text>
-                      </View>
                       <View className="flex-1">
                         <Text className="text-xs font-semibold text-gray-500 uppercase">Balance to Pay</Text>
                         <Text
@@ -449,9 +680,19 @@ export default function MyRequestsScreen() {
                             getBalanceDue(selectedRequest) > 0 ? 'text-amber-700' : 'text-green-700'
                           }`}
                         >
-                          {formatPeso(getBalanceDue(selectedRequest))}
+                          {selectedRequest.status === 'cancelled' || getServiceFee(selectedRequest) <= 0
+                            ? (selectedRequest.status === 'cancelled' ? formatPeso(0) : 'None')
+                            : formatPeso(getBalanceDue(selectedRequest))}
                         </Text>
                       </View>
+                      {selectedRequest.payment_date ? (
+                        <View className="flex-1">
+                          <Text className="text-xs font-semibold text-gray-500 uppercase">Paid On</Text>
+                          <Text className="text-sm text-gray-800 mt-1">
+                            {formatDateLong(selectedRequest.payment_date)}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
 
@@ -497,7 +738,16 @@ export default function MyRequestsScreen() {
                   </View>
                 </ScrollView>
 
-                <View className="px-5 py-4 border-t border-gray-200">
+                <View className="px-5 py-4 border-t border-gray-200 gap-2">
+                  {selectedRequest.status === 'pending' ? (
+                    <TouchableOpacity
+                      onPress={openCancelModal}
+                      disabled={cancelling}
+                      className="bg-red-50 border border-red-200 rounded-xl py-3 items-center"
+                    >
+                      <Text className="text-red-700 font-semibold">Cancel Request</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     onPress={closeDetails}
                     className="bg-blue-600 rounded-xl py-3 items-center"
@@ -507,6 +757,63 @@ export default function MyRequestsScreen() {
                 </View>
               </>
             ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showCancelModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!cancelling) setShowCancelModal(false);
+        }}
+      >
+        <View className="flex-1 bg-black/50 items-center justify-center p-4">
+          <View className={`bg-white rounded-2xl w-full ${isCompact ? 'max-w-md' : 'max-w-lg'} p-5`}>
+            <Text className="text-lg font-bold text-gray-800 mb-1">Cancel Request</Text>
+            <Text className="text-sm text-gray-600 mb-4">
+              This will cancel your pending request. Please tell us why.
+            </Text>
+            <Text className="text-xs font-semibold text-gray-500 uppercase mb-1">Reason *</Text>
+            <TextInput
+              value={cancelReason}
+              onChangeText={(text) => {
+                setCancelReason(text);
+                if (cancelError) setCancelError('');
+              }}
+              placeholder="e.g. I need to change the schedule"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              className={`border rounded-xl px-3 py-3 text-gray-800 bg-gray-50 min-h-[90px] ${
+                cancelError ? 'border-red-500' : 'border-gray-300'
+              }`}
+            />
+            {cancelError ? <Text className="text-red-500 text-xs mt-1">{cancelError}</Text> : null}
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity
+                onPress={() => {
+                  if (!cancelling) setShowCancelModal(false);
+                }}
+                disabled={cancelling}
+                className="flex-1 py-3 rounded-xl bg-gray-100 items-center"
+              >
+                <Text className="text-gray-700 font-semibold">Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleCancelRequest}
+                disabled={cancelling}
+                className={`flex-1 py-3 rounded-xl items-center ${cancelling ? 'bg-red-400' : 'bg-red-600'}`}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white font-semibold">Confirm Cancel</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

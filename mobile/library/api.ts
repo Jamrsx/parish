@@ -37,9 +37,10 @@ export interface Request {
   status: 'pending' | 'approved' | 'done' | 'cancelled';
   payment_status: 'unpaid' | 'partial' | 'paid';
   amount_paid: number;
+  payment_date?: string | null;
   remaining_balance?: number;
   is_fully_paid?: boolean;
-  service: Service & { service_name?: string; form_type?: string | null };
+  service: Service & { service_name?: string; form_type?: string | null; form_handler?: string | null };
   form_type: string;
   form_type_label?: string;
   form_summary: string;
@@ -411,6 +412,33 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     ApiResponse<{ expired_count: number; expiry_minutes: number }>
   > {
     return this.request('/parishioner/manage-requests/expire-pending', { method: 'POST' });
+  }
+
+  async cancelOwnRequest(
+    requestId: number,
+    cancelled_reason: string
+  ): Promise<ApiResponse<Request>> {
+    return this.request(`/parishioner/requests/${requestId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ cancelled_reason }),
+    });
+  }
+
+  async createSpecialIntention(data: {
+    parishioner_name: string;
+    intention_text: string;
+    intention_date: string;
+    preferred_time: string;
+    notes?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/parishioner/special-intentions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMySpecialIntentions(): Promise<ApiResponse<any>> {
+    return this.request('/parishioner/special-intentions');
   }
 
   // SERVICES

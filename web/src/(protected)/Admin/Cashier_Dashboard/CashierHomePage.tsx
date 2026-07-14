@@ -7,6 +7,7 @@ import MassCollections from "./Mass_Financial";
 import TransactionHistory from "./Transaction_History";
 import DailyReport from "./Daily_Report";
 import DonationHandover from "./Donation_Handover";
+import SpecialIntentionHandover from "./Special_Intention_Handover";
 
 type TabId =
   | "dashboard"
@@ -14,7 +15,8 @@ type TabId =
   | "transactions"
   | "daily-report"
   | "mass"
-  | "donations";
+  | "donations"
+  | "intentions";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -67,6 +69,7 @@ const CashierHomePage: React.FC = () => {
     { id: "daily-report", label: "Daily Report", icon: "📅" },
     { id: "mass", label: "Mass Collections", icon: "⛪" },
     { id: "donations", label: "Donations", icon: "🤝" },
+    { id: "intentions", label: "Special Intentions", icon: "🙏" },
   ];
 
   return (
@@ -131,6 +134,11 @@ const CashierHomePage: React.FC = () => {
                 {!sidebarCollapsed && tab.id === "mass" && (dashboard?.pending_mass_collections || 0) > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-[11px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center">
                     {dashboard?.pending_mass_collections}
+                  </span>
+                )}
+                {!sidebarCollapsed && tab.id === "intentions" && (dashboard?.pending_special_intentions || 0) > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[11px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center">
+                    {dashboard?.pending_special_intentions}
                   </span>
                 )}
               </button>
@@ -284,6 +292,7 @@ const CashierHomePage: React.FC = () => {
             {activeTab === "daily-report" && <DailyReport />}
             {activeTab === "mass" && <MassCollections onChanged={fetchDashboard} />}
             {activeTab === "donations" && <DonationHandover onChanged={fetchDashboard} />}
+            {activeTab === "intentions" && <SpecialIntentionHandover onChanged={fetchDashboard} />}
           </div>
         </main>
       </div>

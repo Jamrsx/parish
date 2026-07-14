@@ -21,7 +21,7 @@ interface RequestFormDetailsProps {
     baptismForm?: BaptismForm;
     serviceForm?: ServiceForm;
     certificateForm?: CertificateForm;
-    service?: { service_type?: string } | null;
+    service?: { service_type?: string; form_handler?: string | null } | null;
   };
   formatDateOnly: (dateString: string | undefined) => string;
 }
@@ -128,6 +128,34 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
 
   if (formType === 'service' && request.serviceForm) {
     const form = request.serviceForm;
+    const serviceType = request.service?.service_type || form.service_name || 'Service';
+    const isSpecialIntention =
+      serviceType === 'Special Intention' ||
+      request.service?.form_handler === 'special_intention';
+
+    if (isSpecialIntention) {
+      return (
+        <div className="space-y-3">
+          <h4 className="font-semibold text-slate-700 border-b border-slate-200 pb-2">
+            Special Intention Details
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div>
+              <span className="text-slate-500">Service</span>
+              <p className="font-medium text-slate-800">Special Intention</p>
+            </div>
+            <div>
+              <span className="text-slate-500">Parishioner Name</span>
+              <p className="font-medium text-slate-800">{form.full_name}</p>
+            </div>
+            <div className="md:col-span-2">
+              <span className="text-slate-500">Intention</span>
+              <p className="font-medium text-slate-800 whitespace-pre-wrap">{form.address || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-3">
@@ -135,7 +163,7 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div>
             <span className="text-slate-500">Service Name</span>
-            <p className="font-medium text-slate-800">{form.service_name || request.service?.service_type || 'N/A'}</p>
+            <p className="font-medium text-slate-800">{serviceType}</p>
           </div>
           <div>
             <span className="text-slate-500">Full Name</span>

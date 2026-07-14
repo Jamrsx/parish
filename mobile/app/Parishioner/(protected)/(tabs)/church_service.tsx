@@ -23,10 +23,13 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 // INTERFACES
 // ============================================================
 interface ServiceAvailability {
-  id: string;
+  id: string | number;
+  service_id?: number;
   name: string;
   icon: string;
   description: string;
+  fee?: number;
+  form_handler?: string;
   status: string;
   statusColor: string;
   slotsRemaining: string;
@@ -42,8 +45,10 @@ interface ServiceAvailability {
 
 interface CertificateAvailability {
   id: number;
+  service_id?: number;
   title: string;
   description: string;
+  fee?: number;
   processingTime: string;
   timeColor: string;
   navigateTo: string;
@@ -129,6 +134,7 @@ const getServiceIcon = (name: string): { name: keyof typeof FontAwesome5.glyphMa
   if (lower.includes('funeral')) return { name: 'cross', color: '#2563EB' };
   if (lower.includes('marriage') && !lower.includes('certificate')) return { name: 'ring', color: '#2563EB' };
   if (lower.includes('house blessing') || lower.includes('house')) return { name: 'home', color: '#2563EB' };
+  if (lower.includes('special intention') || lower.includes('intention')) return { name: 'hands', color: '#2563EB' };
   if (lower.includes('certificate')) return { name: 'file-alt', color: '#2563EB' };
   return { name: 'church', color: '#2563EB' };
 };
@@ -138,6 +144,21 @@ const getCertificateIcon = (title: string): { name: keyof typeof FontAwesome5.gl
   if (lower.includes('baptismal')) return { name: 'file-alt', color: '#2563EB' };
   if (lower.includes('marriage')) return { name: 'file-signature', color: '#2563EB' };
   return { name: 'file-alt', color: '#2563EB' };
+};
+
+const formatServiceFee = (fee?: number | null) => {
+  if (fee === undefined || fee === null || Number.isNaN(Number(fee))) return null;
+  return `₱${Number(fee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const cleanServiceDescription = (description?: string, fee?: number | null) => {
+  if (!description) return 'Service description';
+  // Remove hardcoded "Minimum ₱xxx" fragments; fee is shown from the database instead
+  const cleaned = description
+    .replace(/\s*[·•|-]?\s*Minimum\s*₱?\s*[\d,]+(?:\.\d+)?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return cleaned || 'Service description';
 };
 
 // ============================================================
@@ -211,15 +232,33 @@ export default function ChurchService() {
       if (response.success) {
         console.log('Availability date from API:', response.data.date);
         const correctedServices = response.data.services.map((service: ServiceAvailability) => {
-          const pathMap: Record<string, string> = {
+          const builtInPaths: Record<string, string> = {
             Baptism: '/Parishioner/(protected)/forms_request/BaptismForm',
             'Funeral Mass': '/Parishioner/(protected)/forms_request/FuneralMassForm',
             'House Blessing': '/Parishioner/(protected)/forms_request/HouseBlessingsForm',
             Marriage: '/Parishioner/(protected)/forms_request/MarriageInquiryForm',
+            'Special Intention': '/Parishioner/(protected)/forms_request/SpecialIntentionForm',
           };
+
+          const formHandlerPath: Record<string, string> = {
+            baptism: builtInPaths.Baptism,
+            funeral_mass: builtInPaths['Funeral Mass'],
+            house_blessing: builtInPaths['House Blessing'],
+            marriage: builtInPaths.Marriage,
+            special_intention: builtInPaths['Special Intention'],
+            generic: '/Parishioner/(protected)/forms_request/GenericServiceForm',
+          };
+
+          const handler = (service as any).form_handler as string | undefined;
+          const navigateTo =
+            builtInPaths[service.name] ||
+            (handler && formHandlerPath[handler]) ||
+            service.navigateTo ||
+            '/Parishioner/(protected)/forms_request/GenericServiceForm';
+
           return {
             ...service,
-            navigateTo: pathMap[service.name] || service.navigateTo,
+            navigateTo,
           };
         });
 
@@ -269,10 +308,11 @@ export default function ChurchService() {
     if (service.navigateTo) {
       router.push({
         pathname: service.navigateTo as any,
-        params: { 
-          serviceId: service.id,
-          serviceName: service.name 
-        }
+        params: {
+          serviceId: String((service as any).service_id || service.id),
+          serviceName: service.name,
+          fee: String((service as any).fee ?? ''),
+        },
       });
     } else {
       showCustomAlert(
@@ -288,22 +328,20 @@ export default function ChurchService() {
       'Baptismal Certificate': '/Parishioner/(protected)/certificate_request/BaptismalCertificate',
       'Marriage Certificate': '/Parishioner/(protected)/certificate_request/MarriageCertificate',
     };
-    
-    if (pathMap[certificate.title]) {
-      router.push({
-        pathname: pathMap[certificate.title] as any,
-        params: { 
-          serviceId: certificate.id.toString(),
-          certificateTitle: certificate.title 
-        }
-      });
-    } else {
-      showCustomAlert(
-        'Error',
-        `Unsupported certificate type: ${certificate.title}`,
-        [{ text: 'OK', onPress: () => {}, style: 'default' }]
-      );
-    }
+
+    const path =
+      pathMap[certificate.title] ||
+      (certificate as any).navigateTo ||
+      '/Parishioner/(protected)/forms_request/GenericServiceForm';
+
+    router.push({
+      pathname: path as any,
+      params: {
+        serviceId: String((certificate as any).service_id || certificate.id),
+        serviceName: certificate.title,
+        fee: String((certificate as any).fee ?? ''),
+      },
+    });
   };
 
   // HELPERS
@@ -458,10 +496,22 @@ export default function ChurchService() {
 
                     <Text className="text-lg font-bold text-gray-800 mt-2">{service.name}</Text>
                     <Text className="text-sm text-gray-500 mt-1" numberOfLines={2}>
-                      {service.description || 'Service description'}
+                      {cleanServiceDescription(service.description, service.fee)}
                     </Text>
 
                     <View className="mt-3 space-y-1">
+                      {formatServiceFee(service.fee) && (
+                        <View className="flex-row justify-between">
+                          <Text className="text-xs text-gray-500">
+                            {service.name.toLowerCase().includes('special intention')
+                              ? 'Minimum Offering'
+                              : 'Service Fee'}
+                          </Text>
+                          <Text className="text-xs font-semibold text-blue-700">
+                            {formatServiceFee(service.fee)}
+                          </Text>
+                        </View>
+                      )}
                       {service.dailyLimit && (
                         <View className="flex-row justify-between">
                           <Text className="text-xs text-gray-500">Daily Request Limit</Text>
@@ -516,10 +566,18 @@ export default function ChurchService() {
 
                     <Text className="text-lg font-bold text-gray-800 mt-2">{certificate.title}</Text>
                     <Text className="text-sm text-gray-500 mt-1" numberOfLines={2}>
-                      {certificate.description}
+                      {cleanServiceDescription(certificate.description, certificate.fee)}
                     </Text>
 
-                    <View className="mt-3">
+                    <View className="mt-3 space-y-1">
+                      {formatServiceFee(certificate.fee) && (
+                        <View className="flex-row justify-between">
+                          <Text className="text-xs text-gray-500">Fee</Text>
+                          <Text className="text-xs font-semibold text-blue-700">
+                            {formatServiceFee(certificate.fee)}
+                          </Text>
+                        </View>
+                      )}
                       <View className="flex-row justify-between">
                         <Text className="text-xs text-gray-500">Processing Time</Text>
                         <Text className="text-xs font-semibold text-gray-800">{certificate.processingTime}</Text>

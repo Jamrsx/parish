@@ -8,6 +8,8 @@ export default function Layout() {
       <Stack.Screen name="FuneralMassForm" options={{ headerShown: false }} />
       <Stack.Screen name="HouseBlessingsForm" options={{ headerShown: false }} />
       <Stack.Screen name="MarriageInquiryForm" options={{ headerShown: false }} />
+      <Stack.Screen name="SpecialIntentionForm" options={{ headerShown: false }} />
+      <Stack.Screen name="GenericServiceForm" options={{ headerShown: false }} />
     </Stack>
   );
 }

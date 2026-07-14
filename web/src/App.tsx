@@ -18,6 +18,8 @@ import ServiceRecords from "./(protected)/Admin/Secretary_Dashboard/Service_Reco
 import ManagePriests from "./(protected)/Admin/Secretary_Dashboard/Manage_Priests";
 import ManageDonations from "./(protected)/Admin/Secretary_Dashboard/Manage_Donations";
 import ManageMassCollections from "./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections";
+import ManageSpecialIntentions from "./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions";
+import ManageServices from "./(protected)/Admin/Secretary_Dashboard/Manage_Services";
 
 // Admin - Cashier
 import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomePage";
@@ -89,6 +91,8 @@ function App() {
             <Route path="manage-priests" element={<ManagePriests />} />
             <Route path="donations" element={<ManageDonations />} />
             <Route path="mass-collections" element={<ManageMassCollections />} />
+            <Route path="special-intentions" element={<ManageSpecialIntentions />} />
+            <Route path="manage-services" element={<ManageServices />} />
           </Route>
 
           {/* Cashier */}

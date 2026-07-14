@@ -7,6 +7,7 @@ use App\Models\BaptismForm;
 use App\Models\ServiceForm;
 use App\Models\CertificateForm;
 use App\Models\ChurchService;
+use App\Models\SpecialIntention;
 use App\Models\User;
 use App\Models\Notification;
 use Illuminate\Http\Request;
@@ -107,8 +108,12 @@ class ManageRequestController extends Controller
             'baptism_form_id' => $request->baptism_form_id,
             'service_form_id' => $request->service_form_id,
             'certificate_form_id' => $request->certificate_form_id,
-            'preferred_date' => $request->preferred_date,
-            'preferred_time' => $request->preferred_time,
+            'preferred_date' => $request->preferred_date
+                ? (\Illuminate\Support\Carbon::parse($request->preferred_date)->format('Y-m-d'))
+                : null,
+            'preferred_time' => $request->preferred_time
+                ? ManageRequest::normalizeTime($request->preferred_time)
+                : null,
             'status' => $request->status,
             'cancelled_by' => $request->cancelled_by,
             'cancelled_reason' => $request->cancelled_reason,
@@ -150,7 +155,8 @@ class ManageRequestController extends Controller
                 'service_id' => $request->service->service_id,
                 'service_type' => $request->service->service_type,
                 'fee' => (float) $request->service->fee,
-                'form_type' => $request->service->form_type,
+                'form_type' => $request->service->form_type ?? null,
+                'form_handler' => $request->service->form_handler ?? null,
             ] : null,
 
             'baptismForm' => $request->baptismForm,
@@ -168,7 +174,9 @@ class ManageRequestController extends Controller
             'remaining_balance' => (float) $request->remaining_balance,
             'is_fully_paid' => $request->is_fully_paid,
             'formatted_preferred_date' => $request->preferred_date ? date('F d, Y', strtotime($request->preferred_date)) : null,
-            'formatted_preferred_time' => $request->preferred_time ? date('h:i A', strtotime($request->preferred_time)) : null,
+            'formatted_preferred_time' => $request->preferred_time
+                ? date('h:i A', strtotime(ManageRequest::normalizeTime($request->preferred_time)))
+                : null,
         ];
     }
 
@@ -1429,6 +1437,100 @@ class ManageRequestController extends Controller
     // PARISHIONER METHODS
 
     /**
+     * Parishioner cancels their own pending request.
+     */
+    public function cancelOwnRequest(Request $request, $id)
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated.'
+            ], 401);
+        }
+
+        if (!$user->isParishioner()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only parishioners can cancel their own requests.'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cancelled_reason' => 'required|string|min:5|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => 'Please provide a cancellation reason (at least 5 characters).',
+            ], 422);
+        }
+
+        try {
+            $manageRequest = ManageRequest::with('service')->findOrFail($id);
+
+            if ((int) $manageRequest->user_id !== (int) $user->user_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only cancel your own requests.'
+                ], 403);
+            }
+
+            if ($manageRequest->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only pending requests can be cancelled.'
+                ], 422);
+            }
+
+            $oldStatus = $manageRequest->status;
+            $reason = $request->cancelled_reason;
+
+            DB::transaction(function () use ($manageRequest, $user, $reason) {
+                $manageRequest->update([
+                    'status' => 'cancelled',
+                    'cancelled_reason' => $reason,
+                    'cancelled_by' => $user->user_id,
+                ]);
+
+                SpecialIntention::where('request_id', $manageRequest->request_id)
+                    ->whereIn('status', ['pending', 'approved'])
+                    ->update([
+                        'status' => 'rejected',
+                        'reject_reason' => 'Cancelled by parishioner: ' . $reason,
+                    ]);
+            });
+
+            try {
+                $manageRequest->createStatusNotification($oldStatus);
+            } catch (\Exception $e) {
+                Log::error('Failed to create cancel notification: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Your request has been cancelled.',
+                'data' => $this->transformRequest($manageRequest->fresh([
+                    'user',
+                    'service',
+                    'baptismForm',
+                    'serviceForm',
+                    'certificateForm',
+                ])),
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Request not found.'
+            ], 404);
+        }
+    }
+
+    /**
      * Expire pending requests for the authenticated parishioner (called by mobile after 2 min).
      */
     public function expirePendingRequests(Request $request)
@@ -1487,6 +1589,9 @@ class ManageRequestController extends Controller
         }
 
         ManageRequest::expirePendingRequests($user->user_id);
+
+        // Link any parishioner special intentions that were submitted before My Requests linking
+        SpecialIntention::linkMissingManageRequestsForUser($user->user_id);
 
         $query = ManageRequest::where('user_id', $user->user_id);
 

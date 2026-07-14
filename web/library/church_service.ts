@@ -1,21 +1,31 @@
 import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
 
-// ============ TYPE DEFINITIONS ============
-
 export interface ChurchService {
     service_id: number;
+    service_type?: string;
     service_name: string;
+    description?: string | null;
+    icon?: string | null;
+    category?: 'service' | 'certificate';
+    form_handler?: string;
     fee: number;
+    available_slots?: number;
+    is_active?: boolean;
+    is_system?: boolean;
     created_at?: string;
     updated_at?: string;
     formatted_fee?: string;
-    form_type?: 'baptism' | 'service' | 'certificate' | null;
+    form_type?: 'baptism' | 'service' | 'certificate' | 'special_intention' | null;
     required_form?: string | null;
     is_baptism?: boolean;
     is_marriage?: boolean;
     is_certificate?: boolean;
     uses_service_form?: boolean;
+    daily_limit?: number;
+    today_bookings?: number;
+    today_remaining?: number;
+    navigate_path?: string;
 }
 
 export interface ChurchServiceFilters {
@@ -45,214 +55,123 @@ export interface ServiceOptions {
 }
 
 export interface CreateChurchServiceData {
-    service_name: string;
+    service_type: string;
+    description?: string;
+    icon?: string;
+    category: 'service' | 'certificate';
     fee: number;
+    available_slots: number;
+    is_active?: boolean;
 }
 
 export interface UpdateChurchServiceData {
-    service_name?: string;
+    service_type?: string;
+    description?: string;
+    icon?: string;
+    category?: 'service' | 'certificate';
     fee?: number;
+    available_slots?: number;
+    is_active?: boolean;
 }
 
-// ============ CHURCH SERVICE API ============
-
 export const churchServiceAPI = {
-    /**
-     * Get all church services with optional filters
-     */
-    getAll: (filters?: ChurchServiceFilters) => 
+    getAll: (filters?: ChurchServiceFilters) =>
         api.get<ApiResponse<PaginatedResponse<ChurchService>>>('/church-services', { params: filters }),
 
-    /**
-     * Get service options for dropdowns 
-     */
-    getOptions: () => 
-        api.get<ApiResponse<ServiceOptions>>('/church-services/options'),
+    getAdminAll: (filters?: ChurchServiceFilters & { per_page?: number }) =>
+        api.get<ApiResponse<PaginatedResponse<ChurchService>>>('/admin/church-services', {
+            params: { per_page: 100, ...filters },
+        }),
 
-    /**
-     * Get a specific service by ID
-     */
-    getById: (id: number) => 
-        api.get<ApiResponse<ChurchService>>(`/church-services/${id}`),
+    getOptions: () => api.get<ApiResponse<ServiceOptions>>('/church-services/options'),
 
-    /**
-     * Get service by name
-     */
-    getByName: (name: string) => 
-        api.get<ApiResponse<ChurchService>>(`/church-services/name/${name}`),
+    getById: (id: number) => api.get<ApiResponse<ChurchService>>(`/church-services/${id}`),
 
-    /**
-     * Get service statistics
-     */
-    getStatistics: () => 
+    getByName: (name: string) => api.get<ApiResponse<ChurchService>>(`/church-services/name/${name}`),
+
+    getStatistics: () =>
         api.get<ApiResponse<ChurchServiceStatistics>>('/church-services/statistics'),
 
-    /**
-     * Create a new church service (Admin only)
-     */
-    create: (data: CreateChurchServiceData) => 
-        api.post<ApiResponse<ChurchService>>('/church-services', data),
+    create: (data: CreateChurchServiceData) =>
+        api.post<ApiResponse<ChurchService>>('/admin/church-services', data),
 
-    /**
-     * Update a church service
-     */
-    update: (id: number, data: UpdateChurchServiceData) => 
-        api.put<ApiResponse<ChurchService>>(`/church-services/${id}`, data),
+    update: (id: number, data: UpdateChurchServiceData) =>
+        api.put<ApiResponse<ChurchService>>(`/admin/church-services/${id}`, data),
 
-    /**
-     * Delete a church service
-     */
-    delete: (id: number) => 
-        api.delete<ApiResponse<null>>(`/church-services/${id}`),
+    delete: (id: number) => api.delete<ApiResponse<ChurchService | null>>(`/admin/church-services/${id}`),
 };
 
-// ============ HELPER FUNCTIONS ============
-
-/**
- * Format fee for display
- */
 export const formatFee = (fee: number): string => {
-    return `₱${fee.toFixed(2)}`;
+    return `₱${Number(fee || 0).toFixed(2)}`;
 };
 
-/**
- * Get service name by ID
- */
 export const getServiceName = (services: ChurchService[], id: number): string => {
-    const service = services.find(s => s.service_id === id);
-    return service?.service_name || 'Unknown Service';
+    const service = services.find((s) => s.service_id === id);
+    return service?.service_name || service?.service_type || 'Unknown';
 };
 
-/**
- * Get service fee by ID
- */
 export const getServiceFee = (services: ChurchService[], id: number): number => {
-    const service = services.find(s => s.service_id === id);
-    return service?.fee || 0;
+    return services.find((s) => s.service_id === id)?.fee || 0;
 };
 
-/**
- * Get service by ID
- */
 export const getServiceById = (services: ChurchService[], id: number): ChurchService | undefined => {
-    return services.find(s => s.service_id === id);
+    return services.find((s) => s.service_id === id);
 };
 
-/**
- * Get service options for select dropdown
- */
 export const getServiceSelectOptions = (services: ChurchService[]) => {
-    return services.map(service => ({
-        value: service.service_id,
-        label: `${service.service_name} (${formatFee(service.fee)})`,
-        fee: service.fee,
-        name: service.service_name,
+    return services.map((s) => ({
+        value: s.service_id,
+        label: s.service_name || s.service_type || '',
+        fee: s.fee,
     }));
 };
 
-/**
- * Group services by type
- */
 export const groupServicesByType = (services: ChurchService[]) => {
     const grouped: Record<string, ChurchService[]> = {
         baptism: [],
         service_form: [],
         certificate: [],
+        other: [],
     };
 
-    services.forEach(service => {
-        if (service.service_name === 'Baptism') {
-            grouped.baptism.push(service);
-        } else if (['Marriage', 'Funeral Mass', 'House Blessing'].includes(service.service_name)) {
-            grouped.service_form.push(service);
-        } else if (['Baptismal Certificate', 'Marriage Certificate'].includes(service.service_name)) {
-            grouped.certificate.push(service);
-        }
+    services.forEach((service) => {
+        if (service.is_baptism) grouped.baptism.push(service);
+        else if (service.is_certificate) grouped.certificate.push(service);
+        else if (service.uses_service_form) grouped.service_form.push(service);
+        else grouped.other.push(service);
     });
 
     return grouped;
 };
 
-/**
- * Get services by type
- */
-export const getServicesByType = (services: ChurchService[], type: 'baptism' | 'service_form' | 'certificate'): ChurchService[] => {
-    const grouped = groupServicesByType(services);
-    return grouped[type] || [];
+export const getServicesByType = (
+    services: ChurchService[],
+    type: 'baptism' | 'service_form' | 'certificate'
+): ChurchService[] => {
+    if (type === 'baptism') return services.filter((s) => s.is_baptism);
+    if (type === 'certificate') return services.filter((s) => s.is_certificate);
+    return services.filter((s) => s.uses_service_form);
 };
 
-/**
- * Get services for a specific form type
- */
 export const getServicesForFormType = (services: ChurchService[], formType: string): ChurchService[] => {
-    if (formType === 'baptism') {
-        return services.filter(s => s.service_name === 'Baptism');
-    } else if (formType === 'service') {
-        return services.filter(s => ['Marriage', 'Funeral Mass', 'House Blessing'].includes(s.service_name));
-    } else if (formType === 'certificate') {
-        return services.filter(s => ['Baptismal Certificate', 'Marriage Certificate'].includes(s.service_name));
-    }
-    return [];
+    if (formType === 'baptism') return getServicesByType(services, 'baptism');
+    if (formType === 'certificate') return getServicesByType(services, 'certificate');
+    return getServicesByType(services, 'service_form');
 };
 
-/**
- * Get total fee for multiple services
- */
 export const getTotalFee = (services: ChurchService[], ids: number[]): number => {
-    return ids.reduce((total, id) => {
-        const service = services.find(s => s.service_id === id);
-        return total + (service?.fee || 0);
-    }, 0);
+    return ids.reduce((sum, id) => sum + getServiceFee(services, id), 0);
 };
 
-/**
- * Check if service exists
- */
 export const serviceExists = (services: ChurchService[], id: number): boolean => {
-    return services.some(s => s.service_id === id);
+    return services.some((s) => s.service_id === id);
 };
 
-/**
- * Get service count by type
- */
 export const getServiceCountByType = (services: ChurchService[]): Record<string, number> => {
-    const grouped = groupServicesByType(services);
     return {
-        baptism: grouped.baptism.length,
-        service_form: grouped.service_form.length,
-        certificate: grouped.certificate.length,
+        baptism: services.filter((s) => s.is_baptism).length,
+        service_form: services.filter((s) => s.uses_service_form).length,
+        certificate: services.filter((s) => s.is_certificate).length,
         total: services.length,
     };
-};
-
-/**
- * Get form type from service name
- */
-export const getFormTypeFromService = (serviceName: string): 'baptism' | 'service' | 'certificate' | null => {
-    if (serviceName === 'Baptism') return 'baptism';
-    if (['Marriage', 'Funeral Mass', 'House Blessing'].includes(serviceName)) return 'service';
-    if (['Baptismal Certificate', 'Marriage Certificate'].includes(serviceName)) return 'certificate';
-    return null;
-};
-
-/**
- * Check if service requires a specific form
- */
-export const getRequiredFormForService = (serviceName: string): string => {
-    const forms: Record<string, string> = {
-        'Baptism': 'baptism_form',
-        'Marriage': 'service_form',
-        'Funeral Mass': 'service_form',
-        'House Blessing': 'service_form',
-        'Baptismal Certificate': 'certificate_form',
-        'Marriage Certificate': 'certificate_form',
-    };
-    return forms[serviceName] || 'unknown';
-};
-
-/**
- * Get service fee with currency
- */
-export const getServiceFeeWithCurrency = (fee: number): string => {
-    return `₱${fee.toFixed(2)}`;
 };

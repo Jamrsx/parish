@@ -59,6 +59,7 @@ interface ExtendedChurchService {
   service_type?: string;
   fee?: number;
   form_type?: string | null;
+  form_handler?: string | null;
 }
 
 // Extend ManageRequest to use ExtendedChurchService
@@ -773,13 +774,52 @@ const ManageRequests: React.FC = () => {
 
     if (formType === 'service' && request.serviceForm) {
       const form = request.serviceForm;
+      const serviceType = request.service?.service_type || form.service_name || 'Service';
+      const isSpecialIntention =
+        serviceType === 'Special Intention' ||
+        request.service?.form_handler === 'special_intention';
+
+      if (isSpecialIntention) {
+        return (
+          <div className="space-y-3">
+            <h4 className="font-semibold text-gray-700 border-b pb-2">Special Intention Details</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-gray-500">Service</span>
+                <p className="font-medium">Special Intention</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Parishioner Name</span>
+                <p className="font-medium">{form.full_name}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-500">Intention</span>
+                <p className="font-medium whitespace-pre-wrap">{form.address || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Intention Date</span>
+                <p className="font-medium">{formatDateOnly(request.preferred_date)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Preferred Time</span>
+                <p className="font-medium">{formatTimeDisplay12Hour(request.preferred_time)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Offering</span>
+                <p className="font-medium">₱{(request.service?.fee || 0).toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-3">
           <h4 className="font-semibold text-gray-700 border-b pb-2">Service Details</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-gray-500">Service Name:</span>
-              <p className="font-medium">{form.service_name || 'N/A'}</p>
+              <p className="font-medium">{serviceType}</p>
             </div>
             <div>
               <span className="text-gray-500">Full Name:</span>
@@ -1165,10 +1205,20 @@ const ManageRequests: React.FC = () => {
 
                 {/* Schedule Info */}
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-gray-700 border-b pb-2">Schedule Information</h4>
+                  <h4 className="font-semibold text-gray-700 border-b pb-2">
+                    {detailsModal.request.service?.service_type === 'Special Intention' ||
+                    detailsModal.request.service?.form_handler === 'special_intention'
+                      ? 'Preferred Schedule'
+                      : 'Schedule Information'}
+                  </h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span className="text-gray-500">Preferred Date</span>
+                      <span className="text-gray-500">
+                        {detailsModal.request.service?.service_type === 'Special Intention' ||
+                        detailsModal.request.service?.form_handler === 'special_intention'
+                          ? 'Date'
+                          : 'Preferred Date'}
+                      </span>
                       <p className="font-medium">{formatDateOnly(detailsModal.request.preferred_date)}</p>
                     </div>
                     <div>
@@ -1186,7 +1236,11 @@ const ManageRequests: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Priest Assignment Info */}
+                {/* Priest Assignment Info — not used for Special Intention offerings */}
+                {!(
+                  detailsModal.request.service?.service_type === 'Special Intention' ||
+                  detailsModal.request.service?.form_handler === 'special_intention'
+                ) && (
                 <div className="space-y-2">
                   <h4 className="font-semibold text-gray-700 border-b pb-2">Priest Assignment</h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1202,6 +1256,7 @@ const ManageRequests: React.FC = () => {
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* Form Details */}
                 {renderFormDetails(detailsModal.request)}

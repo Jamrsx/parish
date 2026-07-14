@@ -42,6 +42,7 @@ interface ExtendedChurchService {
   service_type?: string;
   fee?: number;
   form_type?: string | null;
+  form_handler?: string | null;
 }
 
 interface ExtendedManageRequest extends Omit<ManageRequest, 'service'> {
@@ -693,7 +694,12 @@ const ServiceRecords: React.FC = () => {
               {/* Schedule Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500">Preferred Date</p>
+                  <p className="text-sm text-gray-500">
+                    {viewModal.request.service?.service_type === 'Special Intention' ||
+                    viewModal.request.service?.form_handler === 'special_intention'
+                      ? 'Intention Date'
+                      : 'Preferred Date'}
+                  </p>
                   <p className="font-medium text-gray-800">{formatDateOnly(viewModal.request.preferred_date)}</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">

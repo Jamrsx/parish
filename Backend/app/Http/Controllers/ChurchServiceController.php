@@ -103,27 +103,38 @@ class ChurchServiceController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'service_type' => 'required|string|max:50|unique:church_services,service_type',  // ✅ Fixed
+            'service_type' => 'required|string|max:100|unique:church_services,service_type',
+            'description' => 'nullable|string|max:255',
+            'icon' => 'nullable|string|max:50',
+            'category' => 'required|in:service,certificate',
             'fee' => 'required|numeric|min:0',
-            'available_slots' => 'nullable|integer|min:0', 
+            'available_slots' => 'required|integer|min:1',
+            'is_active' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
+                'message' => 'Please check the service details.',
             ], 422);
         }
 
         $service = ChurchService::create([
-            'service_type' => $request->service_type,  // ✅ Fixed
+            'service_type' => $request->service_type,
+            'description' => $request->description,
+            'icon' => $request->icon ?: 'Church',
+            'category' => $request->category,
+            'form_handler' => 'generic',
             'fee' => $request->fee,
-            'available_slots' => $request->available_slots ?? null,
+            'available_slots' => $request->available_slots,
+            'is_active' => $request->boolean('is_active', true),
+            'is_system' => false,
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Church service created successfully.',
+            'message' => 'Church service created successfully. It will appear on the parishioner app.',
             'data' => $this->enrichServiceData($service),
         ], 201);
     }
@@ -178,9 +189,13 @@ class ChurchServiceController extends Controller
             $service = ChurchService::findOrFail($id);
 
             $validator = Validator::make($request->all(), [
-                'service_type' => 'sometimes|required|string|max:50|unique:church_services,service_type,' . $id . ',service_id',  // ✅ Fixed
+                'service_type' => 'sometimes|required|string|max:100|unique:church_services,service_type,' . $id . ',service_id',
+                'description' => 'nullable|string|max:255',
+                'icon' => 'nullable|string|max:50',
+                'category' => 'sometimes|required|in:service,certificate',
                 'fee' => 'sometimes|required|numeric|min:0',
-                'available_slots' => 'nullable|integer|min:0', 
+                'available_slots' => 'nullable|integer|min:0',
+                'is_active' => 'sometimes|boolean',
             ]);
 
             if ($validator->fails()) {
@@ -190,12 +205,27 @@ class ChurchServiceController extends Controller
                 ], 422);
             }
 
-            $service->update($request->only(['service_type', 'fee', 'available_slots']));  // ✅ Fixed
+            $payload = $request->only([
+                'service_type',
+                'description',
+                'icon',
+                'category',
+                'fee',
+                'available_slots',
+                'is_active',
+            ]);
+
+            // System services keep their specialized form handlers
+            if ($service->is_system) {
+                unset($payload['category']);
+            }
+
+            $service->update($payload);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Church service updated successfully.',
-                'data' => $this->enrichServiceData($service),
+                'data' => $this->enrichServiceData($service->fresh()),
             ]);
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -281,12 +311,15 @@ class ChurchServiceController extends Controller
         try {
             $service = ChurchService::findOrFail($id);
 
-            // Check if service has requests
-            if ($service->requests()->count() > 0) {
+            // Prefer deactivate over hard delete when requests exist or system service
+            if ($service->is_system || $service->requests()->count() > 0) {
+                $service->update(['is_active' => false]);
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete service because it has existing requests. Please archive it instead.'
-                ], 409);
+                    'success' => true,
+                    'message' => 'Service deactivated. Existing requests were kept.',
+                    'data' => $this->enrichServiceData($service->fresh()),
+                ]);
             }
 
             $service->delete();
@@ -387,6 +420,13 @@ class ChurchServiceController extends Controller
         $serviceData['is_baptism'] = $service->isBaptism();
         $serviceData['is_certificate'] = $service->isCertificate();
         $serviceData['uses_service_form'] = $service->usesServiceForm();
+        $serviceData['is_active'] = (bool) $service->is_active;
+        $serviceData['is_system'] = (bool) $service->is_system;
+        $serviceData['description'] = $service->description;
+        $serviceData['icon'] = $service->icon;
+        $serviceData['category'] = $service->category ?: 'service';
+        $serviceData['form_handler'] = $service->form_handler ?: 'generic';
+        $serviceData['navigate_path'] = $service->navigate_path;
         $serviceData['requests_count'] = $service->requests()->count();
         $serviceData['daily_limit'] = $service->getDailyLimit();
         $serviceData['today_bookings'] = $service->getBookingsCount();

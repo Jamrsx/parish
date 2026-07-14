@@ -12,14 +12,22 @@ class ChurchService extends Model
     protected $keyType = 'int';
 
     protected $fillable = [
-        'service_type', 
+        'service_type',
+        'description',
+        'icon',
+        'category',
+        'form_handler',
         'fee',
         'available_slots',
+        'is_active',
+        'is_system',
     ];
 
     protected $casts = [
         'fee' => 'decimal:2',
         'available_slots' => 'integer',
+        'is_active' => 'boolean',
+        'is_system' => 'boolean',
     ];
 
     // ============ AVAILABILITY METHODS ============
@@ -46,6 +54,7 @@ class ChurchService extends Model
             'Funeral Mass' => 5,
             'Marriage' => 3,
             'House Blessing' => 3,
+            'Special Intention' => 20,
             'Baptismal Certificate' => 999,
             'Marriage Certificate' => 999,
         ];
@@ -62,6 +71,14 @@ class ChurchService extends Model
     public function getBookingsCount($date = null, $excludeRequestId = null): int
     {
         $date = $date ?: Carbon::today();
+
+        if ($this->service_type === 'Special Intention') {
+            return SpecialIntention::query()
+                ->fromParishioner()
+                ->whereDate('created_at', $date)
+                ->where('status', '!=', 'rejected')
+                ->count();
+        }
 
         $query = $this->requests()
             ->whereDate('created_at', $date)
@@ -280,17 +297,34 @@ class ChurchService extends Model
     
     public function scopeBaptism($query)
     {
-        return $query->where('service_type', 'Baptism');  
+        return $query->where(function ($q) {
+            $q->where('form_handler', 'baptism')
+                ->orWhere('service_type', 'Baptism');
+        });
     }
 
     public function scopeCertificates($query)
     {
-        return $query->whereIn('service_type', ['Baptismal Certificate', 'Marriage Certificate']); 
+        return $query->where(function ($q) {
+            $q->where('category', 'certificate')
+                ->orWhereIn('service_type', ['Baptismal Certificate', 'Marriage Certificate']);
+        });
     }
 
     public function scopeUsesServiceForm($query)
     {
-        return $query->whereIn('service_type', ['Marriage', 'Funeral Mass', 'House Blessing']); 
+        return $query->where(function ($q) {
+            $q->where('form_handler', 'generic')
+                ->orWhereIn('form_handler', ['funeral_mass', 'marriage', 'house_blessing'])
+                ->orWhereIn('service_type', ['Marriage', 'Funeral Mass', 'House Blessing']);
+        })->where(function ($q) {
+            $q->whereNull('category')->orWhere('category', '!=', 'certificate');
+        });
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 
     /**
@@ -323,54 +357,72 @@ class ChurchService extends Model
     {
         if ($this->isBaptism()) return 'baptism';
         if ($this->isCertificate()) return 'certificate';
+        if ($this->form_handler === 'special_intention') return 'special_intention';
         if ($this->usesServiceForm()) return 'service';
         return null;
     }
 
     public function getRequiredFormAttribute()
     {
-        $forms = [
-            'Baptism' => 'baptism_form',
-            'Marriage' => 'service_form',
-            'Funeral Mass' => 'service_form',
-            'House Blessing' => 'service_form',
-            'Baptismal Certificate' => 'certificate_form',
-            'Marriage Certificate' => 'certificate_form'
-        ];
+        if ($this->isBaptism()) return 'baptism_form';
+        if ($this->isCertificate()) return 'certificate_form';
+        if ($this->form_handler === 'special_intention') return 'special_intention';
+        if ($this->usesServiceForm()) return 'service_form';
+        return null;
+    }
 
-        return $forms[$this->service_type] ?? null; 
+    public function getNavigatePathAttribute(): string
+    {
+        return match ($this->form_handler) {
+            'baptism' => '/Parishioner/(protected)/forms_request/BaptismForm',
+            'funeral_mass' => '/Parishioner/(protected)/forms_request/FuneralMassForm',
+            'marriage' => '/Parishioner/(protected)/forms_request/MarriageInquiryForm',
+            'house_blessing' => '/Parishioner/(protected)/forms_request/HouseBlessingsForm',
+            'special_intention' => '/Parishioner/(protected)/forms_request/SpecialIntentionForm',
+            'baptismal_certificate' => '/Parishioner/(protected)/certificate_request/BaptismalCertificate',
+            'marriage_certificate' => '/Parishioner/(protected)/certificate_request/MarriageCertificate',
+            default => '/Parishioner/(protected)/forms_request/GenericServiceForm',
+        };
     }
 
     // ============ BOOLEAN CHECKS ============
     
     public function isBaptism()
     {
-        return $this->service_type === 'Baptism'; 
+        return $this->form_handler === 'baptism' || $this->service_type === 'Baptism';
     }
 
     public function isMarriage()
     {
-        return $this->service_type === 'Marriage';  
+        return $this->form_handler === 'marriage' || $this->service_type === 'Marriage';
     }
 
     public function isFuneralMass()
     {
-        return $this->service_type === 'Funeral Mass';  
+        return $this->form_handler === 'funeral_mass' || $this->service_type === 'Funeral Mass';
     }
 
     public function isHouseBlessing()
     {
-        return $this->service_type === 'House Blessing';  
+        return $this->form_handler === 'house_blessing' || $this->service_type === 'House Blessing';
     }
 
     public function isCertificate()
     {
-        return in_array($this->service_type, ['Baptismal Certificate', 'Marriage Certificate']); 
+        return $this->category === 'certificate'
+            || in_array($this->form_handler, ['baptismal_certificate', 'marriage_certificate'], true)
+            || in_array($this->service_type, ['Baptismal Certificate', 'Marriage Certificate'], true);
     }
 
     public function usesServiceForm()
     {
-        return in_array($this->service_type, ['Marriage', 'Funeral Mass', 'House Blessing']);  
+        if ($this->form_handler === 'special_intention' || $this->isBaptism() || $this->isCertificate()) {
+            return false;
+        }
+
+        return in_array($this->form_handler, ['generic', 'funeral_mass', 'marriage', 'house_blessing'], true)
+            || in_array($this->service_type, ['Marriage', 'Funeral Mass', 'House Blessing'], true)
+            || ($this->category === 'service' && $this->form_handler === 'generic');
     }
 
     public function getDisplayNameAttribute()
@@ -385,7 +437,7 @@ class ChurchService extends Model
 
     public function isActive(): bool
     {
-        return $this->available_slots > 0 || $this->getDefaultLimit() > 0;
+        return (bool) $this->is_active;
     }
 
     public function getStatistics(): array

@@ -104,6 +104,10 @@ class ManageRequest extends Model
 
         if ($form instanceof ServiceForm) {
             $serviceType = $form->churchService?->service_type ?? 'Service';
+            if ($serviceType === 'Special Intention' || $form->churchService?->form_handler === 'special_intention') {
+                $intention = \Illuminate\Support\Str::limit((string) $form->address, 90);
+                return "Special Intention: {$form->full_name} — {$intention}";
+            }
             return "{$serviceType}: {$form->full_name}";
         }
 
@@ -258,7 +262,11 @@ class ManageRequest extends Model
 
     public function scopeBlockingSchedule($query)
     {
-        return $query->whereIn('status', self::blockingStatuses());
+        return $query->whereIn('status', self::blockingStatuses())
+            ->whereDoesntHave('service', function ($q) {
+                $q->where('form_handler', 'special_intention')
+                    ->orWhere('service_type', 'Special Intention');
+            });
     }
 
     // ============ GLOBAL SCHEDULE CONFLICTS ============
@@ -483,7 +491,11 @@ class ManageRequest extends Model
         $reason = "Automatically cancelled after {$minutes} minutes without approval.";
 
         $query = static::where('status', 'pending')
-            ->where('created_at', '<=', now()->subMinutes($minutes));
+            ->where('created_at', '<=', now()->subMinutes($minutes))
+            ->whereDoesntHave('service', function ($q) {
+                $q->where('form_handler', 'special_intention')
+                    ->orWhere('service_type', 'Special Intention');
+            });
 
         if ($userId !== null) {
             $query->where('user_id', $userId);

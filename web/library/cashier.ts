@@ -5,10 +5,12 @@ export interface CashierDashboardData {
   unpaid_count: number;
   pending_donations: number;
   pending_mass_collections?: number;
+  pending_special_intentions?: number;
   service_payments_today: number;
   service_payments_today_count: number;
   mass_collections_today: number;
   donations_received_today: number;
+  special_intentions_today?: number;
   recent_payments: PaymentTransactionRow[];
   recent_mass_collections: MassCollectionRow[];
   date: string;
@@ -77,6 +79,26 @@ export interface DonationRow {
   created_at?: string;
 }
 
+export interface SpecialIntentionRow {
+  intention_id: number;
+  user_id?: number | null;
+  request_id?: number | null;
+  parishioner_name: string;
+  intention_text: string;
+  amount: number;
+  denomination_breakdown?: DenominationLine[];
+  intention_date: string;
+  notes?: string | null;
+  source?: 'secretary' | 'parishioner';
+  status: 'pending' | 'approved' | 'received' | 'rejected';
+  recorded_by?: string;
+  received_by?: string | null;
+  received_at?: string | null;
+  reject_reason?: string | null;
+  created_at?: string;
+  min_offering?: number;
+}
+
 export interface DailyReportData {
   date: string;
   service_payments: PaymentTransactionRow[];
@@ -85,6 +107,8 @@ export interface DailyReportData {
   mass_collections_total: number;
   donations: DonationRow[];
   donations_total: number;
+  special_intentions: SpecialIntentionRow[];
+  special_intentions_total: number;
   income_for_date: number;
 }
 
@@ -139,4 +163,30 @@ export const donationAPI = {
 
   reject: (id: number, reject_reason: string) =>
     api.post<ApiResponse<DonationRow>>(`/admin/donations/${id}/reject`, { reject_reason }),
+};
+
+export const specialIntentionAPI = {
+  list: (params?: { status?: string; date_from?: string; date_to?: string; search?: string; per_page?: number; page?: number }) =>
+    api.get<ApiResponse<PaginatedResponse<SpecialIntentionRow>>>('/admin/special-intentions', { params }),
+
+  create: (data: {
+    parishioner_name: string;
+    intention_text: string;
+    intention_date: string;
+    notes?: string;
+    denomination_breakdown: { denomination: number; count: number; total?: number }[];
+  }) => api.post<ApiResponse<SpecialIntentionRow>>('/admin/special-intentions', data),
+
+  secretaryApprove: (id: number) =>
+    api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/secretary-approve`),
+
+  secretaryReject: (id: number, reject_reason: string) =>
+    api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/secretary-reject`, { reject_reason }),
+
+  approve: (id: number) => api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/approve`),
+
+  reject: (id: number, reject_reason: string) =>
+    api.post<ApiResponse<SpecialIntentionRow>>(`/admin/special-intentions/${id}/reject`, { reject_reason }),
+
+  remove: (id: number) => api.delete<ApiResponse<null>>(`/admin/special-intentions/${id}`),
 };

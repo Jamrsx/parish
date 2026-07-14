@@ -14,6 +14,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\CashierController;
 use App\Http\Controllers\DonationController;
 use App\Http\Controllers\MassCollectionController;
+use App\Http\Controllers\SpecialIntentionController;
 
 // ============ PUBLIC ROUTES ============
 
@@ -103,6 +104,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{id}/reject', [DonationController::class, 'reject']);
         });
 
+        // Special intentions (secretary approve app → cashier confirms cash)
+        Route::prefix('special-intentions')->group(function () {
+            Route::get('/', [SpecialIntentionController::class, 'index']);
+            Route::post('/', [SpecialIntentionController::class, 'store']);
+            Route::post('/{id}/secretary-approve', [SpecialIntentionController::class, 'secretaryApprove']);
+            Route::post('/{id}/secretary-reject', [SpecialIntentionController::class, 'secretaryReject']);
+            Route::post('/{id}/approve', [SpecialIntentionController::class, 'approve']);
+            Route::post('/{id}/reject', [SpecialIntentionController::class, 'reject']);
+            Route::delete('/{id}', [SpecialIntentionController::class, 'destroy']);
+        });
+
         // Baptism Management
         Route::prefix('baptisms')->group(function () {
             Route::get('/processed', [ManageRequestController::class, 'getProcessedBaptisms']);
@@ -130,6 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Church Services Management
         Route::prefix('church-services')->group(function () {
+            Route::get('/', [ChurchServiceController::class, 'index']);
             Route::post('/', [ChurchServiceController::class, 'store']);
             Route::put('/{id}', [ChurchServiceController::class, 'update']);
             Route::delete('/{id}', [ChurchServiceController::class, 'destroy']);
@@ -195,7 +208,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/manage-requests', [ManageRequestController::class, 'store']);
         Route::post('/manage-requests/expire-pending', [ManageRequestController::class, 'expirePendingRequests']);
         Route::get('/requests', [ManageRequestController::class, 'getUserRequests']);
+        Route::post('/requests/{id}/cancel', [ManageRequestController::class, 'cancelOwnRequest']);
         Route::get('/statistics', [ManageRequestController::class, 'getUserStatistics']);
+
+        // Special intentions (parishioner requests)
+        Route::get('/special-intentions', [SpecialIntentionController::class, 'parishionerIndex']);
+        Route::post('/special-intentions', [SpecialIntentionController::class, 'storeParishioner']);
 
         // Notifications
         Route::prefix('notifications')->group(function () {
