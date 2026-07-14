@@ -184,8 +184,9 @@ const getCertificateColors = () => ({
 export default function ChurchService() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const initialView = params.initialView as string;
-  const { isCompact } = useResponsive();
+  const rawInitialView = params.initialView;
+  const initialView = Array.isArray(rawInitialView) ? rawInitialView[0] : rawInitialView;
+  const { isCompact, contentPadding } = useResponsive();
 
   // ============ STATE ============
   const [activeTab, setActiveTab] = useState<'services' | 'certificates'>('services');
@@ -210,7 +211,7 @@ export default function ChurchService() {
   useEffect(() => {
     if (initialView === 'services') {
       setActiveTab('services');
-    } else if (initialView === 'records') {
+    } else if (initialView === 'certificates' || initialView === 'records') {
       setActiveTab('certificates');
     }
   }, [initialView]);
@@ -397,54 +398,93 @@ export default function ChurchService() {
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
 
-      {/* HEADER */}
       <ParishionerHeader title="Church Services" subtitle="Parishioner Portal" />
 
-      <ResponsiveContainer noPadding>
-        {/* TITLE */}
-        <View className="pt-6 pb-4">
-          <Text className={`font-bold text-gray-800 text-center ${isCompact ? 'text-2xl' : 'text-3xl'}`}>
-            Church Services
-          </Text>
-          <Text className="text-base text-gray-500 text-center mt-1">
-            Choose from our available services below
-          </Text>
-        </View>
-
-        {/* TAB NAVIGATION */}
-        <View className="pb-4">
-        <View className="flex-row bg-gray-100 rounded-lg p-1">
+      {/* Sticky tab bar — always visible below header */}
+      <View
+        className="bg-white border-b border-gray-200"
+        style={{ paddingHorizontal: contentPadding, paddingTop: 12, paddingBottom: 12 }}
+      >
+        <View className="flex-row bg-gray-100 rounded-xl p-1">
           <TouchableOpacity
             onPress={() => handleTabChange('services')}
-            className={`flex-1 py-2.5 rounded-md ${
-              activeTab === 'services' ? 'bg-white' : ''
-            }`}
+            activeOpacity={0.7}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 48,
+              paddingVertical: 12,
+              borderRadius: 8,
+              backgroundColor: activeTab === 'services' ? '#FFFFFF' : 'transparent',
+              borderWidth: activeTab === 'services' ? 1 : 0,
+              borderColor: '#E5E7EB',
+            }}
           >
-            <Text className={`text-center font-medium ${activeTab === 'services' ? 'text-blue-600' : 'text-gray-600'}`}>
+            <FontAwesome5
+              name="church"
+              size={14}
+              color={activeTab === 'services' ? '#2563EB' : '#6B7280'}
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              className={`text-center font-semibold ${
+                activeTab === 'services' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
               Services
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => handleTabChange('certificates')}
-            className={`flex-1 py-2.5 rounded-md ${
-              activeTab === 'certificates' ? 'bg-white' : ''
-            }`}
+            activeOpacity={0.7}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 48,
+              paddingVertical: 12,
+              borderRadius: 8,
+              backgroundColor: activeTab === 'certificates' ? '#FFFFFF' : 'transparent',
+              borderWidth: activeTab === 'certificates' ? 1 : 0,
+              borderColor: '#E5E7EB',
+            }}
           >
-            <Text className={`text-center font-medium ${activeTab === 'certificates' ? 'text-blue-600' : 'text-gray-600'}`}>
+            <FontAwesome5
+              name="file-alt"
+              size={14}
+              color={activeTab === 'certificates' ? '#2563EB' : '#6B7280'}
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              className={`text-center font-semibold ${
+                activeTab === 'certificates' ? 'text-blue-600' : 'text-gray-600'
+              }`}
+            >
               Certificates
             </Text>
           </TouchableOpacity>
         </View>
-        </View>
-      </ResponsiveContainer>
+        <Text className="text-xs text-gray-500 text-center mt-2">
+          {activeTab === 'services'
+            ? 'Baptism, marriage, funeral, house blessing, and more'
+            : 'Baptismal certificate and marriage certificate requests'}
+        </Text>
+      </View>
 
-      {/* CARDS GRID */}
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <ResponsiveContainer>
+        <View className={`${isCompact ? 'pt-4' : 'pt-6'} pb-2`}>
+          <Text className={`font-bold text-gray-800 text-center ${isCompact ? 'text-xl' : 'text-2xl'}`}>
+            {activeTab === 'services' ? 'Available Services' : 'Available Certificates'}
+          </Text>
+        </View>
         {isEmpty ? (
           <View className="py-12 items-center">
             <Text className="text-gray-500">

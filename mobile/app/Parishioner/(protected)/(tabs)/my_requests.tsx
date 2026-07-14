@@ -154,6 +154,9 @@ const getPaymentConfig = (request: Request) => {
   };
 };
 
+const countUnpaidRequests = (list: Request[]) =>
+  list.filter((request) => getPaymentConfig(request).needsAttention).length;
+
 const formatDateLong = (value?: string | null) => {
   if (!value) return 'N/A';
   try {
@@ -256,6 +259,7 @@ export default function MyRequestsScreen() {
   const { user } = useAuth();
   const { isCompact } = useResponsive();
   const [requests, setRequests] = useState<Request[]>([]);
+  const [unpaidCount, setUnpaidCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -290,14 +294,33 @@ export default function MyRequestsScreen() {
     }
   }, [user, statusFilter]);
 
+  const fetchUnpaidCount = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      console.log('Fetching unpaid request count');
+      const response = await api.getUserRequests({ per_page: 100 });
+
+      if (response.success && response.data?.data) {
+        const count = countUnpaidRequests(response.data.data);
+        setUnpaidCount(count);
+        console.log('Unpaid requests count:', count);
+      } else {
+        setUnpaidCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching unpaid count:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await fetchRequests();
+      await Promise.all([fetchRequests(), fetchUnpaidCount()]);
       setLoading(false);
     };
     load();
-  }, [fetchRequests]);
+  }, [fetchRequests, fetchUnpaidCount]);
 
   const hasExpiringPending = requests.some((request) => canRequestExpire(request));
 
@@ -326,18 +349,18 @@ export default function MyRequestsScreen() {
       try {
         console.log('Pending request expiry reached — syncing with server');
         await api.expirePendingRequests();
-        await fetchRequests();
+        await Promise.all([fetchRequests(), fetchUnpaidCount()]);
       } catch (error) {
         console.error('Failed to sync expired requests:', error);
       } finally {
         expireRefreshInFlight.current = false;
       }
     })();
-  }, [now, requests, hasExpiringPending, fetchRequests]);
+  }, [now, requests, hasExpiringPending, fetchRequests, fetchUnpaidCount]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchRequests();
+    await Promise.all([fetchRequests(), fetchUnpaidCount()]);
     setRefreshing(false);
   };
 
@@ -381,7 +404,7 @@ export default function MyRequestsScreen() {
       setShowCancelModal(false);
       setCancelReason('');
       closeDetails();
-      await fetchRequests();
+      await Promise.all([fetchRequests(), fetchUnpaidCount()]);
     } catch (error: any) {
       console.error('Cancel request failed:', error);
       setCancelError(error?.data?.message || error?.message || 'Unable to cancel. Please try again.');
@@ -410,6 +433,25 @@ export default function MyRequestsScreen() {
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       <ParishionerHeader title="My Requests" subtitle="View your service request records" />
+
+      {!loading && unpaidCount > 0 ? (
+        <View className="mx-4 mt-3 mb-1 rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 flex-row items-center gap-3">
+          <View className="w-10 h-10 rounded-full bg-orange-100 items-center justify-center">
+            <Ionicons name="wallet-outline" size={20} color="#C2410C" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-sm font-bold text-orange-900">
+              {unpaidCount} request{unpaidCount !== 1 ? 's' : ''} need payment
+            </Text>
+            <Text className="text-xs text-orange-700 mt-0.5">
+              Visit the parish cashier to settle your balance.
+            </Text>
+          </View>
+          <View className="min-w-[28px] h-7 px-2 rounded-full bg-orange-500 items-center justify-center">
+            <Text className="text-xs font-bold text-white">{unpaidCount}</Text>
+          </View>
+        </View>
+      ) : null}
 
       <View className="bg-white px-4 py-3 border-b border-gray-200">
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
