@@ -446,6 +446,15 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     return this.request('/church-services');
   }
 
+  async getServiceOptions(): Promise<
+    ApiResponse<{
+      all: Service[];
+      grouped: { baptism: Service[]; certificate: Service[]; service_form: Service[] };
+    }>
+  > {
+    return this.request('/church-services/options');
+  }
+
   async getServiceByName(name: string): Promise<Service | null> {
     try {
       const response = await this.getServices();
