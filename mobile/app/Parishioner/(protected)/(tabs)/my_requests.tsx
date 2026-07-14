@@ -100,6 +100,7 @@ const getPaymentConfig = (request: Request) => {
       bg: 'bg-gray-100',
       text: 'text-gray-600',
       hint: 'This request was cancelled. No payment is required.',
+      needsAttention: false,
     };
   }
 
@@ -107,13 +108,31 @@ const getPaymentConfig = (request: Request) => {
   const status = (request.payment_status || 'unpaid').toLowerCase();
 
   if (fee <= 0) {
-    return { label: 'No fee', bg: 'bg-gray-100', text: 'text-gray-600', hint: 'This service has no payment required.' };
+    return {
+      label: 'No fee',
+      bg: 'bg-gray-100',
+      text: 'text-gray-600',
+      hint: 'This service has no payment required.',
+      needsAttention: false,
+    };
   }
   if (status === 'paid') {
-    return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', hint: 'Payment received.' };
+    return {
+      label: 'Paid',
+      bg: 'bg-green-100',
+      text: 'text-green-700',
+      hint: 'Payment received.',
+      needsAttention: false,
+    };
   }
   if (status === 'partial') {
-    return { label: 'Partial', bg: 'bg-amber-100', text: 'text-amber-800', hint: 'Partial payment recorded. Balance still due.' };
+    return {
+      label: 'Partial',
+      bg: 'bg-amber-100',
+      text: 'text-amber-800',
+      hint: 'Partial payment recorded. Balance still due.',
+      needsAttention: true,
+    };
   }
   if (request.status === 'pending') {
     return {
@@ -123,6 +142,7 @@ const getPaymentConfig = (request: Request) => {
       hint: isSpecialIntentionRequest(request)
         ? 'Await secretary approval first, then pay at the parish cashier.'
         : 'Pay at the parish cashier after your request is approved.',
+      needsAttention: true,
     };
   }
   return {
@@ -130,6 +150,7 @@ const getPaymentConfig = (request: Request) => {
     bg: 'bg-orange-100',
     text: 'text-orange-800',
     hint: 'Pay at the parish cashier to complete this request.',
+    needsAttention: true,
   };
 };
 
@@ -444,13 +465,18 @@ export default function MyRequestsScreen() {
                   const scheduleText = getStatusScheduleText(request);
                   const rescheduled = wasRescheduled(request);
                   const expiryRemainingMs = getExpiryRemainingMs(request, now);
+                  const unpaidNotice = paymentConfig.needsAttention;
 
                   return (
                     <TouchableOpacity
                       key={request.request_id}
                       onPress={() => openDetails(request)}
                       activeOpacity={0.8}
-                      className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm"
+                      className={`bg-white rounded-2xl border p-4 shadow-sm ${
+                        unpaidNotice
+                          ? 'border-orange-300 border-l-4 border-l-orange-500'
+                          : 'border-gray-100'
+                      }`}
                     >
                       <View className="flex-row items-start justify-between mb-3">
                         <View className="flex-1 pr-3">
@@ -465,7 +491,16 @@ export default function MyRequestsScreen() {
                               {statusConfig.label}
                             </Text>
                           </View>
-                          <View className={`px-2 py-0.5 rounded-full ${paymentConfig.bg}`}>
+                          <View
+                            className={`flex-row items-center gap-1 px-2 py-0.5 rounded-full ${paymentConfig.bg} ${
+                              unpaidNotice ? 'border border-orange-400' : ''
+                            }`}
+                          >
+                            {unpaidNotice ? (
+                              <Ionicons name="alert-circle" size={12} color="#C2410C" />
+                            ) : paymentConfig.label === 'Paid' ? (
+                              <Ionicons name="checkmark-circle" size={12} color="#15803D" />
+                            ) : null}
                             <Text className={`text-[10px] font-semibold ${paymentConfig.text}`}>
                               {paymentConfig.label}
                             </Text>
@@ -485,6 +520,18 @@ export default function MyRequestsScreen() {
                           ) : null}
                         </View>
                       </View>
+
+                      {unpaidNotice ? (
+                        <View className="mb-3 flex-row items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+                          <Ionicons name="warning" size={16} color="#C2410C" />
+                          <Text className="flex-1 text-xs font-semibold text-orange-800">
+                            Payment needed — pay at the parish cashier
+                            {getBalanceDue(request) > 0
+                              ? ` (Balance: ${formatPeso(getBalanceDue(request))})`
+                              : ''}
+                          </Text>
+                        </View>
+                      ) : null}
 
                       {scheduleText ? (
                         <View className="mb-3 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
@@ -638,13 +685,28 @@ export default function MyRequestsScreen() {
                     </View>
                   </View>
 
-                  <View className="mb-4 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                  <View
+                    className={`mb-4 rounded-xl p-4 border ${
+                      getPaymentConfig(selectedRequest).needsAttention
+                        ? 'bg-orange-50 border-orange-200'
+                        : 'bg-gray-50 border-gray-100'
+                    }`}
+                  >
                     <View className="flex-row items-center justify-between mb-3">
                       <Text className="text-xs font-semibold text-gray-500 uppercase">Payment Details</Text>
                       {(() => {
                         const paymentConfig = getPaymentConfig(selectedRequest);
                         return (
-                          <View className={`px-3 py-1 rounded-full ${paymentConfig.bg}`}>
+                          <View
+                            className={`flex-row items-center gap-1 px-3 py-1 rounded-full ${paymentConfig.bg} ${
+                              paymentConfig.needsAttention ? 'border border-orange-400' : ''
+                            }`}
+                          >
+                            {paymentConfig.needsAttention ? (
+                              <Ionicons name="alert-circle" size={14} color="#C2410C" />
+                            ) : paymentConfig.label === 'Paid' ? (
+                              <Ionicons name="checkmark-circle" size={14} color="#15803D" />
+                            ) : null}
                             <Text className={`text-xs font-semibold ${paymentConfig.text}`}>
                               {paymentConfig.label}
                             </Text>
@@ -652,6 +714,15 @@ export default function MyRequestsScreen() {
                         );
                       })()}
                     </View>
+
+                    {getPaymentConfig(selectedRequest).needsAttention ? (
+                      <View className="flex-row items-center gap-2 mb-3">
+                        <Ionicons name="warning" size={16} color="#C2410C" />
+                        <Text className="flex-1 text-sm font-semibold text-orange-800">
+                          Unpaid — please settle at the parish cashier
+                        </Text>
+                      </View>
+                    ) : null}
 
                     <Text className="text-sm text-gray-600 mb-3">{getPaymentConfig(selectedRequest).hint}</Text>
 

@@ -21,17 +21,45 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-const navItems: { path: string; label: string; icon: LucideIcon }[] = [
-  { path: "/admin/secretary/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/admin/secretary/scheduled-services", label: "Scheduled Services", icon: CalendarDays },
-  { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
-  { path: "/admin/secretary/donations", label: "Donations", icon: HandCoins },
-  { path: "/admin/secretary/mass-collections", label: "Mass Collections", icon: Church },
-  { path: "/admin/secretary/special-intentions", label: "Special Intentions", icon: BookOpen },
-  { path: "/admin/secretary/manage-services", label: "Manage Services", icon: Layers },
-  { path: "/admin/secretary/manage-inventory", label: "Manage Inventory", icon: Package },
-  { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
-  { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },
+const navGroups: {
+  id: string;
+  label: string;
+  items: { path: string; label: string; icon: LucideIcon }[];
+}[] = [
+  {
+    id: "overview",
+    label: "Overview",
+    items: [
+      { path: "/admin/secretary/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    id: "services-requests",
+    label: "Services & Requests",
+    items: [
+      { path: "/admin/secretary/scheduled-services", label: "Scheduled Services", icon: CalendarDays },
+      { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
+      { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
+      { path: "/admin/secretary/special-intentions", label: "Special Intentions", icon: BookOpen },
+    ],
+  },
+  {
+    id: "collections",
+    label: "Collections",
+    items: [
+      { path: "/admin/secretary/donations", label: "Donations", icon: HandCoins },
+      { path: "/admin/secretary/mass-collections", label: "Mass Collections", icon: Church },
+    ],
+  },
+  {
+    id: "management",
+    label: "Management",
+    items: [
+      { path: "/admin/secretary/manage-services", label: "Manage Services", icon: Layers },
+      { path: "/admin/secretary/manage-inventory", label: "Manage Inventory", icon: Package },
+      { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },
+    ],
+  },
 ];
 
 const PENDING_POLL_INTERVAL_MS = 30000;
@@ -175,56 +203,70 @@ const SecretarySidebar: React.FC = () => {
             </div>
           </div>
 
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-              const showPendingIndicator =
-                item.path === "/admin/secretary/manage-requests" && pendingCount > 0;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  title={
-                    sidebarCollapsed
-                      ? showPendingIndicator
-                        ? `${item.label} (${pendingCount} pending)`
-                        : item.label
-                      : undefined
-                  }
-                  className={`w-full px-3 py-2.5 text-sm font-medium flex items-center gap-3 rounded-lg transition-all ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
-                  } ${sidebarCollapsed ? "justify-center" : ""}`}
-                >
-                  <span className="relative shrink-0">
-                    <Icon size={18} className="shrink-0" />
-                    {showPendingIndicator && sidebarCollapsed && (
-                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white" />
-                      </span>
-                    )}
-                  </span>
-                  {!sidebarCollapsed && (
-                    <>
-                      <span className="flex-1">{item.label}</span>
-                      {showPendingIndicator && (
-                        <span
-                          className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
-                            isActive ? "bg-white text-blue-700" : "bg-red-500 text-white"
-                          }`}
-                          aria-label={`${pendingCount} pending requests`}
-                        >
-                          {pendingCount > 99 ? "99+" : pendingCount}
+          <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+            {navGroups.map((group) => (
+              <div key={group.id}>
+                {!sidebarCollapsed && (
+                  <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    {group.label}
+                  </p>
+                )}
+                {sidebarCollapsed && group.id !== "overview" && (
+                  <div className="mx-2 mb-2 border-t border-slate-100" aria-hidden />
+                )}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    const Icon = item.icon;
+                    const showPendingIndicator =
+                      item.path === "/admin/secretary/manage-requests" && pendingCount > 0;
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        title={
+                          sidebarCollapsed
+                            ? showPendingIndicator
+                              ? `${item.label} (${pendingCount} pending)`
+                              : item.label
+                            : undefined
+                        }
+                        className={`w-full px-3 py-2.5 text-sm font-medium flex items-center gap-3 rounded-lg transition-all ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                        } ${sidebarCollapsed ? "justify-center" : ""}`}
+                      >
+                        <span className="relative shrink-0">
+                          <Icon size={18} className="shrink-0" />
+                          {showPendingIndicator && sidebarCollapsed && (
+                            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white" />
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </>
-                  )}
-                </Link>
-              );
-            })}
+                        {!sidebarCollapsed && (
+                          <>
+                            <span className="flex-1">{item.label}</span>
+                            {showPendingIndicator && (
+                              <span
+                                className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                                  isActive ? "bg-white text-blue-700" : "bg-red-500 text-white"
+                                }`}
+                                aria-label={`${pendingCount} pending requests`}
+                              >
+                                {pendingCount > 99 ? "99+" : pendingCount}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           <div className="p-3 border-t border-slate-200">

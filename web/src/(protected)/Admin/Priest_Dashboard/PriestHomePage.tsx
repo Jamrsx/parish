@@ -96,7 +96,7 @@ const getPaymentBadge = (paymentStatus: PaymentStatus, requestStatus: RequestSta
 const getServiceIcon = (serviceName: string): string => {
   const name = serviceName?.toLowerCase() || '';
   if (name.includes('baptism')) return '💧';
-  if (name.includes('funeral')) return '🕯️';
+  if (name.includes('funeral')) return '✝️';
   if (name.includes('marriage')) return '💒';
   if (name.includes('house blessing') || name.includes('blessing')) return '🏠';
   if (name.includes('certificate')) return '📜';

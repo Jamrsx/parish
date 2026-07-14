@@ -3,7 +3,6 @@ import {
   Church,
   Cross,
   Droplets,
-  Flame,
   Heart,
   Home,
   ScrollText,
@@ -21,7 +20,7 @@ export type ServiceIconKey =
 
 const ICON_MAP: Record<ServiceIconKey, LucideIcon> = {
   baptism: Droplets,
-  funeral: Flame,
+  funeral: Cross,
   marriage: Heart,
   blessing: Home,
   certificate: ScrollText,
