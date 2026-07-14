@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   LayoutDashboard,
   Wallet,
@@ -29,6 +29,19 @@ type TabId =
   | "mass"
   | "donations"
   | "intentions";
+
+const VALID_TABS: TabId[] = [
+  "dashboard",
+  "payments",
+  "transactions",
+  "daily-report",
+  "mass",
+  "donations",
+  "intentions",
+];
+
+const isValidTab = (value: string | null): value is TabId =>
+  VALID_TABS.includes(value as TabId);
 
 const navGroups: {
   id: string;
@@ -65,13 +78,27 @@ const formatPeso = (n: number) =>
 
 const CashierHomePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [dashboard, setDashboard] = useState<CashierDashboardData | null>(null);
   const [loadingDash, setLoadingDash] = useState(true);
+
+  const activeTab: TabId = useMemo(() => {
+    const tab = searchParams.get("tab");
+    return isValidTab(tab) ? tab : "dashboard";
+  }, [searchParams]);
+
+  const setActiveTab = (tabId: TabId) => {
+    console.log("Cashier sidebar navigate:", tabId);
+    if (tabId === "dashboard") {
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    setSearchParams({ tab: tabId }, { replace: true });
+  };
 
   const cashierUser = {
     name: user?.username || user?.full_name || "Cashier",
@@ -185,10 +212,7 @@ const CashierHomePage: React.FC = () => {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => {
-                          console.log("Cashier sidebar navigate:", item.id);
-                          setActiveTab(item.id);
-                        }}
+                        onClick={() => setActiveTab(item.id)}
                         title={
                           sidebarCollapsed
                             ? showPending
