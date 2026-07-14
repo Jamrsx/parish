@@ -234,6 +234,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/availability', [AuthController::class, 'updatePriestAvailability']);
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+            Route::get('/unread', [NotificationController::class, 'unreadNotifications']);
+            Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+            Route::post('/{id}/mark-read', [NotificationController::class, 'markAsRead']);
+            Route::delete('/{id}', [NotificationController::class, 'destroy']);
+        });
     });
 });
 

@@ -639,4 +639,103 @@ class ManageRequest extends Model
             'message' => $config['message']
         ]);
     }
+
+    /**
+     * Notify priest when they are assigned to a service.
+     */
+    public function createPriestAssignmentNotification(User $priest)
+    {
+        $this->loadMissing(['service', 'user']);
+
+        $serviceName = $this->service?->service_type ?? $this->form_type_label ?? 'Church Service';
+        $date = $this->preferred_date
+            ? \Carbon\Carbon::parse($this->preferred_date)->format('M d, Y')
+            : 'TBA';
+        $time = self::normalizeTime($this->preferred_time);
+        $timeLabel = $time !== ''
+            ? date('g:i A', strtotime($time))
+            : 'TBA';
+        $parishioner = $this->user?->full_name ?? 'a parishioner';
+
+        return Notification::create([
+            'user_id' => $priest->user_id,
+            'request_id' => $this->request_id,
+            'type' => 'priest_assigned',
+            'title' => 'New Service Assignment',
+            'message' => "You have been assigned to {$serviceName} for {$parishioner} on {$date} at {$timeLabel}.",
+        ]);
+    }
+
+    /**
+     * Create a one-time upcoming reminder for the assigned priest (within next 24 hours).
+     */
+    public function ensurePriestUpcomingReminder(): ?Notification
+    {
+        if (!$this->assigned_priest) {
+            return null;
+        }
+
+        if (!in_array($this->status, ['pending', 'approved'], true)) {
+            return null;
+        }
+
+        if (!$this->preferred_date) {
+            return null;
+        }
+
+        $time = self::normalizeTime($this->preferred_time) ?: '09:00';
+        $eventAt = \Carbon\Carbon::parse(
+            \Carbon\Carbon::parse($this->preferred_date)->format('Y-m-d') . ' ' . $time
+        );
+        $hoursUntil = now()->diffInHours($eventAt, false);
+
+        // Upcoming within the next 24 hours (future events only)
+        if ($hoursUntil < 0 || $hoursUntil > 24) {
+            return null;
+        }
+
+        $alreadyNotified = Notification::where('user_id', $this->assigned_priest)
+            ->where('request_id', $this->request_id)
+            ->where('type', 'priest_upcoming')
+            ->where('created_at', '>=', now()->subDay())
+            ->exists();
+
+        if ($alreadyNotified) {
+            return null;
+        }
+
+        $this->loadMissing(['service', 'user']);
+        $serviceName = $this->service?->service_type ?? $this->form_type_label ?? 'Church Service';
+        $parishioner = $this->user?->full_name ?? 'a parishioner';
+        $when = $eventAt->format('M d, Y g:i A');
+
+        return Notification::create([
+            'user_id' => $this->assigned_priest,
+            'request_id' => $this->request_id,
+            'type' => 'priest_upcoming',
+            'title' => 'Upcoming Service Reminder',
+            'message' => "Upcoming: {$serviceName} for {$parishioner} on {$when}.",
+        ]);
+    }
+
+    /**
+     * Sync upcoming reminders for all active assignments of a priest.
+     */
+    public static function syncPriestUpcomingReminders(int $priestId): int
+    {
+        $count = 0;
+        $rows = static::where('assigned_priest', $priestId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereDate('preferred_date', '>=', now()->toDateString())
+            ->whereDate('preferred_date', '<=', now()->addDay()->toDateString())
+            ->get();
+
+        foreach ($rows as $row) {
+            if ($row->ensurePriestUpcomingReminder()) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
 }

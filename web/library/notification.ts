@@ -2,7 +2,16 @@ import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
 
 // ============ TYPE DEFINITIONS ============
-export type NotificationType = 'request_pending' | 'request_approved' | 'request_completed' | 'request_cancelled' | 'request_rescheduled' | 'status_update' | 'new_request';
+export type NotificationType =
+    | 'request_pending'
+    | 'request_approved'
+    | 'request_completed'
+    | 'request_cancelled'
+    | 'request_rescheduled'
+    | 'status_update'
+    | 'new_request'
+    | 'priest_assigned'
+    | 'priest_upcoming';
 export type NotificationStatus = 'unread' | 'read';
 
 export interface Notification {
@@ -111,8 +120,28 @@ export const notificationAPI = {
     /**
      * Delete a notification for parishioner - ✅ Uses parishioner endpoint
      */
-    deleteParishioner: (notificationId: number) => 
+    deleteParishioner: (notificationId: number) =>
         api.delete<ApiResponse<{ message: string }>>(`/parishioner/notifications/${notificationId}`),
+
+    // Priest notifications
+    getPriestAll: (filters?: NotificationFilters) =>
+        api.get<ApiResponse<PaginatedResponse<Notification>>>('/priest/notifications', {
+            params: filters,
+        }),
+
+    getPriestUnreadCount: () =>
+        api.get<ApiResponse<{ count: number }>>('/priest/notifications/unread-count'),
+
+    getPriestUnread: (limit = 10) =>
+        api.get<ApiResponse<{ notifications: Notification[] }>>('/priest/notifications/unread', {
+            params: { limit },
+        }),
+
+    markPriestAsRead: (notificationId: number) =>
+        api.post<ApiResponse<{ message: string }>>(`/priest/notifications/${notificationId}/mark-read`),
+
+    markPriestAllAsRead: () =>
+        api.post<ApiResponse<{ message: string }>>('/priest/notifications/mark-all-read'),
 };
 
 // ============ HELPER FUNCTIONS ============

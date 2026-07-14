@@ -1680,8 +1680,16 @@ class ManageRequestController extends Controller
 
         $requests = ManageRequest::where('assigned_priest', $user->user_id)
             ->with(['user', 'service', 'baptismForm', 'serviceForm', 'certificateForm'])
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->per_page ?? 15);
+            ->orderBy('preferred_date', 'asc')
+            ->orderBy('preferred_time', 'asc')
+            ->paginate($request->per_page ?? 100);
+
+        // Create upcoming reminders (within 24 hours) when priest opens their schedule
+        try {
+            ManageRequest::syncPriestUpcomingReminders($user->user_id);
+        } catch (\Exception $e) {
+            Log::warning('Failed syncing priest upcoming reminders: ' . $e->getMessage());
+        }
 
         // Transform the data to include computed attributes
         $requests->getCollection()->transform(function ($request) {

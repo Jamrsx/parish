@@ -6,15 +6,23 @@ use App\Models\ManageRequest;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
+    protected function canAccessNotifications(User $user): bool
+    {
+        return $user->isParishioner() || $user->isPriest();
+    }
+
     /**
-     * Expire pending requests for the authenticated parishioner before reads.
+     * Expire pending requests for parishioners before reads.
      */
     protected function expirePendingForUser(User $user): int
     {
+        if (!$user->isParishioner()) {
+            return 0;
+        }
+
         return ManageRequest::expirePendingRequests($user->user_id);
     }
 
@@ -25,7 +33,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = $request->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -33,11 +41,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        // Only parishioners have notifications
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
@@ -62,7 +69,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = $request->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -70,10 +77,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
@@ -98,7 +105,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = $request->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -106,11 +113,19 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
+        }
+
+        if ($user->isPriest()) {
+            try {
+                ManageRequest::syncPriestUpcomingReminders($user->user_id);
+            } catch (\Exception $e) {
+                // continue
+            }
         }
 
         $limit = $request->input('limit', 10);
@@ -136,7 +151,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = auth('sanctum')->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -144,10 +159,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
@@ -177,7 +192,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = $request->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -185,14 +200,14 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
-        Notification::where('user_id', $user->user_id) 
+        Notification::where('user_id', $user->user_id)
             ->where('status', 'unread')
             ->update(['status' => 'read']);
 
@@ -217,10 +232,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
@@ -252,10 +267,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
@@ -286,7 +301,7 @@ class NotificationController extends Controller
     {
         /** @var User|null $user */
         $user = auth('sanctum')->user();
-        
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -294,10 +309,10 @@ class NotificationController extends Controller
             ], 401);
         }
 
-        if (!$user->isParishioner()) {
+        if (!$this->canAccessNotifications($user)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only parishioners can access notifications.'
+                'message' => 'Unauthorized to access notifications.'
             ], 403);
         }
 
