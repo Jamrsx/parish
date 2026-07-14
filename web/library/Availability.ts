@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, type ApiResponse } from './api';
 
 export interface ServiceAvailability {
   id: string;

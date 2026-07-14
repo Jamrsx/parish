@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { certificateFormAPI } from '../../../../../library/certificate-form';
-import type { CreateCertificateFormData, UpdateCertificateFormData } from '../../../../../library/certificate-form';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  certificateFormAPI,
+  getCertificateTypeFromService,
+  getServiceIdForCertificateType,
+  type CertificateType,
+  type CreateCertificateFormData,
+  type UpdateCertificateFormData,
+} from '../../../../../library/certificate-form';
+import { churchServiceAPI, type ChurchService } from '../../../../../library/church_service';
 
 interface CertificateFormProps {
   initialData?: Partial<CreateCertificateFormData>;
@@ -21,7 +28,6 @@ interface ErrorResponse {
   };
 }
 
-// Preferred time options for dropdown
 const preferredTimeOptions = [
   { label: '8:00 AM', value: '08:00' },
   { label: '9:00 AM', value: '09:00' },
@@ -35,6 +41,17 @@ const preferredTimeOptions = [
   { label: '5:00 PM', value: '17:00' },
 ];
 
+const emptyForm = (serviceId = 0): CreateCertificateFormData => ({
+  service_id: serviceId,
+  full_name: '',
+  address: '',
+  contact_number: '',
+  birth_date: null,
+  marriage_date: null,
+  preferred_date: '',
+  preferred_time: '',
+});
+
 const CertificateForm: React.FC<CertificateFormProps> = ({
   initialData = {},
   certificateId,
@@ -44,23 +61,48 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
   onCancel,
   onSuccess,
 }) => {
+  const [certificateServices, setCertificateServices] = useState<ChurchService[]>([]);
   const [formData, setFormData] = useState<CreateCertificateFormData>({
-    certificate_type: 'baptismal',
-    full_name: '',
-    address: '',
-    contact_number: '',
-    birth_date: null,
-    marriage_date: null,
-    preferred_date: '',
-    preferred_time: '',
+    ...emptyForm(),
     ...initialData,
   });
-
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const selectedType: CertificateType = useMemo(() => {
+    const service = certificateServices.find((s) => s.service_id === formData.service_id);
+    if (service?.service_name) {
+      return getCertificateTypeFromService(service.service_name) || 'baptismal';
+    }
+    return 'baptismal';
+  }, [certificateServices, formData.service_id]);
+
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        const response = await churchServiceAPI.getAll({ type: 'certificate' });
+        if (response.data?.success) {
+          const services = response.data.data?.data || [];
+          setCertificateServices(services);
+          console.log('Certificate services loaded:', services);
+
+          if (!formData.service_id && services.length > 0) {
+            const baptismalId = getServiceIdForCertificateType(services, 'baptismal');
+            if (baptismalId) {
+              setFormData((prev) => ({ ...prev, service_id: baptismalId }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading certificate services:', error);
+      }
+    };
+
+    loadServices();
+  }, []);
 
   useEffect(() => {
     if (isEdit && certificateId) {
@@ -75,7 +117,7 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
       if (response.data.success) {
         const data = response.data.data;
         setFormData({
-          certificate_type: data.certificate_type,
+          service_id: data.service_id,
           full_name: data.full_name,
           address: data.address,
           contact_number: data.contact_number,
@@ -93,7 +135,6 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
     }
   };
 
-  // Handle input changes
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -102,29 +143,38 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
       ...prev,
       [name]: value === '' ? null : value,
     }));
-    // Clear error for this field when user types
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
 
-  // Handle validation for a specific field on blur
+  const handleCertificateTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const type = e.target.value as CertificateType;
+    const serviceId = getServiceIdForCertificateType(certificateServices, type);
+    if (!serviceId) {
+      setErrors((prev) => ({ ...prev, service_id: 'Certificate service not found' }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, service_id: serviceId }));
+    if (errors.service_id) {
+      setErrors((prev) => ({ ...prev, service_id: '' }));
+    }
+  };
+
   const handleBlur = (
     e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     const requiredFields = [
-      'certificate_type',
       'full_name',
       'address',
       'contact_number',
       'preferred_date',
       'preferred_time',
     ];
-    
+
     if (!value && requiredFields.includes(name)) {
       const fieldLabels: Record<string, string> = {
-        certificate_type: 'Certificate type',
         full_name: 'Full name',
         address: 'Address',
         contact_number: 'Contact number',
@@ -140,12 +190,11 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
     }
   };
 
-  // Validate form
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.certificate_type) {
-      newErrors.certificate_type = 'Certificate type is required';
+    if (!formData.service_id) {
+      newErrors.service_id = 'Certificate type is required';
     }
     if (!formData.full_name?.trim()) {
       newErrors.full_name = 'Full name is required';
@@ -163,11 +212,10 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
       newErrors.preferred_time = 'Preferred time is required';
     }
 
-    // Validate based on certificate type
-    if (formData.certificate_type === 'baptismal' && !formData.birth_date) {
+    if (selectedType === 'baptismal' && !formData.birth_date) {
       newErrors.birth_date = 'Birth date is required for baptismal certificate';
     }
-    if (formData.certificate_type === 'marriage' && !formData.marriage_date) {
+    if (selectedType === 'marriage' && !formData.marriage_date) {
       newErrors.marriage_date = 'Marriage date is required for marriage certificate';
     }
 
@@ -175,7 +223,6 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
@@ -197,9 +244,8 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
 
     try {
       if (isEdit && certificateId) {
-        // Update existing certificate form
         const updateData: UpdateCertificateFormData = {
-          certificate_type: formData.certificate_type,
+          service_id: formData.service_id,
           full_name: formData.full_name,
           address: formData.address,
           contact_number: formData.contact_number,
@@ -216,24 +262,15 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
         }
         setSubmitSuccess(true);
       } else {
-        // Create new certificate form
         if (onSubmit) {
           await onSubmit(formData);
         } else {
           await certificateFormAPI.create(formData);
         }
         setSubmitSuccess(true);
-        // Reset form
-        setFormData({
-          certificate_type: 'baptismal',
-          full_name: '',
-          address: '',
-          contact_number: '',
-          birth_date: null,
-          marriage_date: null,
-          preferred_date: '',
-          preferred_time: '',
-        });
+        const defaultServiceId =
+          getServiceIdForCertificateType(certificateServices, 'baptismal') || 0;
+        setFormData(emptyForm(defaultServiceId));
       }
 
       if (onSuccess) {
@@ -250,18 +287,10 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
     }
   };
 
-  // Reset form
   const handleReset = () => {
-    setFormData({
-      certificate_type: 'baptismal',
-      full_name: '',
-      address: '',
-      contact_number: '',
-      birth_date: null,
-      marriage_date: null,
-      preferred_date: '',
-      preferred_time: '',
-    });
+    const defaultServiceId =
+      getServiceIdForCertificateType(certificateServices, 'baptismal') || 0;
+    setFormData(emptyForm(defaultServiceId));
     setErrors({});
     setSubmitError(null);
     setSubmitSuccess(false);
@@ -277,7 +306,6 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-
       {submitSuccess && (
         <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
           Certificate form {isEdit ? 'updated' : 'created'} successfully!
@@ -291,40 +319,35 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Certificate Type Section */}
         <div className="border-b border-gray-200 pb-4">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Certificate Details</h3>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Certificate Type *
             </label>
             <select
               name="certificate_type"
-              value={formData.certificate_type}
-              onChange={handleChange}
-              onBlur={handleBlur}
+              value={selectedType}
+              onChange={handleCertificateTypeChange}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.certificate_type ? 'border-red-500' : 'border-gray-300'
+                errors.service_id ? 'border-red-500' : 'border-gray-300'
               }`}
             >
               <option value="baptismal">Baptismal Certificate</option>
               <option value="marriage">Marriage Certificate</option>
             </select>
-            {errors.certificate_type && (
-              <p className="mt-1 text-sm text-red-600">{errors.certificate_type}</p>
+            {errors.service_id && (
+              <p className="mt-1 text-sm text-red-600">{errors.service_id}</p>
             )}
           </div>
         </div>
 
-        {/* Personal Information Section */}
         <div className="border-b border-gray-200 pb-4">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Personal Information</h3>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
             <input
               type="text"
               name="full_name"
@@ -342,15 +365,13 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           </div>
         </div>
 
-        {/* Date Information Section (Conditional) */}
         <div className="border-b border-gray-200 pb-4">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Date Information</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Birth Date - Required for Baptismal */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.certificate_type === 'baptismal' ? 'Birth Date *' : 'Birth Date'}
+                {selectedType === 'baptismal' ? 'Birth Date *' : 'Birth Date'}
               </label>
               <input
                 type="date"
@@ -366,15 +387,14 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
               {errors.birth_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.birth_date}</p>
               )}
-              {formData.certificate_type === 'baptismal' && (
+              {selectedType === 'baptismal' && (
                 <p className="mt-1 text-xs text-gray-500">Required for baptismal certificate</p>
               )}
             </div>
 
-            {/* Marriage Date - Required for Marriage */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.certificate_type === 'marriage' ? 'Marriage Date *' : 'Marriage Date'}
+                {selectedType === 'marriage' ? 'Marriage Date *' : 'Marriage Date'}
               </label>
               <input
                 type="date"
@@ -390,14 +410,13 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
               {errors.marriage_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.marriage_date}</p>
               )}
-              {formData.certificate_type === 'marriage' && (
+              {selectedType === 'marriage' && (
                 <p className="mt-1 text-xs text-gray-500">Required for marriage certificate</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ✅ Preferred Schedule Section with Dropdown */}
         <div className="border-b border-gray-200 pb-4">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Preferred Schedule</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -448,14 +467,11 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           </div>
         </div>
 
-        {/* Contact Information Section */}
         <div>
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Contact Information</h3>
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Address *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
               <textarea
                 name="address"
                 value={formData.address || ''}
@@ -494,40 +510,41 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           </div>
         </div>
 
-        {/* Summary Section */}
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
           <h4 className="text-sm font-medium text-gray-700 mb-2">Summary</h4>
           <p className="text-sm text-gray-600">
-            <strong>Type:</strong> {formData.services_id === 'baptismal' ? 'Baptismal Certificate' : 'Marriage Certificate'}
+            <strong>Type:</strong>{' '}
+            {selectedType === 'baptismal' ? 'Baptismal Certificate' : 'Marriage Certificate'}
           </p>
           <p className="text-sm text-gray-600">
             <strong>Name:</strong> {formData.full_name || 'Not provided'}
           </p>
-          {formData.certificate_type === 'baptismal' && formData.birth_date && (
+          {selectedType === 'baptismal' && formData.birth_date && (
             <p className="text-sm text-gray-600">
               <strong>Birth Date:</strong> {new Date(formData.birth_date).toLocaleDateString()}
             </p>
           )}
-          {formData.certificate_type === 'marriage' && formData.marriage_date && (
+          {selectedType === 'marriage' && formData.marriage_date && (
             <p className="text-sm text-gray-600">
-              <strong>Marriage Date:</strong> {new Date(formData.marriage_date).toLocaleDateString()}
+              <strong>Marriage Date:</strong>{' '}
+              {new Date(formData.marriage_date).toLocaleDateString()}
             </p>
           )}
           {formData.preferred_date && (
             <p className="text-sm text-gray-600">
-              <strong>Preferred Date:</strong> {new Date(formData.preferred_date).toLocaleDateString()}
+              <strong>Preferred Date:</strong>{' '}
+              {new Date(formData.preferred_date).toLocaleDateString()}
             </p>
           )}
           {formData.preferred_time && (
             <p className="text-sm text-gray-600">
-              <strong>Preferred Time:</strong> {
-                preferredTimeOptions.find(opt => opt.value === formData.preferred_time)?.label || formData.preferred_time
-              }
+              <strong>Preferred Time:</strong>{' '}
+              {preferredTimeOptions.find((opt) => opt.value === formData.preferred_time)?.label ||
+                formData.preferred_time}
             </p>
           )}
         </div>
 
-        {/* Form Actions */}
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
           {onCancel && (
             <button
@@ -554,14 +571,32 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           >
             {isSubmitting ? (
               <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 Submitting...
               </span>
+            ) : isEdit ? (
+              'Update Certificate Form'
             ) : (
-              isEdit ? 'Update Certificate Form' : 'Create Certificate Form'
+              'Create Certificate Form'
             )}
           </button>
         </div>

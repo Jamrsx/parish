@@ -6,7 +6,6 @@ import {
     getNotificationIcon,
     type Notification 
 } from '../../../library/notification';
-import { useAuth } from '../../../context/AuthContext';
 
 interface NotificationDropdownProps {
   onClose?: () => void;
@@ -15,7 +14,6 @@ interface NotificationDropdownProps {
 const NotificationDropdown = ({ onClose }: NotificationDropdownProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const { user } = useAuth();
 
   const fetchUnreadNotifications = async () => {
     try {
@@ -196,7 +194,6 @@ const NotificationBell = ({ className = '' }: NotificationBellProps) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
 
   const fetchUnreadCount = async () => {
     try {

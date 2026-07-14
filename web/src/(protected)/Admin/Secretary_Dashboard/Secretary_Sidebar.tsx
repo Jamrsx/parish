@@ -84,12 +84,7 @@ const SecretarySidebar: React.FC = () => {
       const response = await manageRequestAPI.getAll({ status: "pending", per_page: 1 });
       if (response.data?.success) {
         const data = response.data.data;
-        let total = 0;
-        if (data && typeof data === "object" && "total" in data) {
-          total = Number(data.total) || 0;
-        } else if (Array.isArray(data)) {
-          total = data.length;
-        }
+        const total = Number(data?.total) || 0;
         console.log("Sidebar pending requests count:", total);
         setPendingCount(total);
       }
