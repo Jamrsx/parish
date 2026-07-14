@@ -42,6 +42,31 @@ class ManageRequest extends Model
         'amount_paid' => 'decimal:2',
     ];
 
+    /** Human-readable reference code, e.g. REQ-000042 */
+    public static function formatRequestReference(int $requestId): string
+    {
+        return 'REQ-' . str_pad((string) $requestId, 6, '0', STR_PAD_LEFT);
+    }
+
+    /** Parse REQ-000042 or plain numeric search into request_id */
+    public static function resolveSearchRequestId(?string $search): ?int
+    {
+        if ($search === null || trim($search) === '') {
+            return null;
+        }
+
+        $trimmed = trim($search);
+        if (preg_match('/^REQ-?(\d+)$/i', $trimmed, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if (ctype_digit($trimmed)) {
+            return (int) $trimmed;
+        }
+
+        return null;
+    }
+
     // ============ RELATIONSHIPS ============
 
     public function baptismForm(): BelongsTo

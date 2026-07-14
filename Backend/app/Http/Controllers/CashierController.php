@@ -86,14 +86,19 @@ class CashierController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
+            $requestId = ManageRequest::resolveSearchRequestId($search);
+            $query->where(function ($q) use ($search, $requestId) {
                 $q->whereHas('user', function ($sub) use ($search) {
                     $sub->where('first_name', 'LIKE', "%{$search}%")
                         ->orWhere('last_name', 'LIKE', "%{$search}%")
                         ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
                 })->orWhereHas('service', function ($sub) use ($search) {
                     $sub->where('service_type', 'LIKE', "%{$search}%");
-                })->orWhere('request_id', 'LIKE', "%{$search}%");
+                });
+                if ($requestId !== null) {
+                    $q->orWhere('request_id', $requestId);
+                }
+                $q->orWhere('request_id', 'LIKE', "%{$search}%");
             });
         }
 

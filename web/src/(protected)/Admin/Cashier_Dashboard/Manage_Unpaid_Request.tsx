@@ -4,6 +4,8 @@ import { cashierAPI, type UnpaidRequestRow } from "../../../../library/cashier";
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const formatRequestId = (requestId: number) => `REQ-${String(requestId).padStart(6, "0")}`;
+
 const ManageUnpaidRequest: React.FC = () => {
   const [rows, setRows] = useState<UnpaidRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ const ManageUnpaidRequest: React.FC = () => {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search parishioner or service..."
+          placeholder="Search request ID, parishioner, or service..."
           className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
         />
         <select
@@ -127,6 +129,7 @@ const ManageUnpaidRequest: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
+                  <th className="text-left px-4 py-3">Request ID</th>
                   <th className="text-left px-4 py-3">Parishioner</th>
                   <th className="text-left px-4 py-3">Service</th>
                   <th className="text-left px-4 py-3">Schedule</th>
@@ -140,6 +143,11 @@ const ManageUnpaidRequest: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
                   <tr key={row.request_id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                        {formatRequestId(row.request_id)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 font-medium">{row.user?.full_name || "N/A"}</td>
                     <td className="px-4 py-3">{row.service?.service_type || row.form_summary}</td>
                     <td className="px-4 py-3 text-slate-500">
@@ -179,8 +187,11 @@ const ManageUnpaidRequest: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 bg-opacity-20 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-1">Record Cash Payment</h3>
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 mb-1">
               {selected.user?.full_name} · {selected.service?.service_type}
+            </p>
+            <p className="text-xs font-mono font-semibold text-emerald-700 mb-4">
+              Request {formatRequestId(selected.request_id)}
             </p>
             <div className="space-y-3 text-sm mb-4 bg-slate-50 rounded-lg p-3">
               <div className="flex justify-between">

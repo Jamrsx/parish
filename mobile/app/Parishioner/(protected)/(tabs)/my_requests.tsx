@@ -196,6 +196,9 @@ const formatTime = (value?: string | null) => {
 
 const formatPeso = (amount: number) => `₱${Number(amount || 0).toLocaleString()}`;
 
+/** Human-readable request reference shown to parishioners and cashiers (e.g. REQ-000042). */
+const formatRequestId = (requestId: number) => `REQ-${String(requestId).padStart(6, '0')}`;
+
 const getServiceFee = (request: Request) => Number(request.service?.fee || 0);
 
 const getBalanceDue = (request: Request) => {
@@ -270,7 +273,12 @@ export default function MyRequestsScreen() {
   const [cancelError, setCancelError] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [unpaidFocusActive, setUnpaidFocusActive] = useState(false);
   const expireRefreshInFlight = useRef(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollContentRef = useRef<View>(null);
+  const cardRefs = useRef<Record<number, View | null>>({});
+  const pendingScrollToUnpaid = useRef(false);
 
   const fetchRequests = useCallback(async () => {
     if (!user) return;
@@ -364,6 +372,60 @@ export default function MyRequestsScreen() {
     setRefreshing(false);
   };
 
+  const scrollToFirstUnpaid = useCallback(() => {
+    const firstUnpaid = requests.find((request) => getPaymentConfig(request).needsAttention);
+    if (!firstUnpaid) {
+      console.log('No unpaid requests in current list to scroll to');
+      return;
+    }
+
+    const card = cardRefs.current[firstUnpaid.request_id];
+    const content = scrollContentRef.current;
+    const scroll = scrollViewRef.current;
+    if (!card || !content || !scroll) {
+      console.log('Scroll refs not ready for unpaid request:', firstUnpaid.request_id);
+      return;
+    }
+
+    card.measureLayout(
+      content,
+      (_x, y) => {
+        console.log('Scrolling to unpaid request:', firstUnpaid.request_id, y);
+        scroll.scrollTo({ y: Math.max(0, y - 16), animated: true });
+        setUnpaidFocusActive(true);
+        setTimeout(() => setUnpaidFocusActive(false), 2500);
+      },
+      () => console.error('Failed to measure unpaid card position')
+    );
+  }, [requests]);
+
+  const handleUnpaidBannerPress = () => {
+    console.log('Unpaid banner pressed');
+    const hasUnpaidInList = requests.some((request) => getPaymentConfig(request).needsAttention);
+
+    if (!hasUnpaidInList && statusFilter !== 'all') {
+      pendingScrollToUnpaid.current = true;
+      setStatusFilter('all');
+      return;
+    }
+
+    scrollToFirstUnpaid();
+  };
+
+  useEffect(() => {
+    if (!pendingScrollToUnpaid.current || loading) return;
+
+    const hasUnpaidInList = requests.some((request) => getPaymentConfig(request).needsAttention);
+    if (!hasUnpaidInList) {
+      pendingScrollToUnpaid.current = false;
+      return;
+    }
+
+    pendingScrollToUnpaid.current = false;
+    const timer = setTimeout(() => scrollToFirstUnpaid(), 150);
+    return () => clearTimeout(timer);
+  }, [requests, loading, statusFilter, scrollToFirstUnpaid]);
+
   const openDetails = (request: Request) => {
     console.log('Opening request details:', request.request_id);
     setSelectedRequest(request);
@@ -435,7 +497,11 @@ export default function MyRequestsScreen() {
       <ParishionerHeader title="My Requests" subtitle="View your service request records" />
 
       {!loading && unpaidCount > 0 ? (
-        <View className="mx-4 mt-3 mb-1 rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 flex-row items-center gap-3">
+        <TouchableOpacity
+          onPress={handleUnpaidBannerPress}
+          activeOpacity={0.85}
+          className="mx-4 mt-3 mb-1 rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3 flex-row items-center gap-3"
+        >
           <View className="w-10 h-10 rounded-full bg-orange-100 items-center justify-center">
             <Ionicons name="wallet-outline" size={20} color="#C2410C" />
           </View>
@@ -444,13 +510,16 @@ export default function MyRequestsScreen() {
               {unpaidCount} request{unpaidCount !== 1 ? 's' : ''} need payment
             </Text>
             <Text className="text-xs text-orange-700 mt-0.5">
-              Visit the parish cashier to settle your balance.
+              Tap to view unpaid requests · Pay at the parish cashier
             </Text>
           </View>
-          <View className="min-w-[28px] h-7 px-2 rounded-full bg-orange-500 items-center justify-center">
-            <Text className="text-xs font-bold text-white">{unpaidCount}</Text>
+          <View className="flex-row items-center gap-2">
+            <View className="min-w-[28px] h-7 px-2 rounded-full bg-orange-500 items-center justify-center">
+              <Text className="text-xs font-bold text-white">{unpaidCount}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={18} color="#C2410C" />
           </View>
-        </View>
+        </TouchableOpacity>
       ) : null}
 
       <View className="bg-white px-4 py-3 border-b border-gray-200">
@@ -483,10 +552,12 @@ export default function MyRequestsScreen() {
         </View>
       ) : (
         <ScrollView
+          ref={scrollViewRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
         >
           <ResponsiveContainer className="pt-4">
+            <View ref={scrollContentRef} collapsable={false} className="w-full">
             {requests.length === 0 ? (
               <View className="items-center justify-center py-16 px-6">
                 <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
@@ -510,19 +581,34 @@ export default function MyRequestsScreen() {
                   const unpaidNotice = paymentConfig.needsAttention;
 
                   return (
-                    <TouchableOpacity
+                    <View
                       key={request.request_id}
+                      ref={(node) => {
+                        cardRefs.current[request.request_id] = node;
+                      }}
+                      collapsable={false}
+                    >
+                    <TouchableOpacity
                       onPress={() => openDetails(request)}
                       activeOpacity={0.8}
                       className={`bg-white rounded-2xl border p-4 shadow-sm ${
                         unpaidNotice
-                          ? 'border-orange-300 border-l-4 border-l-orange-500'
+                          ? `border-orange-300 border-l-4 border-l-orange-500 ${
+                              unpaidFocusActive ? 'bg-orange-50/80' : ''
+                            }`
                           : 'border-gray-100'
                       }`}
                     >
                       <View className="flex-row items-start justify-between mb-3">
                         <View className="flex-1 pr-3">
-                          <Text className="text-base font-bold text-gray-800">{getServiceTitle(request)}</Text>
+                          <View className="flex-row items-center gap-2 flex-wrap">
+                            <Text className="text-base font-bold text-gray-800">{getServiceTitle(request)}</Text>
+                            <View className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                              <Text className="text-[10px] font-bold text-slate-600 tracking-wide">
+                                {formatRequestId(request.request_id)}
+                              </Text>
+                            </View>
+                          </View>
                           <Text className="text-sm text-gray-500 mt-1" numberOfLines={2}>
                             {request.form_summary || 'Service request'}
                           </Text>
@@ -612,10 +698,12 @@ export default function MyRequestsScreen() {
                         ) : null}
                       </View>
                     </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
             )}
+            </View>
           </ResponsiveContainer>
         </ScrollView>
       )}
@@ -633,6 +721,16 @@ export default function MyRequestsScreen() {
                 </View>
 
                 <ScrollView className="px-5 py-4" showsVerticalScrollIndicator={false}>
+                  <View className="mb-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                    <Text className="text-xs font-semibold text-gray-500 uppercase">Request ID</Text>
+                    <Text className="text-lg font-bold text-slate-800 mt-1 tracking-wide">
+                      {formatRequestId(selectedRequest.request_id)}
+                    </Text>
+                    <Text className="text-xs text-gray-500 mt-1">
+                      Show this ID at the parish cashier when paying.
+                    </Text>
+                  </View>
+
                   <View className="mb-4">
                     <Text className="text-xs font-semibold text-gray-500 uppercase">Service</Text>
                     <Text className="text-base font-bold text-gray-800 mt-1">

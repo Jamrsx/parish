@@ -68,15 +68,19 @@ class ManageRequestController extends Controller
         // Search
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
+            $requestId = ManageRequest::resolveSearchRequestId($search);
+            $query->where(function ($q) use ($search, $requestId) {
                 $q->whereHas('user', function ($subQ) use ($search) {
                     $subQ->where('first_name', 'LIKE', "%{$search}%")
                         ->orWhere('last_name', 'LIKE', "%{$search}%")
                         ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
-                })->orWhere('request_id', 'LIKE', "%{$search}%")
-                    ->orWhereHas('service', function ($subQ) use ($search) {
-                        $subQ->where('service_type', 'LIKE', "%{$search}%");
-                    });
+                })->orWhereHas('service', function ($subQ) use ($search) {
+                    $subQ->where('service_type', 'LIKE', "%{$search}%");
+                });
+                if ($requestId !== null) {
+                    $q->orWhere('request_id', $requestId);
+                }
+                $q->orWhere('request_id', 'LIKE', "%{$search}%");
             });
         }
 
