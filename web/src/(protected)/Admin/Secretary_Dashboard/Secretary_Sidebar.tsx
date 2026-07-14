@@ -9,6 +9,7 @@ import {
   Package,
   FileArchive,
   UserPlus,
+  Wallet,
   HandCoins,
   Church,
   BookOpen,
@@ -58,6 +59,7 @@ const navGroups: {
       { path: "/admin/secretary/manage-services", label: "Manage Services", icon: Layers },
       { path: "/admin/secretary/manage-inventory", label: "Manage Inventory", icon: Package },
       { path: "/admin/secretary/manage-priests", label: "Manage Priests", icon: UserPlus },
+      { path: "/admin/secretary/manage-cashiers", label: "Manage Cashiers", icon: Wallet },
     ],
   },
 ];

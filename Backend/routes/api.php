@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin Creation
         Route::post('/create-admin', [AuthController::class, 'createAdmin']);
         Route::post('/create-priest', [AuthController::class, 'createPriest']);
+        Route::post('/create-cashier', [AuthController::class, 'createCashier']);
 
         // Manage Requests
         Route::prefix('requests')->group(function () {

@@ -16,6 +16,7 @@ import ManageInventory from "./(protected)/Admin/Secretary_Dashboard/Inventory/M
 import ScheduledServices from "./(protected)/Admin/Secretary_Dashboard/Scheduled_Services";
 import ServiceRecords from "./(protected)/Admin/Secretary_Dashboard/Service_Records";
 import ManagePriests from "./(protected)/Admin/Secretary_Dashboard/Manage_Priests";
+import ManageCashiers from "./(protected)/Admin/Secretary_Dashboard/Manage_Cashiers";
 import ManageDonations from "./(protected)/Admin/Secretary_Dashboard/Manage_Donations";
 import ManageMassCollections from "./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections";
 import ManageSpecialIntentions from "./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions";
@@ -89,6 +90,7 @@ function App() {
             <Route path="scheduled-services" element={<ScheduledServices />} />
             <Route path="service-records" element={<ServiceRecords />} />
             <Route path="manage-priests" element={<ManagePriests />} />
+            <Route path="manage-cashiers" element={<ManageCashiers />} />
             <Route path="donations" element={<ManageDonations />} />
             <Route path="mass-collections" element={<ManageMassCollections />} />
             <Route path="special-intentions" element={<ManageSpecialIntentions />} />

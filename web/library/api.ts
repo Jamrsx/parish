@@ -146,12 +146,22 @@ export const authAPI = {
   }) => api.put<ApiResponse<User>>('/auth/profile', data),
 };
 
-// ============ USER / PRIEST MANAGEMENT (ADMIN) ============
+// ============ USER / PRIEST / CASHIER MANAGEMENT (ADMIN) ============
 export interface CreatePriestData {
   first_name: string;
   middle_name?: string | null;
   last_name: string;
   email: string;
+  contact_number?: string | null;
+  password: string;
+}
+
+export interface CreateCashierData {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  username: string;
+  email?: string | null;
   contact_number?: string | null;
   password: string;
 }
@@ -167,13 +177,30 @@ export const usersAPI = {
       },
     }),
 
+  listCashiers: () =>
+    api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
+      params: {
+        role: 'cashier',
+        per_page: 100,
+      },
+    }),
+
   createPriest: (data: CreatePriestData) =>
     api.post<ApiResponse<User>>('/admin/create-priest', data),
+
+  createCashier: (data: CreateCashierData) =>
+    api.post<ApiResponse<User>>('/admin/create-cashier', data),
 
   disablePriest: (userId: number) =>
     api.post<ApiResponse<User>>(`/admin/users/${userId}/disable`),
 
   enablePriest: (userId: number) =>
+    api.post<ApiResponse<User>>(`/admin/users/${userId}/enable`),
+
+  disableCashier: (userId: number) =>
+    api.post<ApiResponse<User>>(`/admin/users/${userId}/disable`),
+
+  enableCashier: (userId: number) =>
     api.post<ApiResponse<User>>(`/admin/users/${userId}/enable`),
 
   updateAvailability: (isAvailable: boolean) =>

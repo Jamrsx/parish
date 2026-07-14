@@ -330,7 +330,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Admin only: Create admin users
+     * Admin only: Create admin users (secretary / cashier)
      */
     public function createAdmin(Request $request)
     {
@@ -340,6 +340,7 @@ class AuthController extends Controller
             'last_name' => 'required|string|max:50',
             'username' => 'required|string|max:50|unique:users,username',
             'email' => 'nullable|email|unique:users,email',
+            'contact_number' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
             'role' => ['required', Rule::in(['secretary', 'cashier'])],
         ]);
@@ -357,6 +358,7 @@ class AuthController extends Controller
             'last_name' => $request->last_name,
             'username' => $request->username,
             'email' => $request->email,
+            'contact_number' => $request->contact_number,
             'password' => $request->password,
             'role' => $request->role,
         ]);
@@ -366,6 +368,15 @@ class AuthController extends Controller
             'message' => 'Admin user created successfully',
             'data' => $this->formatUserData($user)
         ], 201);
+    }
+
+    /**
+     * Secretary: Create cashier account (username login)
+     */
+    public function createCashier(Request $request)
+    {
+        $request->merge(['role' => 'cashier']);
+        return $this->createAdmin($request);
     }
 
     /**
@@ -494,7 +505,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Disable a priest account (Admin only)
+     * Disable priest or cashier account (Admin only)
      */
     public function disableUser($id)
     {
@@ -507,32 +518,34 @@ class AuthController extends Controller
             ], 404);
         }
 
-        if (!$user->isPriest()) {
+        if (!$user->isPriest() && !$user->isCashier()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only priest accounts can be disabled from this action.'
+                'message' => 'Only priest or cashier accounts can be disabled from this action.'
             ], 422);
         }
 
         if (!$user->isActive()) {
             return response()->json([
                 'success' => false,
-                'message' => 'This priest account is already disabled.'
+                'message' => 'This account is already disabled.'
             ], 422);
         }
 
         $user->update(['is_active' => false]);
         $user->tokens()->delete();
 
+        $label = $user->isCashier() ? 'Cashier' : 'Priest';
+
         return response()->json([
             'success' => true,
-            'message' => 'Priest account disabled successfully.',
+            'message' => "{$label} account disabled successfully.",
             'data' => $this->formatUserData($user->fresh())
         ]);
     }
 
     /**
-     * Re-enable a priest account (Admin only)
+     * Re-enable priest or cashier account (Admin only)
      */
     public function enableUser($id)
     {
@@ -545,25 +558,27 @@ class AuthController extends Controller
             ], 404);
         }
 
-        if (!$user->isPriest()) {
+        if (!$user->isPriest() && !$user->isCashier()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only priest accounts can be enabled from this action.'
+                'message' => 'Only priest or cashier accounts can be enabled from this action.'
             ], 422);
         }
 
         if ($user->isActive()) {
             return response()->json([
                 'success' => false,
-                'message' => 'This priest account is already active.'
+                'message' => 'This account is already active.'
             ], 422);
         }
 
         $user->update(['is_active' => true]);
 
+        $label = $user->isCashier() ? 'Cashier' : 'Priest';
+
         return response()->json([
             'success' => true,
-            'message' => 'Priest account enabled successfully.',
+            'message' => "{$label} account enabled successfully.",
             'data' => $this->formatUserData($user->fresh())
         ]);
     }

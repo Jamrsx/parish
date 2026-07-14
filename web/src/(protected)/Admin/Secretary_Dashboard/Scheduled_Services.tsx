@@ -117,6 +117,22 @@ const formatDateToYYYYMMDD = (dateString: string): string => {
   }
 };
 
+/** Display-only date (e.g. birth date) — avoids raw ISO like 2021-07-06T16:00:00.000000Z */
+const formatDisplayDate = (dateString: string | undefined | null): string => {
+  if (!dateString || dateString === 'N/A') return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+};
+
 const getUserFullName = (user: User | undefined | null): string => {
   if (!user) return 'N/A';
   if (user.full_name) return user.full_name;
@@ -179,7 +195,7 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
       name: childName,
       requestDetails: {
         ...requestDetails,
-        childBirthDate: request.baptismForm?.child_birth_date || 'N/A',
+        childBirthDate: formatDisplayDate(request.baptismForm?.child_birth_date),
         motherName: request.baptismForm
           ? `${request.baptismForm.mother_first_name} ${request.baptismForm.mother_last_name}`
           : 'N/A',
