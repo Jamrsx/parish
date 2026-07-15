@@ -270,11 +270,25 @@ const fetchAllBorrowRecords = useCallback(async () => {
     e.preventDefault();
     if (!selectedItem) return;
 
+    const phone = (borrowData.borrower_phone || "").replace(/\D/g, "");
+    if (!/^09\d{9}$/.test(phone)) {
+      showAlert("error", "Enter a valid 11-digit phone number (09XXXXXXXXX).");
+      return;
+    }
+    if (!borrowData.quantity || borrowData.quantity < 1) {
+      showAlert("error", "Quantity must be at least 1.");
+      return;
+    }
+
     try {
-      const response = await inventoryAPI.borrow(
-        selectedItem.inventory_id,
-        borrowData
-      );
+      console.log("Borrowing item:", selectedItem.inventory_id, {
+        ...borrowData,
+        borrower_phone: phone,
+      });
+      const response = await inventoryAPI.borrow(selectedItem.inventory_id, {
+        ...borrowData,
+        borrower_phone: phone,
+      });
       if (response.data.success) {
         showAlert("success", "Item borrowed successfully!");
         setShowBorrowModal(false);
