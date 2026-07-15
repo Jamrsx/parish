@@ -22,6 +22,7 @@ import {
   Phone,
   Eye,
 } from 'lucide-react';
+import PriestNav from './PriestNav';
 
 interface PriestSchedule {
   id: number;
@@ -450,6 +451,8 @@ const PriestHomePage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        <PriestNav />
 
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white mb-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">

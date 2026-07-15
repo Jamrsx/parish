@@ -27,6 +27,8 @@ import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomeP
 
 // Priest
 import PriestHomePage from "./(protected)/Admin/Priest_Dashboard/PriestHomePage";
+import PriestIncome from "./(protected)/Admin/Priest_Dashboard/PriestIncome";
+import PriestInventory from "./(protected)/Admin/Priest_Dashboard/PriestInventory";
 
 // Parishioner
 import ParishionerHome from "./(protected)/Parishioner_Dashboard/ParishionerHomePage";
@@ -113,6 +115,22 @@ function App() {
             element={
               <RequireAuth roles={['priest']}>
                 <PriestHomePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/priest/income"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestIncome />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/priest/inventory"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestInventory />
               </RequireAuth>
             }
           />

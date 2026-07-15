@@ -236,6 +236,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);
 
+        // Read-only finance & inventory (view only — no write actions)
+        Route::get('/income', [CashierController::class, 'dailyReport']);
+        Route::get('/inventory', [InventoryController::class, 'index']);
+        Route::get('/inventory/categories', [InventoryController::class, 'getCategories']);
+        Route::get('/inventory/{id}', [InventoryController::class, 'show']);
+
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
             Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
