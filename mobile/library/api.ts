@@ -125,6 +125,8 @@ export interface ApiResponse<T = any> {
   message?: string;
   data: T;
   errors?: Record<string, string[]>;
+  /** From Backend REQUEST_EXPIRY_MINUTES when returned by parishioner request APIs */
+  expiry_minutes?: number;
 }
 
 // API CLIENT

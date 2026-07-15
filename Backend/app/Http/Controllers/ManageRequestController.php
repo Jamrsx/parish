@@ -1613,9 +1613,16 @@ class ManageRequestController extends Controller
             return $this->transformRequest($request);
         });
 
+        $expiryMinutes = ManageRequest::expiryMinutes();
+        Log::info('Parishioner getUserRequests expiry_minutes from env', [
+            'user_id' => $user->user_id,
+            'expiry_minutes' => $expiryMinutes,
+        ]);
+
         return response()->json([
             'success' => true,
-            'data' => $requests
+            'data' => $requests,
+            'expiry_minutes' => $expiryMinutes,
         ]);
     }
 

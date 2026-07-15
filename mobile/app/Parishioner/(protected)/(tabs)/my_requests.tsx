@@ -20,9 +20,8 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 
 type StatusFilter = 'all' | 'approved' | 'done' | 'cancelled' | 'pending';
 
-/** Match Backend ManageRequest::expiryMinutes() default (REQUEST_EXPIRY_MINUTES). */
-const REQUEST_EXPIRY_MINUTES = 60;
-const REQUEST_EXPIRY_MS = REQUEST_EXPIRY_MINUTES * 60 * 1000;
+/** Fallback only if API has not returned REQUEST_EXPIRY_MINUTES yet. */
+const DEFAULT_EXPIRY_MINUTES = 60;
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -42,9 +41,14 @@ const isSpecialIntentionRequest = (request: Request) =>
 const canRequestExpire = (request: Request) =>
   request.status === 'pending' && !isSpecialIntentionRequest(request);
 
-const getExpiryRemainingMs = (request: Request, currentTime: number): number | null => {
+const getExpiryRemainingMs = (
+  request: Request,
+  currentTime: number,
+  expiryMinutes: number
+): number | null => {
   if (!canRequestExpire(request) || !request.created_at) return null;
-  const expiresAt = new Date(request.created_at).getTime() + REQUEST_EXPIRY_MS;
+  const expiryMs = Math.max(1, expiryMinutes) * 60 * 1000;
+  const expiresAt = new Date(request.created_at).getTime() + expiryMs;
   const remaining = expiresAt - currentTime;
   return remaining > 0 ? remaining : 0;
 };
@@ -276,6 +280,7 @@ export default function MyRequestsScreen() {
   const { isCompact } = useResponsive();
   const [requests, setRequests] = useState<Request[]>([]);
   const [unpaidCount, setUnpaidCount] = useState(0);
+  const [expiryMinutes, setExpiryMinutes] = useState(DEFAULT_EXPIRY_MINUTES);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -305,6 +310,10 @@ export default function MyRequestsScreen() {
 
       if (response.success && response.data?.data) {
         setRequests(response.data.data);
+        if (typeof response.expiry_minutes === 'number' && response.expiry_minutes > 0) {
+          setExpiryMinutes(response.expiry_minutes);
+          console.log('Request expiry minutes from .env:', response.expiry_minutes);
+        }
         console.log('Parishioner requests loaded:', response.data.data.length);
       } else {
         setRequests([]);
@@ -359,7 +368,7 @@ export default function MyRequestsScreen() {
     if (!hasExpiringPending || expireRefreshInFlight.current) return;
 
     const anyExpired = requests.some((request) => {
-      const remaining = getExpiryRemainingMs(request, now);
+      const remaining = getExpiryRemainingMs(request, now, expiryMinutes);
       return remaining === 0;
     });
 
@@ -369,7 +378,11 @@ export default function MyRequestsScreen() {
     (async () => {
       try {
         console.log('Pending request expiry reached — syncing with server');
-        await api.expirePendingRequests();
+        const expireRes = await api.expirePendingRequests();
+        if (typeof expireRes.data?.expiry_minutes === 'number' && expireRes.data.expiry_minutes > 0) {
+          setExpiryMinutes(expireRes.data.expiry_minutes);
+          console.log('Request expiry minutes from expire API:', expireRes.data.expiry_minutes);
+        }
         await Promise.all([fetchRequests(), fetchUnpaidCount()]);
       } catch (error) {
         console.error('Failed to sync expired requests:', error);
@@ -377,7 +390,7 @@ export default function MyRequestsScreen() {
         expireRefreshInFlight.current = false;
       }
     })();
-  }, [now, requests, hasExpiringPending, fetchRequests, fetchUnpaidCount]);
+  }, [now, requests, hasExpiringPending, fetchRequests, fetchUnpaidCount, expiryMinutes]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -590,7 +603,7 @@ export default function MyRequestsScreen() {
                   const paymentConfig = getPaymentConfig(request);
                   const scheduleText = getStatusScheduleText(request);
                   const rescheduled = wasRescheduled(request);
-                  const expiryRemainingMs = getExpiryRemainingMs(request, now);
+                  const expiryRemainingMs = getExpiryRemainingMs(request, now, expiryMinutes);
                   const unpaidNotice = paymentConfig.needsAttention;
 
                   return (
@@ -758,7 +771,7 @@ export default function MyRequestsScreen() {
                         const statusConfig = getStatusConfig(selectedRequest.status, selectedRequest);
                         const scheduleText = getStatusScheduleText(selectedRequest);
                         const rescheduled = wasRescheduled(selectedRequest);
-                        const expiryRemainingMs = getExpiryRemainingMs(selectedRequest, now);
+                        const expiryRemainingMs = getExpiryRemainingMs(selectedRequest, now, expiryMinutes);
 
                         return (
                           <>
@@ -786,7 +799,7 @@ export default function MyRequestsScreen() {
                             {expiryRemainingMs !== null ? (
                               <Text className="text-xs text-amber-700">
                                 This request will be cancelled automatically if not approved within{' '}
-                                {REQUEST_EXPIRY_MINUTES} minutes of submission.
+                                {expiryMinutes} minutes of submission.
                               </Text>
                             ) : null}
 
