@@ -193,6 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // UPDATE USER
   const updateUser = useCallback(async (userData: User) => {
+    console.log('AuthContext updateUser:', userData.full_name || userData.first_name);
     setUser(userData);
   }, []);
 

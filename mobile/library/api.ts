@@ -238,6 +238,21 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     return this.request('/auth/profile');
   }
 
+  async updateProfile(data: {
+    first_name?: string;
+    middle_name?: string | null;
+    last_name?: string;
+    contact_number?: string | null;
+    address?: string | null;
+    email?: string;
+  }): Promise<ApiResponse<User>> {
+    console.log('Updating parishioner profile:', data);
+    return this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async verify(): Promise<ApiResponse<{ user_id: number; full_name: string; email: string; role: string; is_verified: boolean }>> {
     return this.request('/auth/verify');
   }

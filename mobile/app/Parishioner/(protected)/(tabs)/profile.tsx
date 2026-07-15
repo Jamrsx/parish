@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Modal,
   TextInput,
   RefreshControl,
@@ -22,6 +21,13 @@ import ParishionerHeader from '../../../../components/ParishionerHeader';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { Feather } from '@expo/vector-icons';
 
+type FeedbackModal = {
+  visible: boolean;
+  type: 'success' | 'error';
+  title: string;
+  message: string;
+};
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, updateUser, refreshProfile } = useAuth();
@@ -32,6 +38,21 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<FeedbackModal>({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
+
+  const showFeedback = (type: 'success' | 'error', title: string, message: string) => {
+    console.log('Profile feedback:', type, title, message);
+    setFeedback({ visible: true, type, title, message });
+  };
+
+  const closeFeedback = () => {
+    setFeedback((prev) => ({ ...prev, visible: false }));
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -39,14 +60,29 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
+    const existingContact = (user?.contact_number || '').replace(/\D/g, '').slice(0, 11);
     setEditForm({
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
       middle_name: user?.middle_name || '',
-      contact_number: user?.contact_number || '',
+      contact_number: existingContact,
       address: user?.address || '',
     });
+    setEditErrors({});
     setIsEditing(true);
+  };
+
+  const handleContactNumberChange = (text: string) => {
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 11);
+    console.log('Contact number input filtered:', digitsOnly);
+    setEditForm((prev) => ({ ...prev, contact_number: digitsOnly }));
+    if (editErrors.contact_number) {
+      setEditErrors((prev) => {
+        const next = { ...prev };
+        delete next.contact_number;
+        return next;
+      });
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -55,26 +91,50 @@ export default function ProfileScreen() {
     const errors: Record<string, string> = {};
     if (!editForm.first_name?.trim()) errors.first_name = 'First name is required';
     if (!editForm.last_name?.trim()) errors.last_name = 'Last name is required';
-    if (editForm.contact_number && !/^(09|\+639)\d{9}$/.test(editForm.contact_number)) {
-      errors.contact_number = 'Enter valid PH number';
+
+    const contact = (editForm.contact_number || '').replace(/\D/g, '');
+    if (contact && !/^09\d{9}$/.test(contact)) {
+      errors.contact_number = 'Enter a valid 11-digit PH number (09XXXXXXXXX)';
     }
 
     if (Object.keys(errors).length > 0) {
       setEditErrors(errors);
+      console.log('Profile validation errors:', errors);
       return;
     }
 
+    setEditErrors({});
     setLoading(true);
     try {
-      const response = await api.updateProfile(editForm);
-      if (response.success) {
+      const payload = {
+        first_name: editForm.first_name?.trim(),
+        last_name: editForm.last_name?.trim(),
+        middle_name: editForm.middle_name?.trim() || null,
+        contact_number: contact || null,
+        address: editForm.address?.trim() || null,
+      };
+      console.log('Saving profile changes:', payload);
+
+      const response = await api.updateProfile(payload);
+      if (response.success && response.data) {
         await updateUser(response.data);
         await refreshProfile();
         setIsEditing(false);
-        Alert.alert('Success', 'Profile updated successfully!');
+        console.log('Profile updated successfully:', response.data.full_name);
+        showFeedback('success', 'Profile Updated', 'Your profile information has been saved successfully.');
+      } else {
+        showFeedback('error', 'Update Failed', response.message || 'Failed to update profile');
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to update profile');
+      console.error('Update profile failed:', error);
+      const message =
+        error?.data?.message ||
+        error?.data?.errors?.first_name?.[0] ||
+        error?.data?.errors?.last_name?.[0] ||
+        error?.data?.errors?.contact_number?.[0] ||
+        error?.message ||
+        'Failed to update profile';
+      showFeedback('error', 'Update Failed', message);
     } finally {
       setLoading(false);
     }
@@ -273,10 +333,14 @@ export default function ProfileScreen() {
                       editErrors.contact_number ? 'border-red-500' : 'border-gray-300'
                     }`}
                     value={editForm.contact_number || ''}
-                    onChangeText={text => setEditForm(prev => ({ ...prev, contact_number: text }))}
-                    keyboardType="phone-pad"
-                    placeholder="09XX XXX XXXX"
+                    onChangeText={handleContactNumberChange}
+                    keyboardType="number-pad"
+                    maxLength={11}
+                    placeholder="09XXXXXXXXX"
                   />
+                  <Text className="text-xs text-gray-400 mt-1">
+                    {(editForm.contact_number || '').length}/11 digits
+                  </Text>
                   {editErrors.contact_number && (
                     <Text className="text-red-500 text-xs mt-1">{editErrors.contact_number}</Text>
                   )}
@@ -313,6 +377,40 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </ResponsiveRow>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success / Error feedback modal */}
+      <Modal
+        visible={feedback.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFeedback}
+      >
+        <View className="flex-1 bg-black/50 items-center justify-center p-4">
+          <View className="bg-white rounded-2xl w-full max-w-sm p-6 items-center shadow-lg">
+            <View
+              className={`w-14 h-14 rounded-full items-center justify-center mb-4 ${
+                feedback.type === 'success' ? 'bg-green-100' : 'bg-red-100'
+              }`}
+            >
+              <Feather
+                name={feedback.type === 'success' ? 'check-circle' : 'alert-circle'}
+                size={28}
+                color={feedback.type === 'success' ? '#16A34A' : '#DC2626'}
+              />
+            </View>
+            <Text className="text-xl font-bold text-gray-800 text-center mb-2">{feedback.title}</Text>
+            <Text className="text-gray-600 text-center text-base mb-6">{feedback.message}</Text>
+            <TouchableOpacity
+              onPress={closeFeedback}
+              className={`w-full py-3 rounded-xl ${
+                feedback.type === 'success' ? 'bg-blue-600' : 'bg-red-600'
+              }`}
+            >
+              <Text className="text-white text-center font-semibold">OK</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
