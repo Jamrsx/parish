@@ -299,10 +299,16 @@ class ManageRequest extends Model
 
     public function scopeBlockingSchedule($query)
     {
+        // Only church services (baptism, wedding, etc.) compete for parish time slots.
+        // Certificates (and special intentions) keep preferred times for visit/pickup
+        // and must not block or be blocked by service bookings.
         return $query->whereIn('status', self::blockingStatuses())
+            ->whereNull('certificate_form_id')
             ->whereDoesntHave('service', function ($q) {
-                $q->where('form_handler', 'special_intention')
-                    ->orWhere('service_type', 'Special Intention');
+                $q->where('category', 'certificate')
+                    ->orWhere('form_handler', 'special_intention')
+                    ->orWhere('service_type', 'Special Intention')
+                    ->orWhere('service_type', 'like', '%Certificate%');
             });
     }
 

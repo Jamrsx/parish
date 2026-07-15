@@ -73,6 +73,8 @@ interface ConfirmModalState {
   title?: string;
   message: string;
   onConfirm: () => void;
+  /** When set, Cancel/No runs this instead of only closing (e.g. approve without priest). */
+  onCancel?: () => void;
   variant?: 'danger' | 'warning' | 'info';
   confirmText?: string;
   cancelText?: string;
@@ -103,6 +105,10 @@ interface PriestAssignmentModalState {
   selectedPriestId: number | null;
   priests: User[];
   loading: boolean;
+  /** Certificates: priest is optional; services: required before approve */
+  priestOptional: boolean;
+  /** assign_and_approve = assign then approve; assign_only = save priest, stay pending */
+  mode: 'assign_and_approve' | 'assign_only';
 }
 
 // Request Details Modal State
@@ -158,6 +164,8 @@ const ManageRequests: React.FC = () => {
     selectedPriestId: null,
     priests: [],
     loading: false,
+    priestOptional: false,
+    mode: 'assign_and_approve',
   });
 
   // Request Details Modal State
@@ -350,25 +358,57 @@ const ManageRequests: React.FC = () => {
   };
 
   // Open Priest Assignment Modal
-  const openPriestAssignmentModal = async (request: ExtendedManageRequest) => {
-    setPriestModal(prev => ({ 
-      ...prev, 
-      isOpen: true, 
+  const openPriestAssignmentModal = async (
+    request: ExtendedManageRequest,
+    options?: { mode?: 'assign_and_approve' | 'assign_only'; priestOptional?: boolean }
+  ) => {
+    const priestOptional = options?.priestOptional ?? isCertificateRequest(request);
+    const mode = options?.mode ?? (priestOptional ? 'assign_only' : 'assign_and_approve');
+    console.log('Opening priest assignment:', {
+      requestId: request.request_id,
+      priestOptional,
+      mode,
+      existingPriest: request.assigned_priest,
+    });
+    setPriestModal(prev => ({
+      ...prev,
+      isOpen: true,
       request,
       selectedPriestId: request.assigned_priest || null,
-      loading: true 
+      loading: true,
+      priestOptional,
+      mode,
     }));
 
     const priests = await fetchPriests();
-    setPriestModal(prev => ({ 
-      ...prev, 
+    setPriestModal(prev => ({
+      ...prev,
       priests,
-      loading: false 
+      loading: false,
     }));
   };
 
-  // Handle Priest Assignment
-  const handlePriestAssignment = async () => {
+  const approveRequestWithoutPriest = async (request: ExtendedManageRequest) => {
+    const requestId = request.request_id;
+    setUpdating(requestId);
+    try {
+      console.log('Approving without priest:', requestId, getServiceLabel(request));
+      await manageRequestAPI.approve(requestId);
+      setRequests((prev) => prev.filter((r) => r.request_id !== requestId));
+      setAlertModal({
+        isOpen: true,
+        message: 'Request approved successfully!',
+        variant: 'success',
+      });
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  // Assign priest only (certificates can stay pending)
+  const handleAssignPriestOnly = async () => {
     const { request, selectedPriestId } = priestModal;
     if (!request) return;
 
@@ -383,12 +423,62 @@ const ManageRequests: React.FC = () => {
 
     const requestId = request.request_id;
     setUpdating(requestId);
+    setPriestModal(prev => ({ ...prev, loading: true }));
 
     try {
+      console.log('Assigning priest only (no approve):', { requestId, priestId: selectedPriestId });
+      await manageRequestAPI.assignPriest(requestId, selectedPriestId);
+
+      const assignedPriest = priestModal.priests.find(p => p.user_id === selectedPriestId);
+      setRequests(prev => prev.map(req =>
+        req.request_id === requestId
+          ? {
+              ...req,
+              assigned_priest: selectedPriestId,
+              assignedPriest: assignedPriest || req.assignedPriest,
+            }
+          : req
+      ));
+
+      closePriestAssignmentModal();
+      setAlertModal({
+        isOpen: true,
+        message: 'Priest assigned. You can approve this certificate anytime from the status dropdown.',
+        variant: 'success',
+      });
+    } catch (err) {
+      handleError(err);
+      setPriestModal(prev => ({ ...prev, loading: false }));
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  // Handle Priest Assignment + Approve
+  const handlePriestAssignment = async () => {
+    const { request, selectedPriestId, priestOptional } = priestModal;
+    if (!request) return;
+
+    if (!selectedPriestId) {
+      setAlertModal({
+        isOpen: true,
+        message: priestOptional
+          ? 'Select a priest to assign, or go back and choose No to approve without a priest.'
+          : 'Please select a priest to assign.',
+        variant: 'warning',
+      });
+      return;
+    }
+
+    const requestId = request.request_id;
+    setUpdating(requestId);
+    setPriestModal(prev => ({ ...prev, loading: true }));
+
+    try {
+      console.log('Assigning priest and approving request:', { requestId, priestId: selectedPriestId });
       await manageRequestAPI.assignPriest(requestId, selectedPriestId);
       await manageRequestAPI.approve(requestId);
 
-      // Optimistic update: Remove the approved request from the list
       setRequests((prev) =>
         prev.filter((r) => r.request_id !== requestId)
       );
@@ -399,10 +489,10 @@ const ManageRequests: React.FC = () => {
         variant: 'success',
       });
 
-      setPriestModal(prev => ({ ...prev, isOpen: false }));
-      
+      closePriestAssignmentModal();
     } catch (err) {
       handleError(err);
+      setPriestModal(prev => ({ ...prev, loading: false }));
     } finally {
       setUpdating(null);
     }
@@ -416,6 +506,8 @@ const ManageRequests: React.FC = () => {
       selectedPriestId: null,
       priests: [],
       loading: false,
+      priestOptional: false,
+      mode: 'assign_and_approve',
     });
   };
 
@@ -423,6 +515,65 @@ const ManageRequests: React.FC = () => {
   const updateStatus = async (request: ExtendedManageRequest, newStatus: ManageRequest['status']) => {
     // If approving, check for priest assignment
     if (newStatus === 'approved') {
+      // Special intentions: approve without priest
+      if (isSpecialIntentionRequest(request)) {
+        setConfirmModal({
+          isOpen: true,
+          title: 'Confirm Approval',
+          message: 'Approve this special intention? A priest assignment is not required.',
+          variant: 'warning',
+          confirmText: 'Yes, Approve',
+          cancelText: 'Cancel',
+          onConfirm: async () => {
+            setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+            await approveRequestWithoutPriest(request);
+          },
+        });
+        return;
+      }
+
+      // Certificates: optional priest — ask Yes/No
+      if (isCertificateRequest(request)) {
+        if (request.assigned_priest) {
+          setConfirmModal({
+            isOpen: true,
+            title: 'Confirm Approval',
+            message: 'This certificate already has an assigned priest. Proceed with approval?',
+            variant: 'warning',
+            confirmText: 'Yes, Approve',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+              setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+              await approveRequestWithoutPriest(request);
+            },
+          });
+          return;
+        }
+
+        setConfirmModal({
+          isOpen: true,
+          title: 'Assign a Priest?',
+          message:
+            'Do you want to assign a priest to this certificate request? Choose Yes to pick a priest, or No to approve without one.',
+          variant: 'info',
+          confirmText: 'Yes',
+          cancelText: 'No',
+          onConfirm: () => {
+            setConfirmModal((prev) => ({ ...prev, isOpen: false, onCancel: undefined }));
+            console.log('Certificate approve: user chose to assign priest', request.request_id);
+            openPriestAssignmentModal(request, {
+              priestOptional: true,
+              mode: 'assign_and_approve',
+            });
+          },
+          onCancel: async () => {
+            console.log('Certificate approve: user chose no priest', request.request_id);
+            await approveRequestWithoutPriest(request);
+          },
+        });
+        return;
+      }
+
       if (request.assigned_priest) {
         setConfirmModal({
           isOpen: true,
@@ -458,7 +609,10 @@ const ManageRequests: React.FC = () => {
           }
         });
       } else {
-        openPriestAssignmentModal(request);
+        openPriestAssignmentModal(request, {
+          priestOptional: false,
+          mode: 'assign_and_approve',
+        });
       }
       return;
     }
@@ -622,6 +776,28 @@ const ManageRequests: React.FC = () => {
       default:
         return 'Unknown';
     }
+  };
+
+  const isCertificateRequest = (request: ExtendedManageRequest): boolean => {
+    if (request.form_type === 'certificate' || request.certificate_form_id || request.certificateForm) {
+      return true;
+    }
+    const serviceName = (getServiceName(request) || '').toLowerCase();
+    const category = (request.service as { category?: string } | undefined)?.category;
+    return (
+      category === 'certificate' ||
+      serviceName.includes('certificate')
+    );
+  };
+
+  const isSpecialIntentionRequest = (request: ExtendedManageRequest): boolean => {
+    const serviceName = getServiceName(request);
+    const formHandler = request.service?.form_handler;
+    return (
+      serviceName === 'Special Intention' ||
+      formHandler === 'special_intention' ||
+      (serviceName || '').toLowerCase().includes('special intention')
+    );
   };
 
   const getPaymentStatusColor = (status: string): string => {
@@ -1039,13 +1215,20 @@ const ManageRequests: React.FC = () => {
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
                         <span className="text-sm text-gray-700">
-                          {getAssignedPriestName(request)}
+                          {isSpecialIntentionRequest(request)
+                            ? 'Not required'
+                            : isCertificateRequest(request) && !request.assigned_priest
+                              ? 'Optional'
+                              : getAssignedPriestName(request)}
                         </span>
-                        {isPending && (
+                        {isPending && !isSpecialIntentionRequest(request) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              openPriestAssignmentModal(request);
+                              openPriestAssignmentModal(request, {
+                                priestOptional: isCertificateRequest(request),
+                                mode: isCertificateRequest(request) ? 'assign_only' : 'assign_and_approve',
+                              });
                             }}
                             className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 text-left"
                             disabled={isUpdating}
@@ -1249,17 +1432,23 @@ const ManageRequests: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Priest Assignment Info — not used for Special Intention offerings */}
-                {!(
-                  detailsModal.request.service?.service_type === 'Special Intention' ||
-                  detailsModal.request.service?.form_handler === 'special_intention'
-                ) && (
+                {/* Priest Assignment Info — hidden for special intentions only */}
+                {!isSpecialIntentionRequest(detailsModal.request) && (
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-gray-700 border-b pb-2">Priest Assignment</h4>
+                  <h4 className="font-semibold text-gray-700 border-b pb-2">
+                    Priest Assignment
+                    {isCertificateRequest(detailsModal.request) && (
+                      <span className="ml-2 text-xs font-normal text-gray-500">(optional)</span>
+                    )}
+                  </h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="text-gray-500">Assigned Priest</span>
-                      <p className="font-medium">{getAssignedPriestName(detailsModal.request)}</p>
+                      <p className="font-medium">
+                        {isCertificateRequest(detailsModal.request) && !detailsModal.request.assigned_priest
+                          ? 'Optional — not assigned'
+                          : getAssignedPriestName(detailsModal.request)}
+                      </p>
                     </div>
                     {detailsModal.request.approved_at && (
                       <div>
@@ -1417,11 +1606,15 @@ const ManageRequests: React.FC = () => {
 
       {/* Priest Assignment Modal */}
       {priestModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-800">
-                Assign Priest & Approve Request
+                {priestModal.mode === 'assign_only'
+                  ? 'Assign Priest'
+                  : priestModal.priestOptional
+                    ? 'Assign Priest & Approve'
+                    : 'Assign Priest & Approve Request'}
               </h3>
               <ModalCloseButton onClick={closePriestAssignmentModal} />
             </div>
@@ -1449,7 +1642,7 @@ const ManageRequests: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Priest *
+                  Select Priest {priestModal.priestOptional ? '(optional step)' : '*'}
                 </label>
                 {priestModal.loading ? (
                   <div className="flex items-center justify-center py-4">
@@ -1498,7 +1691,11 @@ const ManageRequests: React.FC = () => {
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-700 flex items-center gap-2">
                     <CheckCircle2 size={16} className="shrink-0" />
-                    <span>This will assign the priest and approve the request in one step.</span>
+                    <span>
+                      {priestModal.mode === 'assign_only'
+                        ? 'This will assign the priest. The request stays pending until you approve it.'
+                        : 'This will assign the priest and approve the request in one step.'}
+                    </span>
                   </p>
                 </div>
               )}
@@ -1513,7 +1710,7 @@ const ManageRequests: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={handlePriestAssignment}
+                onClick={priestModal.mode === 'assign_only' ? handleAssignPriestOnly : handlePriestAssignment}
                 disabled={priestModal.loading || !priestModal.selectedPriestId || priestModal.priests.length === 0}
                 className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
@@ -1522,6 +1719,8 @@ const ManageRequests: React.FC = () => {
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     Processing...
                   </>
+                ) : priestModal.mode === 'assign_only' ? (
+                  'Assign Priest'
                 ) : (
                   'Assign & Approve'
                 )}
@@ -1533,20 +1732,26 @@ const ManageRequests: React.FC = () => {
 
       {/* Confirmation Modal */}
       {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-800">
                 {confirmModal.title || 'Confirm Action'}
               </h3>
-              <ModalCloseButton onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
+              <ModalCloseButton onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false, onCancel: undefined }))} />
             </div>
             <div className="p-4">
               <p className="text-gray-600">{confirmModal.message}</p>
             </div>
             <div className="flex justify-end gap-3 p-4 border-t border-gray-200">
               <button
-                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onClick={() => {
+                  const onCancel = confirmModal.onCancel;
+                  setConfirmModal(prev => ({ ...prev, isOpen: false, onCancel: undefined }));
+                  if (onCancel) {
+                    onCancel();
+                  }
+                }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 {confirmModal.cancelText || 'Cancel'}

@@ -320,12 +320,9 @@ export default function MarriageCertificate() {
     if (!formData.contact_number.trim()) {
       newErrors.contact_number = 'Contact number is required';
       isValid = false;
-    } else {
-      const phoneRegex = /^(09|\+639)\d{9}$/;
-      if (!phoneRegex.test(formData.contact_number.trim().replace(/\s/g, ''))) {
-        newErrors.contact_number = 'Enter valid PH number (e.g., 09123456789)';
-        isValid = false;
-      }
+    } else if (!/^09\d{9}$/.test(formData.contact_number.trim())) {
+      newErrors.contact_number = 'Enter a valid 11-digit PH number (09XXXXXXXXX)';
+      isValid = false;
     }
     if (!formData.preferred_date) {
       newErrors.preferred_date = 'Request date is required';
@@ -345,6 +342,12 @@ export default function MarriageCertificate() {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleContactNumberChange = (text: string) => {
+    const digitsOnly = text.replace(/\D/g, '').slice(0, 11);
+    console.log('Marriage certificate contact filtered:', digitsOnly);
+    handleChange('contact_number', digitsOnly);
   };
 
   // ============================================================
@@ -554,12 +557,16 @@ export default function MarriageCertificate() {
             className={`border rounded-xl px-4 py-3 text-gray-800 bg-gray-50 ${
               errors.contact_number ? 'border-red-500' : 'border-gray-300'
             }`}
-            placeholder="09XX XXX XXXX"
+            placeholder="09XXXXXXXXX"
             placeholderTextColor="#9CA3AF"
-            keyboardType={isWeb ? 'default' : 'phone-pad'}
+            keyboardType="number-pad"
+            maxLength={11}
             value={formData.contact_number}
-            onChangeText={text => handleChange('contact_number', text)}
+            onChangeText={handleContactNumberChange}
           />
+          <Text className="text-xs text-gray-400 mt-1">
+            {formData.contact_number.length}/11 digits
+          </Text>
           <ErrorMessage message={errors.contact_number} />
         </View>
       </SectionCard>
@@ -598,6 +605,9 @@ export default function MarriageCertificate() {
               </Text>
             </TouchableOpacity>
             <ErrorMessage message={errors.preferred_time} />
+            <Text className="text-xs text-gray-500 mt-1">
+              Preferred visit / pickup time at the parish
+            </Text>
           </View>
         </ResponsiveRow>
       </SectionCard>

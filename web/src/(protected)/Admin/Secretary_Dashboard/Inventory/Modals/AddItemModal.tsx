@@ -77,22 +77,68 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Quantity <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(0, (newItem.quantity || 0) - 1);
+                        console.log("Add item quantity decrease:", next);
+                        setNewItem({ ...newItem, quantity: next });
+                      }}
+                      className="px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold"
+                      aria-label="Decrease quantity"
+                    >
+                      −
+                    </button>
+                    <div className="relative flex-1">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        required
+                        placeholder="0"
+                        value={newItem.quantity === 0 ? "" : String(newItem.quantity)}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, "");
+                          console.log("Add item quantity typed:", digitsOnly);
+                          if (digitsOnly === "") {
+                            setNewItem({ ...newItem, quantity: 0 });
+                            return;
+                          }
+                          const next = parseInt(digitsOnly, 10);
+                          setNewItem({
+                            ...newItem,
+                            quantity: Number.isNaN(next) ? 0 : next,
+                          });
+                        }}
+                        onBlur={() => {
+                          if (newItem.quantity == null || newItem.quantity < 0) {
+                            setNewItem({ ...newItem, quantity: 0 });
+                          }
+                        }}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center font-semibold"
+                      />
                     </div>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="0"
-                      value={newItem.quantity || ''}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })}
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = (newItem.quantity || 0) + 1;
+                        console.log("Add item quantity increase:", next);
+                        setNewItem({ ...newItem, quantity: next });
+                      }}
+                      className="px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold"
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Use − / + or type the quantity
+                  </p>
                 </div>
 
                 <div>

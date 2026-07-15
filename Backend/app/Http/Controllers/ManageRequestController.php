@@ -245,7 +245,14 @@ class ManageRequestController extends Controller
         }
 
         $churchService = ChurchService::find($request->service_id);
-        if ($churchService) {
+        $isCertificateRequest = !empty($request->certificate_form_id)
+            || ($churchService && (
+                $churchService->category === 'certificate'
+                || str_contains(strtolower((string) $churchService->service_type), 'certificate')
+            ));
+
+        // Daily booking quotas apply to services only, not certificate visit preferences.
+        if ($churchService && !$isCertificateRequest) {
             $quotaError = $churchService->validateTodaySubmissionQuota();
             if ($quotaError) {
                 return response()->json([
@@ -260,12 +267,22 @@ class ManageRequestController extends Controller
             }
         }
 
-        $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
-        if ($scheduleError) {
-            return response()->json([
-                'success' => false,
-                'message' => $scheduleError,
-            ], 422);
+        // Time-slot conflicts apply to church services only.
+        // Certificates keep preferred_time for when the parishioner will visit/pick up.
+        if (!$isCertificateRequest) {
+            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
+            if ($scheduleError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $scheduleError,
+                ], 422);
+            }
+        } else {
+            Log::info('Skipping service time-slot conflict check for certificate request', [
+                'service_id' => $request->service_id,
+                'preferred_date' => $preferredDate,
+                'preferred_time' => $preferredTime,
+            ]);
         }
 
         DB::beginTransaction();
@@ -913,7 +930,14 @@ class ManageRequestController extends Controller
             $oldTime = $manageRequest->preferred_time;
 
             $service = $manageRequest->service;
-            if ($service) {
+            $isCertificateRequest = !empty($manageRequest->certificate_form_id)
+                || ($service && (
+                    $service->category === 'certificate'
+                    || str_contains(strtolower((string) $service->service_type), 'certificate')
+                ));
+
+            // Certificates keep preferred visit times and do not compete with service bookings.
+            if ($service && !$isCertificateRequest) {
                 $scheduleError = $service->validateSchedule(
                     $request->preferred_date,
                     $request->preferred_time,
