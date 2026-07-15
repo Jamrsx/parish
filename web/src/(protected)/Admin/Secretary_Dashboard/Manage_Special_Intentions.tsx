@@ -40,9 +40,10 @@ const ManageSpecialIntentions: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [preview, setPreview] = useState<SpecialIntentionRow | null>(null);
   const [rejectRow, setRejectRow] = useState<SpecialIntentionRow | null>(null);
+  const [deleteRow, setDeleteRow] = useState<SpecialIntentionRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -179,14 +180,22 @@ const ManageSpecialIntentions: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Delete this special intention?")) return;
+  const handleDelete = async () => {
+    if (!deleteRow) return;
+    const id = deleteRow.intention_id;
+    setBusyId(id);
+    setFeedback(null);
     try {
+      console.log("Deleting special intention:", id);
       await specialIntentionAPI.remove(id);
+      setDeleteRow(null);
+      setFeedback("Special intention deleted.");
       fetchRows();
     } catch (err: any) {
       console.error(err);
       setFeedback(err?.response?.data?.message || "Failed to delete.");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -225,11 +234,11 @@ const ManageSpecialIntentions: React.FC = () => {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
         >
+          <option value="all">All</option>
           <option value="pending">Awaiting secretary</option>
           <option value="approved">Ready for cashier</option>
           <option value="received">Received</option>
           <option value="rejected">Rejected</option>
-          <option value="all">All</option>
         </select>
         <button onClick={fetchRows} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
           Refresh
@@ -315,7 +324,10 @@ const ManageSpecialIntentions: React.FC = () => {
                           )}
                           {(row.status === "pending" || row.status === "approved") && (
                             <button
-                              onClick={() => handleDelete(row.intention_id)}
+                              onClick={() => {
+                                console.log("Open delete confirm for special intention:", row.intention_id);
+                                setDeleteRow(row);
+                              }}
                               className="text-xs font-semibold text-slate-500"
                             >
                               Delete
@@ -529,6 +541,38 @@ const ManageSpecialIntentions: React.FC = () => {
                 className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
               >
                 {busyId === rejectRow.intention_id ? "Rejecting..." : "Confirm Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-clear bg-opacity-20 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Delete Special Intention</h3>
+            <p className="text-sm text-slate-600 mb-1">
+              Are you sure you want to delete this special intention? This cannot be undone.
+            </p>
+            <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm">
+              <p className="font-semibold text-slate-800">{deleteRow.parishioner_name}</p>
+              <p className="text-slate-600 line-clamp-2 mt-0.5">{deleteRow.intention_text}</p>
+              <p className="text-slate-500 mt-1">{formatPeso(deleteRow.amount)}</p>
+            </div>
+            <div className="flex gap-3 justify-end mt-5">
+              <button
+                onClick={() => setDeleteRow(null)}
+                disabled={busyId === deleteRow.intention_id}
+                className="px-4 py-2 bg-slate-100 rounded-lg text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={busyId === deleteRow.intention_id}
+                className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                {busyId === deleteRow.intention_id ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
