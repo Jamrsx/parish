@@ -11,6 +11,7 @@ interface ExtendedChurchService {
   service_type?: string;
   fee?: number;
   form_type?: string | null;
+  form_handler?: string;
 }
 import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCircle, ClipboardList, Zap, Calendar, UserCog } from "lucide-react";
 import SecretaryStatCard from "./components/SecretaryStatCard";

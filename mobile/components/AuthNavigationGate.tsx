@@ -16,22 +16,24 @@ export function AuthNavigationGate() {
   useEffect(() => {
     if (isLoading || !navigationState?.key) return;
 
-    const root = segments[0];
-    const inAuthGroup = root === '(auth)';
+    // Expo Router typed segments omit some runtime roots (e.g. "index", "(auth)").
     const segmentList = segments as string[];
+    const root = segmentList[0];
+    const inAuthGroup = root === '(auth)' || root === 'login' || root === 'signup';
     const inProtected =
       root === 'Parishioner' || segmentList.includes('(protected)');
 
     console.log('AuthNavigationGate:', {
       isAuthenticated,
       isParishioner,
-      segments: segments.join('/'),
+      segments: segmentList.join('/'),
       inAuthGroup,
       inProtected,
     });
 
     if (isAuthenticated && isParishioner) {
-      if (inAuthGroup || root === 'index' || !root) {
+      // Typed routes omit "index"; cast for runtime entry/splash segment.
+      if (inAuthGroup || !root || (root as string) === 'index') {
         router.replace('/Parishioner/(protected)/(tabs)/home');
       }
       return;
@@ -49,8 +51,9 @@ export function AuthNavigationGate() {
     if (isLoading || !isAuthenticated || !isParishioner) return;
 
     const onBackPress = () => {
-      const root = segments[0];
-      const inAuthGroup = root === '(auth)';
+      const segmentList = segments as string[];
+      const root = segmentList[0];
+      const inAuthGroup = root === '(auth)' || root === 'login' || root === 'signup';
 
       if (inAuthGroup) {
         router.replace('/Parishioner/(protected)/(tabs)/home');
