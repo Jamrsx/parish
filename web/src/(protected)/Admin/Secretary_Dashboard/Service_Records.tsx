@@ -388,33 +388,6 @@ const ServiceRecords: React.FC = () => {
     updateSearchParams({ page });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-500 mt-4">Loading service records...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button 
-            onClick={() => fetchRequests()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       <PageHeader
@@ -424,11 +397,11 @@ const ServiceRecords: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        <SecretaryStatCard label="Total Records" value={counts.total} icon={BarChart3} />
-        <SecretaryStatCard label="Pending" value={counts.pending} icon={Clock} />
-        <SecretaryStatCard label="Approved" value={counts.approved} icon={CheckCircle} />
-        <SecretaryStatCard label="Completed" value={counts.done} icon={CircleCheck} />
-        <SecretaryStatCard label="Cancelled" value={counts.cancelled} icon={Ban} />
+        <SecretaryStatCard label="Total Records" value={loading ? '—' : counts.total} icon={BarChart3} />
+        <SecretaryStatCard label="Pending" value={loading ? '—' : counts.pending} icon={Clock} />
+        <SecretaryStatCard label="Approved" value={loading ? '—' : counts.approved} icon={CheckCircle} />
+        <SecretaryStatCard label="Completed" value={loading ? '—' : counts.done} icon={CircleCheck} />
+        <SecretaryStatCard label="Cancelled" value={loading ? '—' : counts.cancelled} icon={Ban} />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6 space-y-4">
@@ -508,6 +481,25 @@ const ServiceRecords: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button
+            onClick={() => fetchRequests()}
+            className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+          Loading service records…
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow border border-gray-200 bg-white">
         <table className="min-w-full">
@@ -524,7 +516,13 @@ const ServiceRecords: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {requests.length === 0 ? (
+            {loading && requests.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
+                  Fetching records…
+                </td>
+              </tr>
+            ) : !error && requests.length === 0 ? (
               <tr>
                 <td colSpan={8}>
                   <EmptyState

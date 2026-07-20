@@ -167,29 +167,42 @@ const ManageMassCollections: React.FC = () => {
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+          Loading mass collections…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No mass collections yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Mass</th>
+                <th className="text-left px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Cashier</th>
+                <th className="text-left px-4 py-3">Breakdown</th>
+                <th className="text-left px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Mass</th>
-                  <th className="text-left px-4 py-3">Amount</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Cashier</th>
-                  <th className="text-left px-4 py-3">Breakdown</th>
-                  <th className="text-left px-4 py-3"></th>
+                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                    Fetching mass collections…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-slate-500">
+                    No mass collections yet
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.collection_id}>
                     <td className="px-4 py-3">
                       {row.mass_date}
@@ -233,11 +246,11 @@ const ManageMassCollections: React.FC = () => {
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (

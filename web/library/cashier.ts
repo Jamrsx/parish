@@ -67,6 +67,7 @@ export interface MassCollectionRow {
 export interface DonationRow {
   donation_id: number;
   donor_name: string;
+  contribution_type?: 'donation' | 'love_offering';
   amount: number;
   denomination_breakdown?: DenominationLine[];
   donation_date: string;
@@ -150,11 +151,19 @@ export const massCollectionAPI = {
 };
 
 export const donationAPI = {
-  list: (params?: { status?: string; date_from?: string; date_to?: string; search?: string; per_page?: number; page?: number }) =>
-    api.get<ApiResponse<PaginatedResponse<DonationRow>>>('/admin/donations', { params }),
+  list: (params?: {
+    status?: string;
+    contribution_type?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+    per_page?: number;
+    page?: number;
+  }) => api.get<ApiResponse<PaginatedResponse<DonationRow>>>('/admin/donations', { params }),
 
   create: (data: {
     donor_name?: string;
+    contribution_type: 'donation' | 'love_offering';
     donation_date: string;
     notes?: string;
     denomination_breakdown: { denomination: number; count: number; total?: number }[];

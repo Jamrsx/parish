@@ -14,9 +14,16 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children, roles }) => 
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
+    // Keep a light shell so refresh doesn't feel like a blank app
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen flex bg-slate-50">
+        <div className="hidden sm:block w-64 border-r border-slate-200 bg-white" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto" />
+            <p className="mt-3 text-sm text-slate-500">Loading…</p>
+          </div>
+        </div>
       </div>
     );
   }

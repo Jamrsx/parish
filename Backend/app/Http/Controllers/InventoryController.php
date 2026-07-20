@@ -242,27 +242,55 @@ class InventoryController extends Controller
         try {
             DB::beginTransaction();
 
+            $lockedItem = Inventory::where('inventory_id', $item->inventory_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$lockedItem) {
+                throw new \RuntimeException('Inventory item not found.');
+            }
+
+            if ((int) $lockedItem->quantity < (int) $request->quantity) {
+                throw new \RuntimeException(
+                    'Insufficient quantity available. Only ' . $lockedItem->quantity . ' available.'
+                );
+            }
+
             // Create borrow record
             $borrowRecord = BorrowRecord::create([
-                'inventory_id' => $item->inventory_id,
+                'inventory_id' => $lockedItem->inventory_id,
                 'borrower_name' => $request->borrower_name,
                 'borrower_phone' => $request->borrower_phone,
                 'quantity_borrowed' => $request->quantity,
+                'quantity_damaged' => 0,
                 'location' => $request->location,
                 'borrowed_at' => now(),
                 'expected_return_date' => $request->expected_return_date,
                 'status' => 'borrowed',
             ]);
 
-            // Update inventory quantity
-            $item->decrement('quantity', $request->quantity);
+            // Deduct from available stock immediately
+            $before = (int) $lockedItem->quantity;
+            $lockedItem->quantity = $before - (int) $request->quantity;
+            $lockedItem->save();
 
             DB::commit();
+
+            \Log::info('Inventory borrowed — stock deducted', [
+                'inventory_id' => $lockedItem->inventory_id,
+                'borrow_record_id' => $borrowRecord->borrow_record_id,
+                'qty_borrowed' => (int) $request->quantity,
+                'quantity_before' => $before,
+                'quantity_after' => (int) $lockedItem->quantity,
+            ]);
+
+            $borrowRecord->load('inventory');
+            $borrowRecord->setAttribute('available_quantity_after', (int) $lockedItem->quantity);
 
             return response()->json([
                 'success' => true,
                 'data' => $borrowRecord,
-                'message' => 'Item borrowed successfully!'
+                'message' => 'Item borrowed successfully! Available now: ' . (int) $lockedItem->quantity,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -274,9 +302,9 @@ class InventoryController extends Controller
     }
 
     /**
-     * Return a borrowed item.
+     * Return a borrowed item (optionally log damaged quantity).
      */
-    public function returnItem($id)
+    public function returnItem(Request $request, $id)
     {
         $item = Inventory::find($id);
 
@@ -287,11 +315,33 @@ class InventoryController extends Controller
             ], 404);
         }
 
-        // Find active borrow record
-        $borrowRecord = BorrowRecord::where('inventory_id', $id)
-            ->whereIn('status', ['borrowed', 'overdue'])
-            ->latest('borrowed_at')
-            ->first();
+        $validator = Validator::make($request->all(), [
+            'borrow_record_id' => 'nullable|integer|exists:borrow_records,borrow_record_id',
+            'quantity_damaged' => 'nullable|integer|min:0',
+            'damage_notes' => 'nullable|string|max:500',
+            'has_damage' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => 'Invalid return details.',
+            ], 422);
+        }
+
+        // Prefer explicit borrow record when provided (Borrower Logs)
+        if ($request->filled('borrow_record_id')) {
+            $borrowRecord = BorrowRecord::where('borrow_record_id', $request->borrow_record_id)
+                ->where('inventory_id', $id)
+                ->whereIn('status', ['borrowed', 'overdue'])
+                ->first();
+        } else {
+            $borrowRecord = BorrowRecord::where('inventory_id', $id)
+                ->whereIn('status', ['borrowed', 'overdue'])
+                ->latest('borrowed_at')
+                ->first();
+        }
 
         if (!$borrowRecord) {
             return response()->json([
@@ -300,17 +350,51 @@ class InventoryController extends Controller
             ], 400);
         }
 
+        $hasDamage = filter_var($request->input('has_damage', false), FILTER_VALIDATE_BOOLEAN);
+        $quantityDamaged = $hasDamage ? (int) $request->input('quantity_damaged', 0) : 0;
+
+        if ($quantityDamaged > (int) $borrowRecord->quantity_borrowed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Damaged quantity cannot exceed quantity borrowed (' . $borrowRecord->quantity_borrowed . ').',
+            ], 422);
+        }
+
+        if ($hasDamage && $quantityDamaged < 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Enter how many items are damaged, or choose No damage.',
+            ], 422);
+        }
+
         try {
             DB::beginTransaction();
 
-            $borrowRecord->markAsReturned();
+            $borrowRecord->markAsReturned(
+                $quantityDamaged,
+                $request->input('damage_notes')
+            );
 
             DB::commit();
+
+            $borrowRecord->refresh()->load('inventory');
+            $availableAfter = (int) ($borrowRecord->inventory?->quantity ?? 0);
+            $restored = (int) $borrowRecord->quantity_borrowed - (int) $borrowRecord->quantity_damaged;
+            $message = $quantityDamaged > 0
+                ? "Item returned. {$restored} restored to stock; {$quantityDamaged} damaged (not restored). Available now: {$availableAfter}."
+                : "Item returned successfully! Available now: {$availableAfter}.";
+
+            \Log::info('Inventory return completed', [
+                'inventory_id' => $id,
+                'borrow_record_id' => $borrowRecord->borrow_record_id,
+                'quantity_damaged' => $quantityDamaged,
+                'available_after' => $availableAfter,
+            ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $borrowRecord,
-                'message' => 'Item returned successfully!'
+                'message' => $message,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

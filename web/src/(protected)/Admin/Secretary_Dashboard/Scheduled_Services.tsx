@@ -1160,37 +1160,9 @@ const ScheduledServices: React.FC = () => {
 
   // ============ MAIN RENDER ============
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading scheduled services...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <div className="text-center bg-red-50 p-8 rounded-xl border border-red-200 max-w-md">
-          <AlertTriangle size={40} className="text-red-500 mx-auto mb-3" />
-          <p className="text-red-600 font-medium">{error}</p>
-          <button
-            onClick={fetchServices}
-            className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header — always visible while data loads */}
       <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1205,7 +1177,9 @@ const ScheduledServices: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-                {allServices.length} service{allServices.length > 1 ? 's' : ''} scheduled
+                {loading
+                  ? 'Loading…'
+                  : `${allServices.length} service${allServices.length !== 1 ? 's' : ''} scheduled`}
               </span>
               <button
                 onClick={goToToday}
@@ -1218,41 +1192,65 @@ const ScheduledServices: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content — calendar UI renders immediately; events fill in when API returns */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderStats()}
-
-        {/* Calendar Navigation */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => changeMonth(-1)}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h2 className="text-xl font-bold text-gray-800">
-              {currentMonth.toLocaleString('default', { month: 'long' })} {currentMonth.getFullYear()}
-            </h2>
-            <button
-              onClick={() => changeMonth(1)}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+        {error ? (
+          <div className="flex justify-center items-center h-80">
+            <div className="text-center bg-red-50 p-8 rounded-xl border border-red-200 max-w-md">
+              <AlertTriangle size={40} className="text-red-500 mx-auto mb-3" />
+              <p className="text-red-600 font-medium">{error}</p>
+              <button
+                onClick={fetchServices}
+                className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {loading && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+                Loading services for this calendar…
+              </div>
+            )}
 
-        {/* Calendar Grid */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="grid grid-cols-7 gap-0">
-            {renderCalendar()}
-          </div>
-        </div>
+            {renderStats()}
+
+            {/* Calendar Navigation */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => changeMonth(-1)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {currentMonth.toLocaleString('default', { month: 'long' })} {currentMonth.getFullYear()}
+                </h2>
+                <button
+                  onClick={() => changeMonth(1)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative ${loading ? 'opacity-80' : ''}`}>
+              <div className="grid grid-cols-7 gap-0">
+                {renderCalendar()}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modals */}

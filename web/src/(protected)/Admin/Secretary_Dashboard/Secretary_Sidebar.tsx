@@ -106,11 +106,38 @@ const SecretarySidebar: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600">Loading dashboard...</p>
-        </div>
+      <div className="flex h-screen bg-slate-50">
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+          <div className="p-4 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                <Church size={18} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-900 truncate leading-tight">
+                  San Guillermo de Maleval Parish
+                </h2>
+                <p className="text-xs text-blue-600 font-medium mt-0.5">Secretary Portal</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 px-3 py-4 space-y-2">
+            {["Dashboard", "Scheduled Services", "Manage Requests", "Service Records"].map((label) => (
+              <div
+                key={label}
+                className="px-3 py-2.5 rounded-lg bg-slate-50 text-sm text-slate-400"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+        </aside>
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto" />
+            <p className="mt-4 text-slate-500 text-sm">Loading…</p>
+          </div>
+        </main>
       </div>
     );
   }

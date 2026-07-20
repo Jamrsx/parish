@@ -122,30 +122,55 @@ const DonationHandover: React.FC<Props> = ({ onChanged }) => {
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+          Loading donations…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No donations in this filter</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Donor</th>
+                <th className="text-left px-4 py-3">Type</th>
+                <th className="text-left px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Donation date</th>
+                <th className="text-left px-4 py-3">Recorded by</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Donor</th>
-                  <th className="text-left px-4 py-3">Amount</th>
-                  <th className="text-left px-4 py-3">Donation date</th>
-                  <th className="text-left px-4 py-3">Recorded by</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Action</th>
+                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                    Fetching donations…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-slate-500">
+                    No donations in this filter
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.donation_id}>
                     <td className="px-4 py-3 font-medium">{row.donor_name}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          row.contribution_type === "donation"
+                            ? "bg-violet-100 text-violet-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {row.contribution_type === "donation" ? "Donation" : "Love Offering"}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 font-semibold text-emerald-700">{formatPeso(row.amount)}</td>
                     <td className="px-4 py-3">{row.donation_date}</td>
                     <td className="px-4 py-3">{row.recorded_by || "—"}</td>
@@ -190,11 +215,11 @@ const DonationHandover: React.FC<Props> = ({ onChanged }) => {
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {review && (
@@ -202,6 +227,7 @@ const DonationHandover: React.FC<Props> = ({ onChanged }) => {
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-800 mb-1">Cash Denomination Preview</h3>
             <p className="text-sm text-slate-500 mb-1">
+              {review.contribution_type === "donation" ? "Donation" : "Love Offering"} ·{" "}
               {review.donor_name} · Recorded by {review.recorded_by || "Secretary"}
             </p>
             <p className="text-base font-bold text-emerald-700 mb-4">

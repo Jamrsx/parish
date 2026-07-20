@@ -1069,33 +1069,6 @@ const ManageRequests: React.FC = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-gray-500 mt-4">Loading pending requests...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button 
-            onClick={() => fetchRequests()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const serviceFilters: { value: ServiceFilterType; label: string }[] = [
     { value: 'all', label: 'All Services' },
     { value: 'baptism', label: 'Baptism' },
@@ -1108,7 +1081,11 @@ const ManageRequests: React.FC = () => {
       <PageHeader
         icon={ClipboardList}
         title="Pending Requests"
-        description={`${requests.length} request${requests.length !== 1 ? 's' : ''} awaiting action`}
+        description={
+          loading
+            ? 'Loading requests…'
+            : `${requests.length} request${requests.length !== 1 ? 's' : ''} awaiting action`
+        }
         action={
           <button
             onClick={() => fetchRequests()}
@@ -1142,6 +1119,13 @@ const ManageRequests: React.FC = () => {
         ))}
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+          Loading pending requests…
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow border border-gray-200 bg-white">
         <table className="min-w-full">
@@ -1159,7 +1143,27 @@ const ManageRequests: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {requests.length === 0 ? (
+            {loading && requests.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-500">
+                  Fetching requests…
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-16">
+                  <div className="text-center">
+                    <p className="text-red-500 mb-4">{error}</p>
+                    <button
+                      onClick={() => fetchRequests()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : requests.length === 0 ? (
               <tr>
                 <td colSpan={9}>
                   <EmptyState title="No pending requests found" description="All requests have been processed or no submissions yet." />

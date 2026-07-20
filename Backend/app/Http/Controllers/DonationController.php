@@ -19,6 +19,10 @@ class DonationController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('contribution_type') && $request->contribution_type !== 'all') {
+            $query->where('contribution_type', $request->contribution_type);
+        }
+
         if ($request->filled('date_from')) {
             $query->whereDate('donation_date', '>=', $request->date_from);
         }
@@ -62,6 +66,7 @@ class DonationController extends Controller
 
         $validator = Validator::make($request->all(), [
             'donor_name' => 'nullable|string|max:150',
+            'contribution_type' => 'required|in:donation,love_offering',
             'donation_date' => 'required|date',
             'notes' => 'nullable|string|max:500',
             'denomination_breakdown' => 'required|array|min:1',
@@ -73,7 +78,7 @@ class DonationController extends Controller
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors(),
-                'message' => 'Add at least one denomination with a count.',
+                'message' => 'Select Donation or Love Offering, and add at least one denomination with a count.',
             ], 422);
         }
 
@@ -97,6 +102,7 @@ class DonationController extends Controller
 
         $donation = Donation::create([
             'donor_name' => $request->donor_name ?: 'Anonymous',
+            'contribution_type' => $request->contribution_type,
             'amount' => $amount,
             'denomination_breakdown' => $breakdown,
             'donation_date' => $request->donation_date,
@@ -237,6 +243,7 @@ class DonationController extends Controller
         return [
             'donation_id' => $d->donation_id,
             'donor_name' => $d->donor_name ?: 'Anonymous',
+            'contribution_type' => $d->contribution_type ?: 'love_offering',
             'amount' => (float) $d->amount,
             'denomination_breakdown' => $d->denomination_breakdown ?: [],
             'donation_date' => $d->donation_date?->format('Y-m-d'),

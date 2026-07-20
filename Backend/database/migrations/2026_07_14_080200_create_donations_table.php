@@ -12,6 +12,8 @@ return new class extends Migration
             $table->id('donation_id');
 
             $table->string('donor_name')->nullable();
+            /** donation = gift to the church; love_offering = love offering (distinct categories) */
+            $table->enum('contribution_type', ['donation', 'love_offering'])->default('love_offering');
             $table->decimal('amount', 10, 2);
             $table->json('denomination_breakdown')->nullable();
             $table->date('donation_date');

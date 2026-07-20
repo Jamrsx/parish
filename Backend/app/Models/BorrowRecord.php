@@ -17,6 +17,8 @@ class BorrowRecord extends Model
         'borrower_name',
         'borrower_phone',
         'quantity_borrowed',
+        'quantity_damaged',
+        'damage_notes',
         'location',
         'borrowed_at',
         'expected_return_date',
@@ -28,6 +30,8 @@ class BorrowRecord extends Model
         'borrowed_at' => 'date',
         'expected_return_date' => 'date',
         'actual_return_date' => 'date',
+        'quantity_borrowed' => 'integer',
+        'quantity_damaged' => 'integer',
     ];
 
     // Relationships
@@ -45,7 +49,7 @@ class BorrowRecord extends Model
     public function scopeOverdue($query)
     {
         return $query->where('status', 'overdue')
-                     ->orWhere(function($q) {
+                     ->orWhere(function ($q) {
                          $q->where('status', 'borrowed')
                            ->whereDate('expected_return_date', '<', now());
                      });
@@ -56,21 +60,57 @@ class BorrowRecord extends Model
         return $query->where('status', 'returned');
     }
 
-    // Helper methods
-    public function markAsReturned()
+    /**
+     * Mark as returned. Damaged units are not restored to inventory stock.
+     */
+    public function markAsReturned(int $quantityDamaged = 0, ?string $damageNotes = null): void
     {
+        $borrowed = max(1, (int) $this->quantity_borrowed);
+        $damaged = max(0, min($quantityDamaged, $borrowed));
+        $good = $borrowed - $damaged;
+
+        $inventory = Inventory::where('inventory_id', $this->inventory_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (!$inventory) {
+            throw new \RuntimeException('Inventory item not found for this borrow record.');
+        }
+
         $this->update([
             'actual_return_date' => now(),
             'status' => 'returned',
+            'quantity_damaged' => $damaged,
+            'damage_notes' => $damaged > 0 ? $damageNotes : null,
         ]);
 
-        // Update inventory quantity
-        $this->inventory->increment('quantity', $this->quantity_borrowed);
+        // Only good (undamaged) units go back into available stock
+        if ($good > 0) {
+            $before = (int) $inventory->quantity;
+            $inventory->quantity = $before + $good;
+            $inventory->save();
+
+            \Log::info('Borrow return restored stock', [
+                'borrow_record_id' => $this->borrow_record_id,
+                'inventory_id' => $inventory->inventory_id,
+                'quantity_before' => $before,
+                'quantity_restored' => $good,
+                'quantity_damaged' => $damaged,
+                'quantity_after' => (int) $inventory->quantity,
+            ]);
+        } else {
+            \Log::info('Borrow return — all units damaged, stock unchanged', [
+                'borrow_record_id' => $this->borrow_record_id,
+                'inventory_id' => $this->inventory_id,
+                'quantity_damaged' => $damaged,
+                'stock_on_hand' => (int) $inventory->quantity,
+            ]);
+        }
     }
 
     public function isOverdue()
     {
-        return $this->status === 'overdue' || 
+        return $this->status === 'overdue' ||
                ($this->status === 'borrowed' && $this->expected_return_date < now());
     }
 
@@ -79,7 +119,7 @@ class BorrowRecord extends Model
         if (!$this->isOverdue()) {
             return 0;
         }
-        
+
         return now()->diffInDays($this->expected_return_date);
     }
 }

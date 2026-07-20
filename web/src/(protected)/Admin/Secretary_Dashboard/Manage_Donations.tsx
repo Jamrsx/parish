@@ -19,6 +19,9 @@ const todayLocal = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const typeLabel = (type?: string | null) =>
+  type === "donation" ? "Donation" : "Love Offering";
+
 const ManageDonations: React.FC = () => {
   const [rows, setRows] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,8 +29,10 @@ const ManageDonations: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [form, setForm] = useState({
     donor_name: "",
+    contribution_type: "donation" as "donation" | "love_offering",
     donation_date: todayLocal(),
     notes: "",
   });
@@ -39,9 +44,10 @@ const ManageDonations: React.FC = () => {
   const fetchRows = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("Secretary fetching donations...");
+      console.log("Secretary fetching donations...", { statusFilter, typeFilter });
       const res = await donationAPI.list({
         status: statusFilter === "all" ? undefined : statusFilter,
+        contribution_type: typeFilter === "all" ? undefined : typeFilter,
         per_page: 50,
       });
       if (res.data?.success) {
@@ -53,7 +59,7 @@ const ManageDonations: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, typeFilter]);
 
   useEffect(() => {
     fetchRows();
@@ -73,22 +79,35 @@ const ManageDonations: React.FC = () => {
   };
 
   const resetForm = () => {
-    setForm({ donor_name: "", donation_date: todayLocal(), notes: "" });
+    setForm({
+      donor_name: "",
+      contribution_type: "donation",
+      donation_date: todayLocal(),
+      notes: "",
+    });
     setDenomRows([emptyDenominationRow()]);
   };
 
   const handleCreate = async () => {
     const breakdown = toPayloadBreakdown(denomRows);
+    if (!form.contribution_type) {
+      setFeedback("Select whether this is a Donation or a Love Offering.");
+      return;
+    }
     if (breakdown.length === 0 || !form.donation_date) {
-      setFeedback("Add at least one denomination with a count, and set the donation date.");
+      setFeedback("Add at least one denomination with a count, and set the date.");
       return;
     }
     setSubmitting(true);
     setFeedback(null);
     try {
-      console.log("Saving donation with breakdown:", breakdown);
+      console.log("Saving contribution:", {
+        contribution_type: form.contribution_type,
+        breakdown,
+      });
       const res = await donationAPI.create({
         donor_name: form.donor_name || undefined,
+        contribution_type: form.contribution_type,
         donation_date: form.donation_date,
         notes: form.notes || undefined,
         denomination_breakdown: breakdown,
@@ -96,14 +115,16 @@ const ManageDonations: React.FC = () => {
       if (res.data?.success) {
         setShowModal(false);
         resetForm();
-        setFeedback("Donation recorded. Remit the cash to the cashier for approval.");
+        setFeedback(
+          `${typeLabel(form.contribution_type)} recorded. Remit the cash to the cashier for approval.`
+        );
         fetchRows();
       } else {
-        setFeedback(res.data?.message || "Failed to record donation.");
+        setFeedback(res.data?.message || "Failed to record contribution.");
       }
     } catch (err: any) {
       console.error(err);
-      setFeedback(err?.response?.data?.message || "Failed to record donation.");
+      setFeedback(err?.response?.data?.message || "Failed to record contribution.");
     } finally {
       setSubmitting(false);
     }
@@ -119,7 +140,7 @@ const ManageDonations: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Donations</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Record cash by denomination, then remit to the cashier for confirmation
+              Record Donation or Love Offering by denomination, then remit to the cashier
             </p>
           </div>
         </div>
@@ -130,7 +151,7 @@ const ManageDonations: React.FC = () => {
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold"
         >
-          Record Donation
+          Record Contribution
         </button>
       </div>
 
@@ -138,47 +159,81 @@ const ManageDonations: React.FC = () => {
         <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{feedback}</div>
       )}
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
         >
-          <option value="all">All</option>
+          <option value="all">All statuses</option>
           <option value="pending">Pending cashier</option>
           <option value="received">Received</option>
           <option value="rejected">Rejected</option>
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+        >
+          <option value="all">All types</option>
+          <option value="donation">Donation</option>
+          <option value="love_offering">Love Offering</option>
         </select>
         <button onClick={fetchRows} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
           Refresh
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+          Loading donations…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No donations recorded yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Donor</th>
+                <th className="text-left px-4 py-3">Type</th>
+                <th className="text-left px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Cashier</th>
+                <th className="text-left px-4 py-3">Notes</th>
+                <th className="text-left px-4 py-3">Breakdown</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Donor</th>
-                  <th className="text-left px-4 py-3">Amount</th>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Cashier</th>
-                  <th className="text-left px-4 py-3">Notes</th>
-                  <th className="text-left px-4 py-3">Breakdown</th>
+                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                    Fetching donations…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-16 text-center text-slate-500">
+                    No donations recorded yet
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.donation_id}>
                     <td className="px-4 py-3 font-medium">{row.donor_name}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          row.contribution_type === "donation"
+                            ? "bg-violet-100 text-violet-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {typeLabel(row.contribution_type)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 font-semibold">{formatPeso(row.amount)}</td>
                     <td className="px-4 py-3">{row.donation_date}</td>
                     <td className="px-4 py-3">
@@ -208,18 +263,38 @@ const ManageDonations: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-clear bg-opacity-20 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Record Cash Donation</h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Record Cash Contribution</h3>
             <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-slate-700">Type *</label>
+                <select
+                  value={form.contribution_type}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      contribution_type: e.target.value as "donation" | "love_offering",
+                    })
+                  }
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="donation">Donation</option>
+                  <option value="love_offering">Love Offering</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Donation and Love Offering are separate categories on reports and the Cash Count Form.
+                </p>
+              </div>
+
               <div>
                 <label className="text-sm font-medium text-slate-700">Donor name</label>
                 <input
@@ -304,7 +379,7 @@ const ManageDonations: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-slate-700">Donation date *</label>
+                <label className="text-sm font-medium text-slate-700">Date *</label>
                 <input
                   type="date"
                   value={form.donation_date}
@@ -331,7 +406,7 @@ const ManageDonations: React.FC = () => {
                 disabled={submitting || grandTotal <= 0}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
               >
-                {submitting ? "Saving..." : "Save Donation"}
+                {submitting ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
@@ -343,7 +418,7 @@ const ManageDonations: React.FC = () => {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-1">Denomination Preview</h3>
             <p className="text-sm text-slate-500 mb-4">
-              {preview.donor_name} · {formatPeso(preview.amount)}
+              {typeLabel(preview.contribution_type)} · {preview.donor_name} · {formatPeso(preview.amount)}
             </p>
             {(preview.denomination_breakdown || []).length === 0 ? (
               <p className="text-sm text-slate-500 py-4 text-center">No breakdown recorded</p>

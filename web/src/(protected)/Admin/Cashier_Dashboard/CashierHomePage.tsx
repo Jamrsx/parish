@@ -317,22 +317,27 @@ const CashierHomePage: React.FC = () => {
                   </button>
                 </div>
 
-                {loadingDash ? (
-                  <div className="flex justify-center py-20">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+                {loadingDash && (
+                  <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+                    Updating dashboard…
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                )}
+
+                <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 ${loadingDash ? "opacity-80" : ""}`}>
                       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                         <p className="text-xs font-semibold text-amber-700 uppercase">Awaiting Payment</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-2">{dashboard?.unpaid_count ?? 0}</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-2">
+                          {loadingDash && !dashboard ? "—" : dashboard?.unpaid_count ?? 0}
+                        </p>
                         <p className="text-xs text-slate-500 mt-1">Unpaid / partial requests</p>
                       </div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                         <p className="text-xs font-semibold text-emerald-700 uppercase">Service Fees Today</p>
                         <p className="text-2xl font-bold text-slate-900 mt-2">
-                          {formatPeso(dashboard?.service_payments_today || 0)}
+                          {loadingDash && !dashboard
+                            ? "—"
+                            : formatPeso(dashboard?.service_payments_today || 0)}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">
                           {dashboard?.service_payments_today_count || 0} cash receipt(s)
@@ -341,15 +346,22 @@ const CashierHomePage: React.FC = () => {
                       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                         <p className="text-xs font-semibold text-blue-700 uppercase">Mass Today</p>
                         <p className="text-2xl font-bold text-slate-900 mt-2">
-                          {formatPeso(dashboard?.mass_collections_today || 0)}
+                          {loadingDash && !dashboard
+                            ? "—"
+                            : formatPeso(dashboard?.mass_collections_today || 0)}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">Mass offerings logged</p>
                       </div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                         <p className="text-xs font-semibold text-violet-700 uppercase">Pending Donations</p>
-                        <p className="text-3xl font-bold text-slate-900 mt-2">{dashboard?.pending_donations ?? 0}</p>
+                        <p className="text-3xl font-bold text-slate-900 mt-2">
+                          {loadingDash && !dashboard ? "—" : dashboard?.pending_donations ?? 0}
+                        </p>
                         <p className="text-xs text-slate-500 mt-1">
-                          Received today: {formatPeso(dashboard?.donations_received_today || 0)}
+                          Received today:{" "}
+                          {loadingDash && !dashboard
+                            ? "—"
+                            : formatPeso(dashboard?.donations_received_today || 0)}
                         </p>
                       </div>
                     </div>
@@ -360,7 +372,9 @@ const CashierHomePage: React.FC = () => {
                           <h3 className="font-semibold text-slate-800">Recent Service Payments</h3>
                         </div>
                         <div className="divide-y divide-slate-100">
-                          {(dashboard?.recent_payments || []).length === 0 ? (
+                          {loadingDash && !(dashboard?.recent_payments || []).length ? (
+                            <p className="px-5 py-8 text-center text-slate-500 text-sm">Fetching payments…</p>
+                          ) : (dashboard?.recent_payments || []).length === 0 ? (
                             <p className="px-5 py-8 text-center text-slate-500 text-sm">No payments yet</p>
                           ) : (
                             dashboard?.recent_payments.map((p) => (
@@ -383,7 +397,9 @@ const CashierHomePage: React.FC = () => {
                           <h3 className="font-semibold text-slate-800">Recent Mass Collections</h3>
                         </div>
                         <div className="divide-y divide-slate-100">
-                          {(dashboard?.recent_mass_collections || []).length === 0 ? (
+                          {loadingDash && !(dashboard?.recent_mass_collections || []).length ? (
+                            <p className="px-5 py-8 text-center text-slate-500 text-sm">Fetching collections…</p>
+                          ) : (dashboard?.recent_mass_collections || []).length === 0 ? (
                             <p className="px-5 py-8 text-center text-slate-500 text-sm">No mass collections yet</p>
                           ) : (
                             dashboard?.recent_mass_collections.map((m) => (
@@ -399,8 +415,6 @@ const CashierHomePage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </>
-                )}
               </div>
             )}
 

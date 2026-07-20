@@ -121,28 +121,41 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+          Loading mass collections…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No mass collections in this filter</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Mass</th>
+                <th className="text-left px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">Recorded by</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Mass</th>
-                  <th className="text-left px-4 py-3">Amount</th>
-                  <th className="text-left px-4 py-3">Recorded by</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Action</th>
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                    Fetching mass collections…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-slate-500">
+                    No mass collections in this filter
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.collection_id}>
                     <td className="px-4 py-3">
                       {row.mass_date}
@@ -192,11 +205,11 @@ const MassCollections: React.FC<Props> = ({ onChanged }) => {
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {review && (

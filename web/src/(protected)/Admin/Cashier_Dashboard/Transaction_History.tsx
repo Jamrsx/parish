@@ -57,28 +57,41 @@ const TransactionHistory: React.FC = () => {
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+          Loading transactions…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No transactions found</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3">Parishioner</th>
+                <th className="text-left px-4 py-3">Service</th>
+                <th className="text-left px-4 py-3">Amount</th>
+                <th className="text-left px-4 py-3">OR No.</th>
+                <th className="text-left px-4 py-3">Received by</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Date</th>
-                  <th className="text-left px-4 py-3">Parishioner</th>
-                  <th className="text-left px-4 py-3">Service</th>
-                  <th className="text-left px-4 py-3">Amount</th>
-                  <th className="text-left px-4 py-3">OR No.</th>
-                  <th className="text-left px-4 py-3">Received by</th>
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                    Fetching transactions…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-slate-500">
+                    No transactions found
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.payment_id}>
                     <td className="px-4 py-3 text-slate-500">
                       {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
@@ -89,11 +102,11 @@ const TransactionHistory: React.FC = () => {
                     <td className="px-4 py-3">{row.or_number || "—"}</td>
                     <td className="px-4 py-3">{row.received_by || "—"}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

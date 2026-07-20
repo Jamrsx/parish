@@ -22,6 +22,8 @@ return new class extends Migration
             
             // Borrow details
             $table->integer('quantity_borrowed')->default(1);
+            $table->unsignedInteger('quantity_damaged')->default(0);
+            $table->text('damage_notes')->nullable();
             $table->string('location')->nullable();
             
             // Dates

@@ -26,6 +26,7 @@ export type CashCountCategory =
   | "kalag"
   | "special_intention"
   | "love_offering"
+  | "donation"
   | "others";
 
 export type CashCountPdfMode = "full-day" | "per-mass";
@@ -45,6 +46,7 @@ const CATEGORIES: { id: CashCountCategory; label: string }[] = [
   { id: "kalag", label: "KALAG" },
   { id: "special_intention", label: "SPECIAL\nINTENTION" },
   { id: "love_offering", label: "LOVE\nOFFERING" },
+  { id: "donation", label: "DONATION" },
   { id: "others", label: "OTHERS" },
 ];
 
@@ -153,6 +155,7 @@ export const buildCashCountGrid = (
     kalag: 0,
     special_intention: 0,
     love_offering: 0,
+    donation: 0,
     others: 0,
   };
 
@@ -161,6 +164,7 @@ export const buildCashCountGrid = (
     kalag: emptyCountMap(),
     special_intention: emptyCountMap(),
     love_offering: emptyCountMap(),
+    donation: emptyCountMap(),
     others: emptyCountMap(),
     lumps,
   };
@@ -213,9 +217,11 @@ export const buildCashCountGrid = (
   }
 
   for (const d of report.donations || []) {
+    const bucket: CashCountCategory =
+      d.contribution_type === "donation" ? "donation" : "love_offering";
     addAmountWithOptionalBreakdown(
-      grid.love_offering,
-      "love_offering",
+      grid[bucket],
+      bucket,
       lumps,
       d.amount,
       d.denomination_breakdown
@@ -335,8 +341,8 @@ export const downloadCashCountPdf = (
   );
 
   const tableTop = metaY + 10;
-  const denomColW = 32;
-  const totalColW = 28;
+  const denomColW = 28;
+  const totalColW = 24;
   const catColW = (contentW - denomColW - totalColW) / CATEGORIES.length;
   const headerH = 12;
   const rowH = 9.2;
@@ -364,7 +370,7 @@ export const downloadCashCountPdf = (
   };
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   drawCell(colX(0), tableTop, denomColW, headerH, { fill: [240, 240, 240] });
   doc.text("Denomination", colX(0) + denomColW / 2, tableTop + headerH / 2 + 1, {
     align: "center",
@@ -392,6 +398,7 @@ export const downloadCashCountPdf = (
     kalag: grid.lumps.kalag,
     special_intention: grid.lumps.special_intention,
     love_offering: grid.lumps.love_offering,
+    donation: grid.lumps.donation,
     others: grid.lumps.others,
   };
   let grandTotal =
@@ -399,10 +406,11 @@ export const downloadCashCountPdf = (
     grid.lumps.kalag +
     grid.lumps.special_intention +
     grid.lumps.love_offering +
+    grid.lumps.donation +
     grid.lumps.others;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
 
   CASH_COUNT_DENOMS.forEach((row, rowIndex) => {
     const y = tableTop + headerH + rowIndex * rowH;
@@ -506,7 +514,7 @@ export const downloadCashCountPdf = (
       ? [
           `Per-mass form for ${holyMassLabel || "Holy Mass"}${timeLabel ? ` at ${timeLabel}` : ""} on ${report.date}.`,
           `Mass collection only: P${peso(grandTotal)} (Basket P${peso(categoryTotals.basket)} | Kalag P${peso(categoryTotals.kalag)}).`,
-          `Special Intention, Love Offering, and other service fees are NOT included — use Full Day PDF for those.`,
+          `Special Intention, Love Offering, Donation, and other service fees are NOT included — use Full Day PDF for those.`,
           `Day income (all sources): P${peso(report.income_for_date)}.`,
           ...(noDenomLabels.length
             ? [`No denomination recorded for: ${noDenomLabels.join(", ")}.`]
@@ -515,7 +523,7 @@ export const downloadCashCountPdf = (
       : [
           `System income for ${report.date}: P${peso(report.income_for_date)} (form total: P${peso(grandTotal)})`,
           `Basket (offering): P${peso(categoryTotals.basket)} | Kalag (funeral mass / funeral service fees): P${peso(categoryTotals.kalag)}`,
-          `Special Intention: P${peso(categoryTotals.special_intention)} | Love Offering (donations): P${peso(categoryTotals.love_offering)} | Others (other service fees): P${peso(categoryTotals.others)}`,
+          `Special Intention: P${peso(categoryTotals.special_intention)} | Love Offering: P${peso(categoryTotals.love_offering)} | Donation: P${peso(categoryTotals.donation)} | Others: P${peso(categoryTotals.others)}`,
           ...(noDenomLabels.length
             ? [`No denomination recorded for: ${noDenomLabels.join(", ")} (see column label + TOTAL).`]
             : []),
@@ -545,6 +553,17 @@ export const downloadCashCountPdf = (
     doc.line(x, sigLineY, x + sigW, sigLineY);
   });
 
+  // Page 2 (Full Day only): Love Offering donor list — who gave each donation
+  if (mode === "full-day") {
+    appendLoveOfferingDonorPage(doc, report, {
+      pageW,
+      pageH,
+      marginX,
+      marginY,
+      contentW,
+    });
+  }
+
   const safeMass = (holyMassLabel || "mass").replace(/[^\w\-]+/g, "_").slice(0, 40);
   const safeTime = (timeLabel || "na").replace(/[^\w\-]+/g, "_");
   const filename =
@@ -552,6 +571,222 @@ export const downloadCashCountPdf = (
       ? `Cash_Count_Form_${report.date}_${safeMass}_${safeTime}.pdf`
       : `Cash_Count_Form_${report.date}_FullDay.pdf`;
 
-  console.log("Downloading cash count PDF:", filename, { mode, grandTotal, categoryTotals, timeLabel, holyMassLabel });
+  console.log("Downloading cash count PDF:", filename, {
+    mode,
+    grandTotal,
+    categoryTotals,
+    timeLabel,
+    holyMassLabel,
+    loveOfferingDonors: (report.donations || []).length,
+  });
   doc.save(filename);
+};
+
+const loveOfferingDonorLabel = (donorName?: string | null): string => {
+  const name = (donorName || "").trim();
+  if (!name) return "Anonymous";
+  return name;
+};
+
+const contributionTypeLabel = (type?: string | null): string =>
+  type === "donation" ? "Donation" : "Love Offering";
+
+const appendLoveOfferingDonorPage = (
+  doc: jsPDF,
+  report: DailyReportData,
+  layout: {
+    pageW: number;
+    pageH: number;
+    marginX: number;
+    marginY: number;
+    contentW: number;
+  }
+) => {
+  const donations = [...(report.donations || [])].sort((a, b) => {
+    const typeA = contributionTypeLabel(a.contribution_type);
+    const typeB = contributionTypeLabel(b.contribution_type);
+    if (typeA !== typeB) return typeA.localeCompare(typeB);
+    const nameA = loveOfferingDonorLabel(a.donor_name).toLowerCase();
+    const nameB = loveOfferingDonorLabel(b.donor_name).toLowerCase();
+    if (nameA !== nameB) return nameA.localeCompare(nameB);
+    return Number(b.amount || 0) - Number(a.amount || 0);
+  });
+
+  const { pageW, pageH, marginX, marginY, contentW } = layout;
+  const loveTotal = donations
+    .filter((d) => d.contribution_type !== "donation")
+    .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const donationTotal = donations
+    .filter((d) => d.contribution_type === "donation")
+    .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const combinedTotal = loveTotal + donationTotal;
+
+  console.log("Cash count PDF page 2 — donors by type:", {
+    date: report.date,
+    count: donations.length,
+    loveTotal,
+    donationTotal,
+  });
+
+  doc.addPage("a4", "landscape");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("SAN GUILLERMO DE MALEVAL PARISH", pageW / 2, marginY + 4, {
+    align: "center",
+  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text("IPONAN, CAGAYAN DE ORO CITY", pageW / 2, marginY + 9, {
+    align: "center",
+  });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("LOVE OFFERING & DONATION — DONOR LIST", pageW / 2, marginY + 16, {
+    align: "center",
+  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(80);
+  doc.text(
+    `Supporting page for Cash Count Form · Date: ${report.date}`,
+    pageW / 2,
+    marginY + 21,
+    { align: "center" }
+  );
+  doc.setTextColor(0);
+
+  const tableTop = marginY + 28;
+  const colWidths = [10, 36, 58, 30, 26, 26, contentW - 10 - 36 - 58 - 30 - 26 - 26];
+  const headers = ["#", "Type", "Donor", "Amount", "Date", "Status", "Notes"];
+  const headerH = 9;
+  const rowH = 8;
+
+  const drawCell = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts?: { fill?: [number, number, number] }
+  ) => {
+    if (opts?.fill) {
+      doc.setFillColor(...opts.fill);
+      doc.rect(x, y, w, h, "FD");
+    } else {
+      doc.rect(x, y, w, h);
+    }
+  };
+
+  let x = marginX;
+  headers.forEach((header, i) => {
+    drawCell(x, tableTop, colWidths[i], headerH, { fill: [230, 245, 230] });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(header, x + colWidths[i] / 2, tableTop + headerH / 2 + 1, {
+      align: "center",
+    });
+    x += colWidths[i];
+  });
+
+  if (donations.length === 0) {
+    const emptyY = tableTop + headerH;
+    drawCell(marginX, emptyY, contentW, 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(
+      "No Love Offering or Donation recorded for this date.",
+      pageW / 2,
+      emptyY + 11,
+      { align: "center" }
+    );
+    doc.setTextColor(0);
+    return;
+  }
+
+  let y = tableTop + headerH;
+  const maxY = pageH - 28;
+
+  donations.forEach((donation, index) => {
+    if (y + rowH > maxY) {
+      doc.addPage("a4", "landscape");
+      y = marginY + 12;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(
+        `LOVE OFFERING & DONATION — DONOR LIST (continued) · ${report.date}`,
+        pageW / 2,
+        y,
+        { align: "center" }
+      );
+      y += 8;
+      let hx = marginX;
+      headers.forEach((header, i) => {
+        drawCell(hx, y, colWidths[i], headerH, { fill: [230, 245, 230] });
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(header, hx + colWidths[i] / 2, y + headerH / 2 + 1, {
+          align: "center",
+        });
+        hx += colWidths[i];
+      });
+      y += headerH;
+    }
+
+    const donor = loveOfferingDonorLabel(donation.donor_name);
+    const isAnonymous = donor === "Anonymous";
+    const type = contributionTypeLabel(donation.contribution_type);
+    const notes = (donation.notes || "").trim() || "—";
+    const status = (donation.status || "received").toUpperCase();
+    const cells = [
+      String(index + 1),
+      type,
+      donor,
+      `P${peso(donation.amount)}`,
+      donation.donation_date || report.date,
+      status,
+      notes,
+    ];
+
+    let cx = marginX;
+    cells.forEach((text, i) => {
+      drawCell(cx, y, colWidths[i], rowH, {
+        fill: index % 2 === 0 ? [252, 252, 252] : undefined,
+      });
+      doc.setFont("helvetica", i === 2 && isAnonymous ? "italic" : "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(isAnonymous && i === 2 ? 110 : 0);
+      const maxTextW = colWidths[i] - 3;
+      const clipped =
+        doc.getTextWidth(text) > maxTextW
+          ? `${text.slice(0, Math.max(8, Math.floor(text.length * (maxTextW / doc.getTextWidth(text)))) - 1)}…`
+          : text;
+      const align = i === 0 || i === 1 || i === 3 || i === 4 || i === 5 ? "center" : "left";
+      const tx = align === "center" ? cx + colWidths[i] / 2 : cx + 2;
+      doc.text(clipped, tx, y + rowH / 2 + 1, { align });
+      doc.setTextColor(0);
+      cx += colWidths[i];
+    });
+
+    y += rowH;
+  });
+
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  const summaryY = Math.min(y + 4, pageH - 16);
+  doc.text(
+    `Love Offering: P${peso(loveTotal)} · Donation: P${peso(donationTotal)} · Combined: P${peso(combinedTotal)} · ${donations.length} record(s)`,
+    marginX,
+    summaryY
+  );
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(90);
+  doc.text(
+    "Type comes from the secretary record. Blank donor names appear as Anonymous.",
+    marginX,
+    Math.min(summaryY + 5, pageH - 8)
+  );
+  doc.setTextColor(0);
 };

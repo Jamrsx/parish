@@ -117,31 +117,44 @@ const ManageUnpaidRequest: React.FC = () => {
         </button>
       </div>
 
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+          Loading unpaid requests…
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-slate-500">No requests awaiting payment</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-4 py-3">Request ID</th>
+                <th className="text-left px-4 py-3">Parishioner</th>
+                <th className="text-left px-4 py-3">Service</th>
+                <th className="text-left px-4 py-3">Schedule</th>
+                <th className="text-left px-4 py-3">Fee</th>
+                <th className="text-left px-4 py-3">Paid</th>
+                <th className="text-left px-4 py-3">Balance</th>
+                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
                 <tr>
-                  <th className="text-left px-4 py-3">Request ID</th>
-                  <th className="text-left px-4 py-3">Parishioner</th>
-                  <th className="text-left px-4 py-3">Service</th>
-                  <th className="text-left px-4 py-3">Schedule</th>
-                  <th className="text-left px-4 py-3">Fee</th>
-                  <th className="text-left px-4 py-3">Paid</th>
-                  <th className="text-left px-4 py-3">Balance</th>
-                  <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Action</th>
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                    Fetching unpaid requests…
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-16 text-center text-slate-500">
+                    No requests awaiting payment
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row) => (
                   <tr key={row.request_id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
@@ -176,11 +189,11 @@ const ManageUnpaidRequest: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {selected && (

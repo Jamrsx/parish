@@ -9,6 +9,8 @@ export interface BorrowRecord {
     borrower_name: string;
     borrower_phone: string | null;
     quantity_borrowed: number;
+    quantity_damaged?: number;
+    damage_notes?: string | null;
     location: string | null;
     borrowed_at: string;
     expected_return_date: string;
@@ -19,6 +21,13 @@ export interface BorrowRecord {
     inventory?: InventoryItem;
     days_overdue?: number;
     is_overdue?: boolean;
+}
+
+export interface ReturnBorrowPayload {
+    borrow_record_id?: number;
+    has_damage?: boolean;
+    quantity_damaged?: number;
+    damage_notes?: string;
 }
 
 export interface CreateBorrowRecordData {
@@ -71,10 +80,11 @@ export const borrowRecordsAPI = {
     },
 
     /**
-     * Return a borrowed item 
+     * Return a borrowed item (optionally with damaged quantity).
      */
-    returnItem: (inventoryId: number) => {
-        return api.post<ApiResponse<BorrowRecord>>(`/admin/inventory/${inventoryId}/return`);
+    returnItem: (inventoryId: number, data?: ReturnBorrowPayload) => {
+        console.log('Returning borrow item:', inventoryId, data);
+        return api.post<ApiResponse<BorrowRecord>>(`/admin/inventory/${inventoryId}/return`, data || {});
     },
 
     /**

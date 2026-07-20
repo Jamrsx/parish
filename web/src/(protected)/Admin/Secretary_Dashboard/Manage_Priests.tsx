@@ -492,21 +492,28 @@ const ManagePriests: React.FC = () => {
                 <h2 className="text-lg font-semibold text-slate-800">Registered Priests</h2>
               </div>
               <span className="text-sm text-slate-500">
-                {activePriestCount} active / {priests.length} total
+                {loadingList
+                  ? 'Loading…'
+                  : `${activePriestCount} active / ${priests.length} total`}
               </span>
             </div>
 
-            {loadingList ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+            {loadingList && (
+              <div className="mx-4 mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
+                Loading priests…
               </div>
+            )}
+
+            {loadingList && priests.length === 0 ? (
+              <p className="py-12 text-center text-sm text-slate-500">Fetching priests…</p>
             ) : priests.length === 0 ? (
               <EmptyState
                 title="No priests yet"
                 description="Add a priest account using the form. They will appear here and can be assigned to requests."
               />
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className={`divide-y divide-slate-100 ${loadingList ? 'opacity-80' : ''}`}>
                 {priests.map((priest) => {
                   const active = isPriestActive(priest);
                   return (

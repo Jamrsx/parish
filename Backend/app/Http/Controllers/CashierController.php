@@ -295,6 +295,7 @@ class CashierController extends Controller
         return [
             'donation_id' => $d->donation_id,
             'donor_name' => $d->donor_name ?: 'Anonymous',
+            'contribution_type' => $d->contribution_type ?: 'love_offering',
             'amount' => (float) $d->amount,
             'denomination_breakdown' => $d->denomination_breakdown ?: [],
             'donation_date' => $d->donation_date?->format('Y-m-d'),

@@ -117,20 +117,38 @@ const DailyReport: React.FC = () => {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
+          Loading daily report…
         </div>
-      ) : !report ? (
+      )}
+
+      {!report && !loading ? (
         <p className="text-slate-500">Select a date to view the report.</p>
-      ) : (
-        <div className="space-y-6">
+      ) : !report && loading ? (
+        <div className="space-y-6 opacity-80">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {["Service Fees", "Donations Received", "Mass Collections", "Special Intentions"].map((label) => (
+              <div key={label} className="bg-white border border-slate-200 rounded-xl p-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase">{label}</p>
+                <p className="text-2xl font-bold mt-2 text-slate-300">—</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+            Fetching income for selected date…
+          </div>
+        </div>
+      ) : report ? (
+        <div className={`space-y-6 ${loading ? "opacity-80" : ""}`}>
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm text-emerald-900">
             <p className="font-medium">Cash Count PDF</p>
             <p className="mt-1 text-emerald-800/90">
-              <strong>Full Day PDF</strong> = all income for the date.{" "}
+              <strong>Full Day PDF</strong> = all income for the date (page 1: cash count with separate
+              Love Offering and Donation columns; page 2: donor list by type).{" "}
               <strong>Per Mass PDF</strong> (on each mass row) = that Holy Mass only — fills Time and
-              Holy Mass No./Name. Basket = offering · Kalag = funeral · Love Offering = donations.
+              Holy Mass No./Name. Basket = offering · Kalag = funeral · Love Offering and Donation are separate.
             </p>
           </div>
 
@@ -140,7 +158,7 @@ const DailyReport: React.FC = () => {
               <p className="text-2xl font-bold mt-2">{formatPeso(report.service_fees_total)}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-violet-700 uppercase">Donations Received</p>
+              <p className="text-xs font-semibold text-violet-700 uppercase">Donations & Love Offerings</p>
               <p className="text-2xl font-bold mt-2">{formatPeso(report.donations_total)}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -177,18 +195,42 @@ const DailyReport: React.FC = () => {
           </section>
 
           <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 font-semibold">Donations Confirmed</div>
+            <div className="px-4 py-3 border-b border-slate-100 font-semibold">
+              Donations &amp; Love Offerings Confirmed
+            </div>
             {report.donations.length === 0 ? (
               <p className="px-4 py-6 text-sm text-slate-500">None</p>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {report.donations.map((d) => (
-                  <li key={d.donation_id} className="px-4 py-3 flex justify-between text-sm">
-                    <span>{d.donor_name}</span>
-                    <span className="font-semibold">{formatPeso(d.amount)}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium">Donor</th>
+                      <th className="text-left px-4 py-2 font-medium">Type</th>
+                      <th className="text-right px-4 py-2 font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {report.donations.map((d) => (
+                      <tr key={d.donation_id}>
+                        <td className="px-4 py-3">{d.donor_name}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              d.contribution_type === "donation"
+                                ? "bg-violet-100 text-violet-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {d.contribution_type === "donation" ? "Donation" : "Love Offering"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold">{formatPeso(d.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
@@ -251,7 +293,7 @@ const DailyReport: React.FC = () => {
             )}
           </section>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

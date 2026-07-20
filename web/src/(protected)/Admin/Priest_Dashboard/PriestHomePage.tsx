@@ -286,34 +286,6 @@ const PriestHomePage: React.FC = () => {
     return date.getTime() === today.getTime() && s.status !== 'cancelled' && s.status !== 'done';
   });
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-500">Loading your schedule...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-          <p className="text-red-500">{error}</p>
-          <button
-            onClick={fetchAssignedRequests}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {showLogoutConfirm && (
@@ -498,7 +470,23 @@ const PriestHomePage: React.FC = () => {
             <span className="text-sm text-gray-500">{filteredSchedules.length} services</span>
           </div>
 
-          {filteredSchedules.length === 0 ? (
+          {loading ? (
+            <div className="py-16 text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto" />
+              <p className="mt-4 text-gray-500">Loading your schedule...</p>
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+              <p className="text-red-500">{error}</p>
+              <button
+                onClick={fetchAssignedRequests}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : filteredSchedules.length === 0 ? (
             <div className="py-16 text-center text-gray-500">
               <p>
                 {filter === 'upcoming'

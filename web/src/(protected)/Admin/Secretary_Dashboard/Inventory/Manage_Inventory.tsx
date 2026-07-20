@@ -19,6 +19,7 @@ import BorrowerLogsTable from "./components/BorrowerLogsTable";
 import AddItemModal from "./Modals/AddItemModal";
 import EditItemModal from "./Modals/EditItemModal";
 import BorrowItemModal from "./Modals/BorrowItemModal";
+import ReturnItemModal from "./Modals/ReturnItemModal";
 import AlertModal from "./Modals/AlertModal";
 import ConfirmationModal from "./Modals/ConfirmationModal";
 import PageHeader from "../components/PageHeader";
@@ -41,6 +42,8 @@ const Manage_Inventory: React.FC = () => {
   const [showBorrowModal, setShowBorrowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [returnRecord, setReturnRecord] = useState<BorrowRecord | null>(null);
+  const [returning, setReturning] = useState(false);
 
   // For Alert
   const [alertModal, setAlertModal] = useState({
@@ -290,11 +293,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
         borrower_phone: phone,
       });
       if (response.data.success) {
-        showAlert("success", "Item borrowed successfully!");
+        showAlert("success", response.data.message || "Item borrowed successfully!");
         setShowBorrowModal(false);
         resetBorrowForm();
-        fetchItems();
-        fetchAllBorrowRecords();
+        await fetchItems();
+        await fetchAllBorrowRecords();
       }
     } catch (error) {
       console.error("Error borrowing item:", error);
@@ -302,26 +305,45 @@ const fetchAllBorrowRecords = useCallback(async () => {
     }
   };
 
-  const handleReturn = (inventoryId: number) => {
-    showConfirm({
-      title: "Return Item",
-      message: "Are you sure you want to return this item?",
-      confirmText: "Return",
-      onConfirm: async () => {
-        try {
-          const response = await borrowRecordsAPI.returnItem(inventoryId);
+  const handleReturn = (record: BorrowRecord) => {
+    console.log("Opening return modal for borrow record:", record);
+    setReturnRecord(record);
+  };
 
-          if (response.data.success) {
-            showAlert("success", "Item returned successfully!");
-            fetchItems();
-            fetchAllBorrowRecords();
-          }
-        } catch (error) {
-          console.error("Error returning item:", error);
-          showAlert("error", "Failed to return item.");
-        }
-      },
-    });
+  const confirmReturn = async (payload: {
+    has_damage: boolean;
+    quantity_damaged: number;
+    damage_notes?: string;
+  }) => {
+    if (!returnRecord) return;
+
+    setReturning(true);
+    try {
+      console.log("Confirming return with damage payload:", payload);
+      const response = await borrowRecordsAPI.returnItem(returnRecord.inventory_id, {
+        borrow_record_id: returnRecord.borrow_record_id,
+        has_damage: payload.has_damage,
+        quantity_damaged: payload.quantity_damaged,
+        damage_notes: payload.damage_notes,
+      });
+
+      if (response.data.success) {
+        showAlert("success", response.data.message || "Item returned successfully!");
+        setReturnRecord(null);
+        await fetchItems();
+        await fetchAllBorrowRecords();
+      } else {
+        showAlert("error", response.data.message || "Failed to return item.");
+      }
+    } catch (error: any) {
+      console.error("Error returning item:", error);
+      showAlert(
+        "error",
+        error?.response?.data?.message || "Failed to return item."
+      );
+    } finally {
+      setReturning(false);
+    }
   };
 
   const handleDelete = (itemId: number) => {
@@ -553,6 +575,17 @@ const fetchAllBorrowRecords = useCallback(async () => {
         selectedItem={selectedItem}
         editItem={editItem}
         setEditItem={setEditItem}
+      />
+
+      {/* RETURN MODAL */}
+      <ReturnItemModal
+        isOpen={!!returnRecord}
+        record={returnRecord}
+        submitting={returning}
+        onClose={() => {
+          if (!returning) setReturnRecord(null);
+        }}
+        onConfirm={confirmReturn}
       />
 
       <AlertModal
