@@ -227,6 +227,7 @@ export interface ManageRequest {
     can_be_rescheduled?: boolean;
     reschedule_count?: number;
 
+    is_resident?: boolean | number | string;
     payment_status: PaymentStatus;
     amount_paid: number;
     payment_date?: string | null;
@@ -612,4 +613,43 @@ export const manageRequestAPI = {
  */
     assignPriest: (id: number, priestId: number) =>
         api.post<ApiResponse<ManageRequest>>(`/admin/requests/${id}/assign-priest`, { priest_id: priestId }),
+
+    createWalkInBooking: (data: WalkInBookingPayload) => {
+        console.log('Submitting walk-in booking:', data);
+        return api.post<ApiResponse<{
+            request_id: number;
+            service_type: string;
+            client_name: string;
+            preferred_date: string;
+            preferred_time: string;
+            status: string;
+            payment_status: string;
+        }>>('/admin/walk-in-booking', data);
+    },
 };
+
+export interface WalkInBookingPayload {
+    service_id: number;
+    first_name: string;
+    middle_name?: string;
+    last_name: string;
+    contact_number: string;
+    address?: string;
+    is_resident: boolean | number;
+    preferred_date: string;
+    preferred_time: string;
+    child_first_name?: string;
+    child_middle_name?: string;
+    child_last_name?: string;
+    child_birth_date?: string;
+    child_birth_place?: string;
+    mother_first_name?: string;
+    mother_middle_name?: string;
+    mother_last_name?: string;
+    father_first_name?: string;
+    father_middle_name?: string;
+    father_last_name?: string;
+    birth_date?: string;
+    marriage_date?: string;
+    intention_text?: string;
+}

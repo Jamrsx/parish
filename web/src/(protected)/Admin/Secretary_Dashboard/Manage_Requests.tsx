@@ -11,8 +11,9 @@ import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
 import StatusBadge from './components/StatusBadge';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
-import { getFormattedRequestContactNumber, formatPhilippinePhone } from './components/requestHelpers';
+import { getFormattedRequestContactNumber, formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress, isParishResident } from './components/requestHelpers';
 import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
+import { SecretaryTableSkeleton } from './components/SecretarySkeletons';
 
 // TYPE DEFINITIONS
 type ServiceFilterType = 'all' | 'baptism' | 'service' | 'certificate';
@@ -907,13 +908,19 @@ const ManageRequests: React.FC = () => {
               <p className="font-medium">{form.father_first_name} {form.father_middle_name || ''} {form.father_last_name}</p>
             </div>
             <div className="col-span-2">
-              <span className="text-gray-500">Address:</span>
-              <p className="font-medium">{form.address}</p>
-            </div>
-            <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
               <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
+            <div>
+              <span className="text-gray-500">Residency:</span>
+              <p className="font-medium">{getResidencyLabel(request.is_resident)}</p>
+            </div>
+            {shouldShowNonResidentAddress(request.is_resident, form.address) && (
+              <div className="col-span-2">
+                <span className="text-gray-500">Address:</span>
+                <p className="font-medium">{form.address}</p>
+              </div>
+            )}
             {godparents.length > 0 && (
               <div className="col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 <span className="text-slate-700 font-medium block mb-2 flex items-center gap-2">
@@ -981,10 +988,22 @@ const ManageRequests: React.FC = () => {
                 <span className="text-gray-500">Parishioner Name</span>
                 <p className="font-medium">{form.full_name}</p>
               </div>
+              <div>
+                <span className="text-gray-500">Residency</span>
+                <p className="font-medium">{getResidencyLabel(request.is_resident)}</p>
+              </div>
+              {shouldShowNonResidentAddress(request.is_resident, form.address) && (
+                <div className="col-span-2">
+                  <span className="text-gray-500">Address</span>
+                  <p className="font-medium">{form.address}</p>
+                </div>
+              )}
+              {form.address && form.address !== 'Parish resident' && request.is_resident !== false && (
               <div className="col-span-2">
                 <span className="text-gray-500">Intention</span>
                 <p className="font-medium whitespace-pre-wrap">{form.address || 'N/A'}</p>
               </div>
+              )}
               <div>
                 <span className="text-gray-500">Intention Date</span>
                 <p className="font-medium">{formatDateOnly(request.preferred_date)}</p>
@@ -1015,13 +1034,19 @@ const ManageRequests: React.FC = () => {
               <p className="font-medium">{form.full_name}</p>
             </div>
             <div className="col-span-2">
-              <span className="text-gray-500">Address:</span>
-              <p className="font-medium">{form.address}</p>
-            </div>
-            <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
               <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
+            <div>
+              <span className="text-gray-500">Residency:</span>
+              <p className="font-medium">{getResidencyLabel(request.is_resident)}</p>
+            </div>
+            {shouldShowNonResidentAddress(request.is_resident, form.address) && (
+              <div className="col-span-2">
+                <span className="text-gray-500">Address:</span>
+                <p className="font-medium">{form.address}</p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -1050,13 +1075,19 @@ const ManageRequests: React.FC = () => {
               <p className="font-medium">{form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}</p>
             </div>
             <div className="col-span-2">
-              <span className="text-gray-500">Address:</span>
-              <p className="font-medium">{form.address}</p>
-            </div>
-            <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
               <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>
             </div>
+            <div>
+              <span className="text-gray-500">Residency:</span>
+              <p className="font-medium">{getResidencyLabel(request.is_resident)}</p>
+            </div>
+            {shouldShowNonResidentAddress(request.is_resident, form.address) && (
+              <div className="col-span-2">
+                <span className="text-gray-500">Address:</span>
+                <p className="font-medium">{form.address}</p>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -1081,11 +1112,7 @@ const ManageRequests: React.FC = () => {
       <PageHeader
         icon={ClipboardList}
         title="Pending Requests"
-        description={
-          loading
-            ? 'Loading requests…'
-            : `${requests.length} request${requests.length !== 1 ? 's' : ''} awaiting action`
-        }
+        description={`${requests.length} request${requests.length !== 1 ? 's' : ''} awaiting action`}
         action={
           <button
             onClick={() => fetchRequests()}
@@ -1095,7 +1122,7 @@ const ManageRequests: React.FC = () => {
             {loading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Loading...
+                Refresh
               </>
             ) : (
               <>
@@ -1119,13 +1146,6 @@ const ManageRequests: React.FC = () => {
         ))}
       </div>
 
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-          Loading pending requests…
-        </div>
-      )}
-
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow border border-gray-200 bg-white">
         <table className="min-w-full">
@@ -1133,6 +1153,7 @@ const ManageRequests: React.FC = () => {
             <tr>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Service</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">User</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-white whitespace-nowrap min-w-[9.5rem]">Residency</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Preferred Schedule</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Contact</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Status</th>
@@ -1144,14 +1165,10 @@ const ManageRequests: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && requests.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-500">
-                  Fetching requests…
-                </td>
-              </tr>
+              <SecretaryTableSkeleton columns={10} />
             ) : error ? (
               <tr>
-                <td colSpan={9} className="px-4 py-16">
+                <td colSpan={10} className="px-4 py-16">
                   <div className="text-center">
                     <p className="text-red-500 mb-4">{error}</p>
                     <button
@@ -1165,7 +1182,7 @@ const ManageRequests: React.FC = () => {
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <EmptyState title="No pending requests found" description="All requests have been processed or no submissions yet." />
                 </td>
               </tr>
@@ -1199,6 +1216,24 @@ const ManageRequests: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 text-gray-700 font-medium">
                       {getUserFullName(request.user)}
+                    </td>
+                    <td className="px-4 py-4 min-w-[9.5rem]">
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
+                            isParishResident(request.is_resident)
+                              ? 'bg-slate-100 text-slate-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {getResidencyLabel(request.is_resident)}
+                        </span>
+                        {shouldShowNonResidentAddress(request.is_resident, getRequestFormAddress(request)) && (
+                          <span className="text-xs text-slate-500 break-words">
+                            {getRequestFormAddress(request)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
@@ -1390,14 +1425,21 @@ const ManageRequests: React.FC = () => {
                       <span className="text-gray-500">Contact Number</span>
                       <p className="font-medium">{getFormattedRequestContactNumber(detailsModal.request)}</p>
                     </div>
+                    <div>
+                      <span className="text-gray-500">Residency</span>
+                      <p className="font-medium">{getResidencyLabel(detailsModal.request.is_resident)}</p>
+                    </div>
                     <div className="col-span-2">
                       <span className="text-gray-500">Email</span>
                       <p className="font-medium">{detailsModal.request.user?.email || 'N/A'}</p>
                     </div>
-                    {detailsModal.request.user?.address && (
+                    {shouldShowNonResidentAddress(
+                      detailsModal.request.is_resident,
+                      getRequestFormAddress(detailsModal.request)
+                    ) && (
                       <div className="col-span-2">
                         <span className="text-gray-500">Address</span>
-                        <p className="font-medium">{detailsModal.request.user.address}</p>
+                        <p className="font-medium">{getRequestFormAddress(detailsModal.request)}</p>
                       </div>
                     )}
                   </div>

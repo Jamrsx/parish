@@ -21,6 +21,7 @@ import ManageDonations from "./(protected)/Admin/Secretary_Dashboard/Manage_Dona
 import ManageMassCollections from "./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections";
 import ManageSpecialIntentions from "./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions";
 import ManageServices from "./(protected)/Admin/Secretary_Dashboard/Manage_Services";
+import WalkInBooking from "./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking";
 
 // Admin - Cashier
 import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomePage";
@@ -97,6 +98,7 @@ function App() {
             <Route path="mass-collections" element={<ManageMassCollections />} />
             <Route path="special-intentions" element={<ManageSpecialIntentions />} />
             <Route path="manage-services" element={<ManageServices />} />
+            <Route path="walk-in-booking" element={<WalkInBooking />} />
           </Route>
 
           {/* Cashier */}

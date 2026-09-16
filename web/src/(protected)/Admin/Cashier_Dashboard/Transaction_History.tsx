@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { cashierAPI, type PaymentTransactionRow } from "../../../../library/cashier";
+import { CashierTableSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -52,17 +53,14 @@ const TransactionHistory: React.FC = () => {
           placeholder="Search parishioner, service, OR..."
           className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
         />
-        <button onClick={fetchRows} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">
+        <button
+          onClick={fetchRows}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+        >
           Filter
         </button>
       </div>
-
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
-          Loading transactions…
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -79,11 +77,7 @@ const TransactionHistory: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                    Fetching transactions…
-                  </td>
-                </tr>
+                <CashierTableSkeleton columns={6} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-slate-500">
@@ -98,7 +92,7 @@ const TransactionHistory: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 font-medium">{row.parishioner || "—"}</td>
                     <td className="px-4 py-3">{row.service_type || "—"}</td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">{formatPeso(row.amount)}</td>
+                    <td className="px-4 py-3 font-semibold text-blue-700">{formatPeso(row.amount)}</td>
                     <td className="px-4 py-3">{row.or_number || "—"}</td>
                     <td className="px-4 py-3">{row.received_by || "—"}</td>
                   </tr>

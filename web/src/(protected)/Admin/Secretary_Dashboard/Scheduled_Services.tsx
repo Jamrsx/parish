@@ -17,8 +17,9 @@ import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCirc
 import SecretaryStatCard from "./components/SecretaryStatCard";
 import ModalCloseButton from "./components/ModalCloseButton";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
-import { getFormattedRequestContactNumber } from "./components/requestHelpers";
+import { getFormattedRequestContactNumber, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress } from "./components/requestHelpers";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
+import { SecretaryCalendarSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
 
 const timeOptions = [
   { label: '8:00 AM', value: '08:00' },
@@ -36,6 +37,7 @@ const timeOptions = [
 // Define the request details interface
 interface RequestDetails {
   contactNumber?: string;
+  residency?: string;
   address?: string;
   serviceFee?: number;
   paymentStatus?: string;
@@ -165,7 +167,13 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
 
   const requestDetails: RequestDetails = {
     contactNumber: getFormattedRequestContactNumber(request),
-    address: request.serviceForm?.address || request.baptismForm?.address || request.certificateForm?.address || 'N/A',
+    residency: getResidencyLabel(request.is_resident),
+    address: shouldShowNonResidentAddress(
+      request.is_resident,
+      getRequestFormAddress(request)
+    )
+      ? getRequestFormAddress(request)
+      : undefined,
     serviceFee: request.service?.fee || 0,
     paymentStatus: request.payment_status || 'unpaid',
     amountPaid: request.amount_paid || 0,
@@ -1061,7 +1069,8 @@ const ScheduledServices: React.FC = () => {
                   {details && (
                     <>
                       <DetailField label="Contact Number" value={details.contactNumber} />
-                      <DetailField label="Address" value={details.address} />
+                      <DetailField label="Residency" value={details.residency || 'Resident'} />
+                      {details.address && <DetailField label="Address" value={details.address} />}
                       <DetailField label="Assigned Priest" value={details.assignedPriest} />
                       <DetailField label="Service Fee" value={details.serviceFee ? `₱${details.serviceFee.toLocaleString()}` : '₱0'} />
                       <DetailField label="Payment Status" value={details.paymentStatus ? details.paymentStatus.charAt(0).toUpperCase() + details.paymentStatus.slice(1) : 'N/A'} />
@@ -1177,9 +1186,7 @@ const ScheduledServices: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-600 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-                {loading
-                  ? 'Loading…'
-                  : `${allServices.length} service${allServices.length !== 1 ? 's' : ''} scheduled`}
+                {`${allServices.length} service${allServices.length !== 1 ? 's' : ''} scheduled`}
               </span>
               <button
                 onClick={goToToday}
@@ -1209,13 +1216,20 @@ const ScheduledServices: React.FC = () => {
           </div>
         ) : (
           <>
-            {loading && (
-              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-                Loading services for this calendar…
-              </div>
-            )}
-
+            {loading && allServices.length === 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <SecretaryStatSkeleton key={`sched-stat-skel-${index}`} />
+                  ))}
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                  <div className="h-6 w-48 mx-auto rounded bg-slate-200 animate-pulse" />
+                </div>
+                <SecretaryCalendarSkeleton />
+              </>
+            ) : (
+              <>
             {renderStats()}
 
             {/* Calendar Navigation */}
@@ -1244,11 +1258,13 @@ const ScheduledServices: React.FC = () => {
             </div>
 
             {/* Calendar Grid */}
-            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative ${loading ? 'opacity-80' : ''}`}>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
               <div className="grid grid-cols-7 gap-0">
                 {renderCalendar()}
               </div>
             </div>
+              </>
+            )}
           </>
         )}
       </div>

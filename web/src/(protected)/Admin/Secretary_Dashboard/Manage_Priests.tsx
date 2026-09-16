@@ -6,6 +6,7 @@ import type { User } from '../../../../library/api';
 import PageHeader from './components/PageHeader';
 import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
+import { SecretaryPersonListSkeleton } from './components/SecretarySkeletons';
 
 interface PriestFormData {
   first_name: string;
@@ -492,21 +493,12 @@ const ManagePriests: React.FC = () => {
                 <h2 className="text-lg font-semibold text-slate-800">Registered Priests</h2>
               </div>
               <span className="text-sm text-slate-500">
-                {loadingList
-                  ? 'Loading…'
-                  : `${activePriestCount} active / ${priests.length} total`}
+                {loadingList ? ' ' : `${activePriestCount} active / ${priests.length} total`}
               </span>
             </div>
 
-            {loadingList && (
-              <div className="mx-4 mt-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-                Loading priests…
-              </div>
-            )}
-
             {loadingList && priests.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">Fetching priests…</p>
+              <SecretaryPersonListSkeleton rows={6} />
             ) : priests.length === 0 ? (
               <EmptyState
                 title="No priests yet"

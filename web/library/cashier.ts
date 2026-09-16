@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
+import type { MonthlyOverviewData } from './secretary-dashboard';
 
 export interface CashierDashboardData {
   unpaid_count: number;
@@ -125,6 +126,14 @@ export const cashierAPI = {
 
   dailyReport: (date: string) =>
     api.get<ApiResponse<DailyReportData>>('/admin/cashier/daily-report', { params: { date } }),
+
+  monthlyOverview: (year?: number, month?: number) => {
+    console.log('Fetching cashier monthly overview:', { year, month });
+    return api.get<ApiResponse<MonthlyOverviewData>>(
+      '/admin/cashier/monthly-overview',
+      { params: { year, month } }
+    );
+  },
 
   recordPayment: (requestId: number, data: { amount: number; or_number?: string; notes?: string }) =>
     api.post(`/admin/requests/${requestId}/pay`, data),

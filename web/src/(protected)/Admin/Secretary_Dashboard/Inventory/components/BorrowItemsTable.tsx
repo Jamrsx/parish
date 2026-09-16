@@ -1,6 +1,7 @@
 import React from "react";
 import type { InventoryItem } from "../../../../../../library/inventory";
 import { getCategoryInfo } from "../../components/inventoryCategories";
+import { SecretaryTableSkeleton } from "../../components/SecretarySkeletons";
 
 interface BorrowItemsTableProps {
   items: InventoryItem[];
@@ -19,8 +20,24 @@ const BorrowItemsTable: React.FC<BorrowItemsTableProps> = ({
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-gray-500">Loading...</div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-blue-600">
+            <tr>
+              {["Item Name", "Category", "Type", "Available Quantity", "Status", "Actions"].map((header) => (
+                <th
+                  key={header}
+                  className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider"
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            <SecretaryTableSkeleton columns={6} />
+          </tbody>
+        </table>
       </div>
     );
   }

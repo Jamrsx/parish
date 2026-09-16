@@ -4,6 +4,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { manageRequestAPI, getUserFullName } from '../../../../library/manage-request';
 import type { ManageRequest, RequestStatus, PaymentStatus } from '../../../../library/manage-request';
 import { usersAPI } from '../../../../library/api';
+import { priestAPI, type PriestMonthlyActivity } from '../../../../library/priest';
 import {
   notificationAPI,
   formatNotificationTime,
@@ -21,8 +22,11 @@ import {
   MapPin,
   Phone,
   Eye,
+  CalendarRange,
+  PieChart,
 } from 'lucide-react';
 import PriestNav from './PriestNav';
+import { DonutChart, HorizontalBarChart } from '../components/MonthlyCharts';
 
 interface PriestSchedule {
   id: number;
@@ -126,9 +130,13 @@ const mapRequestToSchedule = (req: ManageRequest): PriestSchedule => ({
   email: req.user?.email || 'N/A',
 });
 
+const monthInputValue = (year: number, month: number) =>
+  `${year}-${String(month).padStart(2, '0')}`;
+
 const PriestHomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
+  const now = new Date();
   const [schedules, setSchedules] = useState<PriestSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +153,14 @@ const PriestHomePage: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement | null>(null);
+
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [serviceFilterId, setServiceFilterId] = useState<number | ''>('');
+  const [monthly, setMonthly] = useState<PriestMonthlyActivity | null>(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(true);
+  const [monthlyError, setMonthlyError] = useState<string | null>(null);
+  const [serviceOptions, setServiceOptions] = useState<{ service_id: number; service_type: string }[]>([]);
 
   const fetchAssignedRequests = useCallback(async () => {
     try {
@@ -192,10 +208,48 @@ const PriestHomePage: React.FC = () => {
     }
   }, []);
 
+  const fetchMonthlyActivity = useCallback(async () => {
+    try {
+      setMonthlyLoading(true);
+      setMonthlyError(null);
+      const res = await priestAPI.getMonthlyActivity({
+        year: selectedYear,
+        month: selectedMonth,
+        service_id: serviceFilterId === '' ? null : serviceFilterId,
+      });
+      console.log('Priest monthly activity:', res.data?.data);
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Failed to load monthly activity');
+      }
+      setMonthly(res.data.data);
+      if (res.data.data?.available_services?.length) {
+        setServiceOptions(res.data.data.available_services);
+      }
+    } catch (err) {
+      console.error('Priest monthly activity error:', err);
+      setMonthly(null);
+      setMonthlyError(err instanceof Error ? err.message : 'Failed to load monthly activity');
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }, [selectedYear, selectedMonth, serviceFilterId]);
+
   useEffect(() => {
     fetchAssignedRequests();
     fetchNotifications();
   }, [fetchAssignedRequests, fetchNotifications]);
+
+  useEffect(() => {
+    fetchMonthlyActivity();
+  }, [fetchMonthlyActivity]);
+
+  const handleMonthChange = (value: string) => {
+    const [y, m] = value.split('-').map(Number);
+    if (!y || !m) return;
+    console.log('Priest month filter changed:', y, m);
+    setSelectedYear(y);
+    setSelectedMonth(m);
+  };
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
@@ -407,6 +461,7 @@ const PriestHomePage: React.FC = () => {
               onClick={() => {
                 fetchAssignedRequests();
                 fetchNotifications();
+                fetchMonthlyActivity();
               }}
               className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
               title="Refresh"
@@ -447,6 +502,165 @@ const PriestHomePage: React.FC = () => {
             <Calendar className="w-12 h-12 text-blue-200" />
           </div>
         </div>
+
+        <section className="mb-6 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <CalendarRange size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Monthly Activity</h2>
+                <p className="text-xs text-slate-500">
+                  {monthly?.month_label || 'Assigned services for the selected month'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="font-medium whitespace-nowrap">Month</span>
+                <input
+                  type="month"
+                  value={monthInputValue(selectedYear, selectedMonth)}
+                  onChange={(e) => handleMonthChange(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="font-medium whitespace-nowrap">Service</span>
+                <select
+                  value={serviceFilterId === '' ? '' : String(serviceFilterId)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    console.log('Priest service filter:', value || 'all');
+                    setServiceFilterId(value === '' ? '' : Number(value));
+                  }}
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[12rem]"
+                >
+                  <option value="">All services</option>
+                  {(serviceOptions.length ? serviceOptions : monthly?.available_services || []).map((service) => (
+                    <option key={service.service_id} value={service.service_id}>
+                      {service.service_type}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {monthlyError ? (
+            <div className="bg-white rounded-xl border border-red-100 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm text-red-600">{monthlyError}</p>
+              <button
+                type="button"
+                onClick={fetchMonthlyActivity}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            </div>
+          ) : monthlyLoading || !monthly ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3" />
+              Loading monthly activity...
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">Assigned</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{monthly.summary.total_assigned}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-blue-700 uppercase">Approved</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{monthly.summary.approved}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-emerald-700 uppercase">Completed</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{monthly.summary.completed}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">Cancelled</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{monthly.summary.cancelled}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <PieChart size={18} className="text-blue-600" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Share by service</h3>
+                      <p className="text-xs text-slate-500">Assigned services this month</p>
+                    </div>
+                  </div>
+                  <DonutChart
+                    slices={(monthly.activity_by_service || []).map((row) => ({
+                      label: row.service_type,
+                      value: row.request_count,
+                      percentage: row.percentage,
+                    }))}
+                    centerLabel="Total"
+                    centerValue={String(monthly.summary.total_assigned)}
+                    emptyMessage="No assigned services this month"
+                  />
+                </div>
+
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Calendar size={18} className="text-blue-600" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Volume by service</h3>
+                      <p className="text-xs text-slate-500">Count and percentage</p>
+                    </div>
+                  </div>
+                  <HorizontalBarChart
+                    bars={(monthly.activity_by_service || []).map((row) => ({
+                      label: row.service_type,
+                      value: row.request_count,
+                      percentage: row.percentage,
+                    }))}
+                    emptyMessage="No assigned services this month"
+                    valueFormatter={(v) => `${v}`}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-100">
+                  <h3 className="text-sm font-semibold text-slate-900">Assignments this month</h3>
+                </div>
+                {(monthly.assignments || []).length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-slate-500">
+                    No assigned services for this month
+                    {serviceFilterId !== '' ? ' and service filter' : ''}.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                    {monthly.assignments.map((row) => (
+                      <div key={row.request_id} className="px-5 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{row.service_type}</p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {row.parishioner || 'Parishioner'} · {row.preferred_date || 'N/A'}{' '}
+                            {row.preferred_time ? formatTime(row.preferred_time) : ''}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusBadgeColor(
+                            row.status as RequestStatus
+                          )}`}
+                        >
+                          {row.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </section>
 
         <div className="flex gap-2 mb-4">
           {(['upcoming', 'all', 'past'] as const).map((key) => (

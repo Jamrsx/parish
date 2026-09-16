@@ -7,6 +7,7 @@ import {
   isFuneralLabel,
   massCollectionLabel,
 } from "../../../../library/cashCountPdf";
+import { CashierListSkeleton, CashierStatSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,7 +20,7 @@ const todayLocal = () => {
 const DailyReport: React.FC = () => {
   const [date, setDate] = useState(todayLocal());
   const [report, setReport] = useState<DailyReportData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState<"full-day" | number | null>(null);
 
   const fetchReport = useCallback(async () => {
@@ -100,7 +101,8 @@ const DailyReport: React.FC = () => {
           <button
             type="button"
             onClick={fetchReport}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
           >
             Load
           </button>
@@ -108,7 +110,7 @@ const DailyReport: React.FC = () => {
             type="button"
             onClick={handleFullDayPdf}
             disabled={!report || loading || generatingPdf !== null}
-            className="px-4 py-2 bg-white border border-emerald-600 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            className="px-4 py-2 bg-white border border-blue-600 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             title="All income for this date (Basket, Kalag, SI, donations, fees)"
           >
             <FileDown size={16} />
@@ -117,34 +119,32 @@ const DailyReport: React.FC = () => {
         </div>
       </div>
 
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
-          Loading daily report…
-        </div>
-      )}
-
       {!report && !loading ? (
         <p className="text-slate-500">Select a date to view the report.</p>
       ) : !report && loading ? (
-        <div className="space-y-6 opacity-80">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {["Service Fees", "Donations Received", "Mass Collections", "Special Intentions"].map((label) => (
-              <div key={label} className="bg-white border border-slate-200 rounded-xl p-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase">{label}</p>
-                <p className="text-2xl font-bold mt-2 text-slate-300">—</p>
-              </div>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <CashierStatSkeleton key={`daily-stat-skel-${index}`} />
             ))}
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-            Fetching income for selected date…
-          </div>
+          <div className="h-16 rounded-xl bg-slate-200 animate-pulse" />
+          {["Service Fee Payments", "Donations", "Mass Collections", "Special Intentions"].map((label) => (
+            <section key={label} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <div className="h-4 w-40 rounded bg-slate-200 animate-pulse" />
+              </div>
+              <div className="divide-y divide-slate-100">
+                <CashierListSkeleton rows={4} padded={false} />
+              </div>
+            </section>
+          ))}
         </div>
       ) : report ? (
-        <div className={`space-y-6 ${loading ? "opacity-80" : ""}`}>
-          <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm text-emerald-900">
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-900">
             <p className="font-medium">Cash Count PDF</p>
-            <p className="mt-1 text-emerald-800/90">
+            <p className="mt-1 text-blue-800/90">
               <strong>Full Day PDF</strong> = all income for the date (page 1: cash count with separate
               Love Offering and Donation columns; page 2: donor list by type).{" "}
               <strong>Per Mass PDF</strong> (on each mass row) = that Holy Mass only — fills Time and
@@ -154,7 +154,7 @@ const DailyReport: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-xs font-semibold text-emerald-700 uppercase">Service Fees</p>
+              <p className="text-xs font-semibold text-blue-700 uppercase">Service Fees</p>
               <p className="text-2xl font-bold mt-2">{formatPeso(report.service_fees_total)}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -171,9 +171,9 @@ const DailyReport: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex justify-between items-center">
-            <span className="font-semibold text-emerald-900">Income for {report.date}</span>
-            <span className="text-2xl font-bold text-emerald-900">{formatPeso(report.income_for_date)}</span>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex justify-between items-center">
+            <span className="font-semibold text-blue-900">Income for {report.date}</span>
+            <span className="text-2xl font-bold text-blue-900">{formatPeso(report.income_for_date)}</span>
           </div>
 
           <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -261,7 +261,7 @@ const DailyReport: React.FC = () => {
                         type="button"
                         onClick={() => handlePerMassPdf(m)}
                         disabled={generatingPdf !== null}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 text-emerald-700 text-xs font-medium hover:bg-emerald-50 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-600 text-blue-700 text-xs font-medium hover:bg-blue-50 disabled:opacity-50"
                         title={`Cash Count PDF for ${massCollectionLabel(m)}`}
                       >
                         <FileDown size={14} />

@@ -10,6 +10,8 @@ export interface InventoryItem {
     type: 'item' | 'consumable';
     category?: string;
     is_borrowable: boolean;
+    is_builtin?: boolean;
+    ran_out_at?: string | null;
     created_at: string;
     updated_at: string;
     available_quantity?: number;

@@ -104,7 +104,8 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                       onChange={(e) =>
                         setEditItem({ ...editItem, name: e.target.value })
                       }
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      disabled={!!selectedItem.is_builtin}
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:bg-slate-100 disabled:text-slate-600"
                     />
                   </div>
                 </div>
@@ -143,26 +144,23 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                         </svg>
                       </div>
                       <input
-                        type="text"
+                        type="number"
                         inputMode="numeric"
-                        required
+                        min={0}
+                        step={1}
                         placeholder="0"
-                        value={
-                          editItem.quantity === 0 || editItem.quantity == null
-                            ? ""
-                            : String(editItem.quantity)
-                        }
+                        value={editItem.quantity ?? 0}
                         onChange={(e) => {
-                          const digitsOnly = e.target.value.replace(/\D/g, "");
-                          console.log("Edit item quantity typed:", digitsOnly);
-                          if (digitsOnly === "") {
+                          const raw = e.target.value;
+                          console.log("Edit item quantity typed:", raw);
+                          if (raw === "") {
                             setEditItem({ ...editItem, quantity: 0 });
                             return;
                           }
-                          const next = parseInt(digitsOnly, 10);
+                          const next = parseInt(raw, 10);
                           setEditItem({
                             ...editItem,
-                            quantity: Number.isNaN(next) ? 0 : next,
+                            quantity: Number.isNaN(next) ? 0 : Math.max(0, next),
                           });
                         }}
                         onBlur={() => {
@@ -187,7 +185,7 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">
-                    Use − / + or type the quantity
+                    Use − / + or type the quantity. 0 means out of stock; the item stays on the list.
                   </p>
                 </div>
 

@@ -5,6 +5,7 @@ import {
   type ChurchService,
 } from "../../../../library/church_service";
 import { Layers, Plus } from "lucide-react";
+import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 
 const ICON_OPTIONS = [
   "Church",
@@ -177,17 +178,10 @@ const ManageServices: React.FC = () => {
           placeholder="Search services..."
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white flex-1 max-w-xs"
         />
-        <button onClick={fetchRows} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
+        <button onClick={fetchRows} disabled={loading} className="px-4 py-2 bg-slate-100 rounded-lg text-sm disabled:opacity-50">
           Refresh
         </button>
       </div>
-
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-          Loading services…
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -204,11 +198,7 @@ const ManageServices: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                    Fetching services…
-                  </td>
-                </tr>
+                <SecretaryTableSkeleton columns={6} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-slate-500">

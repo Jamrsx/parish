@@ -11,8 +11,9 @@ import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
 import StatusBadge from './components/StatusBadge';
 import RequestFormDetails from './components/RequestFormDetails';
-import { getFormattedRequestContactNumber } from './components/requestHelpers';
+import { getFormattedRequestContactNumber, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress, isParishResident } from './components/requestHelpers';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
+import { SecretaryStatSkeleton, SecretaryTableSkeleton } from './components/SecretarySkeletons';
 
 // TYPE DEFINITIONS
 type RecordStatusFilter = 'all' | 'pending' | 'approved' | 'done' | 'cancelled';
@@ -397,11 +398,19 @@ const ServiceRecords: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        <SecretaryStatCard label="Total Records" value={loading ? '—' : counts.total} icon={BarChart3} />
-        <SecretaryStatCard label="Pending" value={loading ? '—' : counts.pending} icon={Clock} />
-        <SecretaryStatCard label="Approved" value={loading ? '—' : counts.approved} icon={CheckCircle} />
-        <SecretaryStatCard label="Completed" value={loading ? '—' : counts.done} icon={CircleCheck} />
-        <SecretaryStatCard label="Cancelled" value={loading ? '—' : counts.cancelled} icon={Ban} />
+        {loading && requests.length === 0 ? (
+          Array.from({ length: 5 }).map((_, index) => (
+            <SecretaryStatSkeleton key={`records-stat-skel-${index}`} />
+          ))
+        ) : (
+          <>
+        <SecretaryStatCard label="Total Records" value={counts.total} icon={BarChart3} />
+        <SecretaryStatCard label="Pending" value={counts.pending} icon={Clock} />
+        <SecretaryStatCard label="Approved" value={counts.approved} icon={CheckCircle} />
+        <SecretaryStatCard label="Completed" value={counts.done} icon={CircleCheck} />
+        <SecretaryStatCard label="Cancelled" value={counts.cancelled} icon={Ban} />
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6 space-y-4">
@@ -493,13 +502,6 @@ const ServiceRecords: React.FC = () => {
         </div>
       )}
 
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-          Loading service records…
-        </div>
-      )}
-
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow border border-gray-200 bg-white">
         <table className="min-w-full">
@@ -507,6 +509,7 @@ const ServiceRecords: React.FC = () => {
             <tr>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Service</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">User</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-white whitespace-nowrap min-w-[9.5rem]">Residency</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Schedule</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Contact</th>
               <th className="px-4 py-4 text-left text-sm font-semibold text-white">Status</th>
@@ -517,14 +520,10 @@ const ServiceRecords: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading && requests.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
-                  Fetching records…
-                </td>
-              </tr>
+              <SecretaryTableSkeleton columns={9} />
             ) : !error && requests.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState
                     title="No service records found"
                     description="Try adjusting your filters."
@@ -556,6 +555,24 @@ const ServiceRecords: React.FC = () => {
                     </td>
                     <td className="px-4 py-4 text-gray-700 font-medium">
                       {getUserFullName(request.user)}
+                    </td>
+                    <td className="px-4 py-4 min-w-[9.5rem]">
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
+                            isParishResident(request.is_resident)
+                              ? 'bg-slate-100 text-slate-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {getResidencyLabel(request.is_resident)}
+                        </span>
+                        {shouldShowNonResidentAddress(request.is_resident, getRequestFormAddress(request)) && (
+                          <span className="text-xs text-slate-500 break-words">
+                            {getRequestFormAddress(request)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
@@ -683,7 +700,13 @@ const ServiceRecords: React.FC = () => {
                     </p>
                     <p className="flex items-center gap-2">
                       <MapPin size={14} className="text-slate-400" />
-                      {viewModal.request.user.address || 'N/A'}
+                      {getResidencyLabel(viewModal.request.is_resident)}
+                      {shouldShowNonResidentAddress(
+                        viewModal.request.is_resident,
+                        getRequestFormAddress(viewModal.request)
+                      )
+                        ? ` · ${getRequestFormAddress(viewModal.request)}`
+                        : ''}
                     </p>
                   </div>
                 )}

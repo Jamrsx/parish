@@ -15,6 +15,9 @@ use App\Http\Controllers\CashierController;
 use App\Http\Controllers\DonationController;
 use App\Http\Controllers\MassCollectionController;
 use App\Http\Controllers\SpecialIntentionController;
+use App\Http\Controllers\WalkInBookingController;
+use App\Http\Controllers\SecretaryDashboardController;
+use App\Http\Controllers\PriestDashboardController;
 
 // ============ PUBLIC ROUTES ============
 
@@ -79,6 +82,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/form-details', [ManageRequestController::class, 'getFormDetails']);
             Route::get('/export', [ManageRequestController::class, 'export']);
         });
+
+        Route::post('/walk-in-booking', [WalkInBookingController::class, 'store']);
+        Route::get('/secretary/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
+        Route::get('/cashier/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
 
         // Cashier finance
         Route::prefix('cashier')->group(function () {
@@ -234,6 +241,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/profile', [AuthController::class, 'profile']);
         Route::put('/availability', [AuthController::class, 'updatePriestAvailability']);
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
+        Route::get('/monthly-activity', [PriestDashboardController::class, 'monthlyActivity']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);
 
         // Read-only finance & inventory (view only — no write actions)

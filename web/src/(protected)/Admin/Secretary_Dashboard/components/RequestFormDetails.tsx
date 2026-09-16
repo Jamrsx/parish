@@ -1,7 +1,7 @@
 import React from 'react';
 import { User as UserIcon, Users } from 'lucide-react';
 import type { BaptismForm, CertificateForm, FormType, ServiceForm } from '../../../../../library/manage-request';
-import { formatPhilippinePhone } from './requestHelpers';
+import { formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress } from './requestHelpers';
 
 interface BaptismFormGodparent {
   godparent_name: string;
@@ -18,6 +18,7 @@ type Godparent = BaptismFormGodparent | ManageRequestGodparent;
 interface RequestFormDetailsProps {
   request: {
     form_type?: FormType | null;
+    is_resident?: boolean;
     baptismForm?: BaptismForm;
     serviceForm?: ServiceForm;
     certificateForm?: CertificateForm;
@@ -25,6 +26,25 @@ interface RequestFormDetailsProps {
   };
   formatDateOnly: (dateString: string | undefined) => string;
 }
+
+const ResidencyFields: React.FC<{ isResident?: boolean; address?: string | null; spanClass?: string }> = ({
+  isResident,
+  address,
+  spanClass = 'md:col-span-2',
+}) => (
+  <>
+    <div>
+      <span className="text-slate-500">Residency</span>
+      <p className="font-medium text-slate-800">{getResidencyLabel(isResident)}</p>
+    </div>
+    {shouldShowNonResidentAddress(isResident, address) && (
+      <div className={spanClass}>
+        <span className="text-slate-500">Address</span>
+        <p className="font-medium text-slate-800">{address || 'N/A'}</p>
+      </div>
+    )}
+  </>
+);
 
 const isBaptismFormGodparent = (gp: Godparent): gp is BaptismFormGodparent =>
   'godparent_name' in gp && 'relationship' in gp;
@@ -70,13 +90,10 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
             </p>
           </div>
           <div className="md:col-span-2">
-            <span className="text-slate-500">Address</span>
-            <p className="font-medium text-slate-800">{form.address}</p>
-          </div>
-          <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
             <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
+          <ResidencyFields isResident={request.is_resident} address={form.address} />
           {godparents.length > 0 && (
             <div className="md:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
               <span className="text-slate-700 font-medium block mb-2 flex items-center gap-2">
@@ -148,10 +165,13 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
               <span className="text-slate-500">Parishioner Name</span>
               <p className="font-medium text-slate-800">{form.full_name}</p>
             </div>
+            <ResidencyFields isResident={request.is_resident} address={form.address} />
+            {form.address && form.address !== 'Parish resident' && request.is_resident !== false && (
             <div className="md:col-span-2">
               <span className="text-slate-500">Intention</span>
               <p className="font-medium text-slate-800 whitespace-pre-wrap">{form.address || 'N/A'}</p>
             </div>
+            )}
           </div>
         </div>
       );
@@ -170,13 +190,10 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
             <p className="font-medium text-slate-800">{form.full_name}</p>
           </div>
           <div className="md:col-span-2">
-            <span className="text-slate-500">Address</span>
-            <p className="font-medium text-slate-800">{form.address}</p>
-          </div>
-          <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
             <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
+          <ResidencyFields isResident={request.is_resident} address={form.address} />
         </div>
       </div>
     );
@@ -212,13 +229,10 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
             </p>
           </div>
           <div className="md:col-span-2">
-            <span className="text-slate-500">Address</span>
-            <p className="font-medium text-slate-800">{form.address}</p>
-          </div>
-          <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
             <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
           </div>
+          <ResidencyFields isResident={request.is_resident} address={form.address} />
         </div>
       </div>
     );

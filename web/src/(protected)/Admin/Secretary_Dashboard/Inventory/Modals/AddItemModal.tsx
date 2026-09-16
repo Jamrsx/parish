@@ -97,22 +97,23 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                         </svg>
                       </div>
                       <input
-                        type="text"
+                        type="number"
                         inputMode="numeric"
-                        required
+                        min={0}
+                        step={1}
                         placeholder="0"
-                        value={newItem.quantity === 0 ? "" : String(newItem.quantity)}
+                        value={newItem.quantity ?? 0}
                         onChange={(e) => {
-                          const digitsOnly = e.target.value.replace(/\D/g, "");
-                          console.log("Add item quantity typed:", digitsOnly);
-                          if (digitsOnly === "") {
+                          const raw = e.target.value;
+                          console.log("Add item quantity typed:", raw);
+                          if (raw === "") {
                             setNewItem({ ...newItem, quantity: 0 });
                             return;
                           }
-                          const next = parseInt(digitsOnly, 10);
+                          const next = parseInt(raw, 10);
                           setNewItem({
                             ...newItem,
-                            quantity: Number.isNaN(next) ? 0 : next,
+                            quantity: Number.isNaN(next) ? 0 : Math.max(0, next),
                           });
                         }}
                         onBlur={() => {
@@ -137,7 +138,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1.5">
-                    Use − / + or type the quantity
+                    Use − / + or type the quantity. 0 means out of stock; the item stays on the list.
                   </p>
                 </div>
 

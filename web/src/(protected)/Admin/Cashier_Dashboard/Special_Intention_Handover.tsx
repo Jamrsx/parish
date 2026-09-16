@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { specialIntentionAPI, type SpecialIntentionRow } from "../../../../library/cashier";
 import { formatDenomination } from "../../../../library/denominations";
+import { CashierTableSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -134,7 +135,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
       </div>
 
       {feedback && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">{feedback}</div>
+        <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{feedback}</div>
       )}
 
       <div className="flex gap-3 mb-4">
@@ -148,17 +149,14 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
           <option value="rejected">Rejected</option>
           <option value="all">All</option>
         </select>
-        <button onClick={fetchRows} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">
+        <button
+          onClick={fetchRows}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+        >
           Refresh
         </button>
       </div>
-
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
-          Loading special intentions…
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -175,11 +173,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                    Fetching special intentions…
-                  </td>
-                </tr>
+                <CashierTableSkeleton columns={6} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-slate-500">
@@ -200,7 +194,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                     <td className="px-4 py-3 text-slate-600 max-w-[260px]">
                       <p className="line-clamp-2">{row.intention_text}</p>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-700">{amountLabel(row)}</td>
+                    <td className="px-4 py-3 font-semibold text-blue-700">{amountLabel(row)}</td>
                     <td className="px-4 py-3">{row.recorded_by || "—"}</td>
                     <td className="px-4 py-3">
                       <span
@@ -208,7 +202,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                           row.status === "approved"
                             ? "bg-amber-100 text-amber-800"
                             : row.status === "received"
-                            ? "bg-emerald-100 text-emerald-800"
+                            ? "bg-blue-100 text-blue-800"
                             : row.status === "pending"
                             ? "bg-slate-100 text-slate-600"
                             : "bg-red-100 text-red-700"
@@ -229,8 +223,8 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                         onClick={() => openReview(row)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
                           row.status === "approved"
-                            ? "bg-emerald-600 text-white"
-                            : "text-emerald-700 hover:underline bg-transparent px-0"
+                            ? "bg-blue-600 text-white"
+                            : "text-blue-700 hover:underline bg-transparent px-0"
                         }`}
                       >
                         {row.status === "approved" ? "Review Cash" : "View"}
@@ -259,7 +253,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                 ? "Requested by parishioner"
                 : `Recorded by ${review.recorded_by || "Secretary"}`}
             </p>
-            <p className="text-base font-bold text-emerald-700 mb-4">
+            <p className="text-base font-bold text-blue-700 mb-4">
               {isAnyAmount(review)
                 ? "Configured offering: Any amount"
                 : review.source === "parishioner"
@@ -346,7 +340,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
                   <button
                     onClick={() => approve(review.intention_id)}
                     disabled={busyId === review.intention_id}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                   >
                     {busyId === review.intention_id ? "Confirming..." : "Confirm Received"}
                   </button>

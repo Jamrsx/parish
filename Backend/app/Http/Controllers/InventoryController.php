@@ -15,7 +15,9 @@ class InventoryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Inventory::query();
+        Inventory::ensureBuiltinCatalog();
+
+        $query = Inventory::query()->orderBy('category')->orderBy('name');
 
         // Apply filters
         if ($request->has('search') && $request->search) {
@@ -44,6 +46,8 @@ class InventoryController extends Controller
             $item->current_status = $item->current_status;
             $item->display_status = $item->display_status;
             $item->available_quantity = $item->available_quantity;
+            $item->is_builtin = (bool) $item->is_builtin;
+            $item->ran_out_at = $item->ran_out_at;
         }
 
         return response()->json([
@@ -89,6 +93,7 @@ class InventoryController extends Controller
             'type' => $request->type,
             'category' => $request->category,
             'is_borrowable' => $request->is_borrowable ?? false,
+            'is_builtin' => false,
         ]);
 
         return response()->json([
@@ -172,6 +177,13 @@ class InventoryController extends Controller
                 'success' => false,
                 'message' => 'Item not found'
             ], 404);
+        }
+
+        if ($item->is_builtin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Catalog items stay in inventory even at quantity 0. Update the quantity instead of deleting.'
+            ], 400);
         }
 
         // Check if item has active borrow records
@@ -273,6 +285,11 @@ class InventoryController extends Controller
             $before = (int) $lockedItem->quantity;
             $lockedItem->quantity = $before - (int) $request->quantity;
             $lockedItem->save();
+            \Log::info('Inventory ran_out_at after borrow', [
+                'inventory_id' => $lockedItem->inventory_id,
+                'quantity' => (int) $lockedItem->quantity,
+                'ran_out_at' => $lockedItem->ran_out_at,
+            ]);
 
             DB::commit();
 
@@ -493,6 +510,8 @@ public function getAllBorrowRecords(Request $request)
      */
     public function getStatistics()
     {
+        Inventory::ensureBuiltinCatalog();
+
         $totalItems = Inventory::count();
         $totalConsumables = Inventory::where('type', 'consumable')->count();
 

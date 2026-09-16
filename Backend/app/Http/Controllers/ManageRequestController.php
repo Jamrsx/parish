@@ -121,6 +121,7 @@ class ManageRequestController extends Controller
             'status' => $request->status,
             'cancelled_by' => $request->cancelled_by,
             'cancelled_reason' => $request->cancelled_reason,
+            'is_resident' => (bool) $request->is_resident,
             'payment_status' => $request->payment_status,
             'amount_paid' => (float) $request->amount_paid,
             'payment_date' => $request->payment_date,

@@ -360,9 +360,12 @@ const fetchAllBorrowRecords = useCallback(async () => {
             showAlert("success", "Item deleted successfully!");
             fetchItems();
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error deleting item:", error);
-          showAlert("error", "Failed to delete item.");
+          showAlert(
+            "error",
+            error?.response?.data?.message || "Failed to delete item."
+          );
         }
       },
     });
@@ -438,7 +441,7 @@ const fetchAllBorrowRecords = useCallback(async () => {
         <PageHeader
           icon={Package}
           title="Inventory Management"
-          description="Manage parish items, consumables, and borrowing records."
+          description="Parish catalog items stay on this list even when quantity is 0. The date stock ran out is recorded."
           action={
             <button
               onClick={() => setShowAddModal(true)}
@@ -449,6 +452,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
             </button>
           }
         />
+
+        <div className="mb-6 px-4 py-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+          Built-in church items are always listed. Quantity 0 does not remove the record.
+          Use <strong>Ran out on</strong> for the date the supply reached 0. Catalog items cannot be deleted.
+        </div>
 
         {/* Statistics Cards */}
         <InventoryStats stats={stats} />

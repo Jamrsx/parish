@@ -533,25 +533,42 @@ export const downloadCashCountPdf = (
   doc.setFontSize(7);
   remarkLines.forEach((line, i) => {
     const y = remarksTop + 5 + i * 4.5;
+    if (y > pageH - 40) return;
     doc.text(line, marginX + 2, y);
     doc.setDrawColor(160);
     doc.line(marginX, y + 1.2, marginX + contentW, y + 1.2);
     doc.setDrawColor(0);
   });
 
-  const sigY = Math.min(remarksTop + 8 + remarkLines.length * 4.5 + 6, pageH - 18);
+  const signRoles = [
+    { role: "PRIEST", hint: "Priest — signature over printed name" },
+    { role: "CASHIER", hint: "Cashier — signature over printed name" },
+    { role: "SECRETARY", hint: "Secretary — signature over printed name" },
+  ];
+  const signBlockTop = pageH - 34;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("Counted and Checked by:", pageW / 2, sigY, { align: "center" });
+  doc.setFontSize(9);
+  doc.text("Counted and Checked by:", pageW / 2, signBlockTop, { align: "center" });
 
-  const sigLineY = sigY + 12;
-  const sigW = 55;
+  const sigW = 72;
   const gap = (contentW - sigW * 3) / 2;
-  [0, 1, 2].forEach((i) => {
+  const sigLineY = signBlockTop + 12;
+  signRoles.forEach((item, i) => {
     const x = marginX + i * (sigW + gap);
     doc.setDrawColor(0);
+    doc.setLineWidth(0.45);
     doc.line(x, sigLineY, x + sigW, sigLineY);
+    doc.setLineWidth(0.2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(70);
+    doc.text(item.hint, x + sigW / 2, sigLineY + 4.5, { align: "center" });
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(item.role, x + sigW / 2, sigLineY + 11, { align: "center" });
   });
+  console.log("Cash count PDF signature lines:", signRoles.map((r) => r.role));
 
   // Page 2 (Full Day only): Love Offering donor list — who gave each donation
   if (mode === "full-day") {

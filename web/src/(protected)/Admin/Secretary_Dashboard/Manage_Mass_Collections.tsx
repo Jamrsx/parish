@@ -10,6 +10,7 @@ import {
   type DenominationLine,
 } from "../../../../library/denominations";
 import { Church, Plus, Trash2 } from "lucide-react";
+import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -162,17 +163,10 @@ const ManageMassCollections: React.FC = () => {
           <option value="received">Received</option>
           <option value="rejected">Rejected</option>
         </select>
-        <button onClick={fetchRows} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
+        <button onClick={fetchRows} disabled={loading} className="px-4 py-2 bg-slate-100 rounded-lg text-sm disabled:opacity-50">
           Refresh
         </button>
       </div>
-
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent shrink-0" />
-          Loading mass collections…
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -190,11 +184,7 @@ const ManageMassCollections: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
-                    Fetching mass collections…
-                  </td>
-                </tr>
+                <SecretaryTableSkeleton columns={7} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-500">

@@ -62,6 +62,7 @@ return new class extends Migration
                   ->onDelete('set null');
             $table->text('reschedule_reason')->nullable();
             
+            $table->boolean('is_resident')->default(true);
             $table->enum('payment_status', ['unpaid', 'partial', 'paid'])->default('unpaid');
             $table->decimal('amount_paid', 10, 2)->default(0);
             $table->timestamp('payment_date')->nullable();

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { cashierAPI, type UnpaidRequestRow } from "../../../../library/cashier";
+import { CashierTableSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,7 +94,7 @@ const ManageUnpaidRequest: React.FC = () => {
       </div>
 
       {feedback && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">{feedback}</div>
+        <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{feedback}</div>
       )}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -112,17 +113,14 @@ const ManageUnpaidRequest: React.FC = () => {
           <option value="unpaid">Unpaid</option>
           <option value="partial">Partial</option>
         </select>
-        <button onClick={fetchRows} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">
+        <button
+          onClick={fetchRows}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+        >
           Refresh
         </button>
       </div>
-
-      {loading && (
-        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent shrink-0" />
-          Loading unpaid requests…
-        </div>
-      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -142,11 +140,7 @@ const ManageUnpaidRequest: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
-                    Fetching unpaid requests…
-                  </td>
-                </tr>
+                <CashierTableSkeleton columns={9} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-16 text-center text-slate-500">
@@ -183,7 +177,7 @@ const ManageUnpaidRequest: React.FC = () => {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => openPay(row)}
-                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700"
+                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700"
                       >
                         Record Cash
                       </button>
@@ -203,7 +197,7 @@ const ManageUnpaidRequest: React.FC = () => {
             <p className="text-sm text-slate-500 mb-1">
               {selected.user?.full_name} · {selected.service?.service_type}
             </p>
-            <p className="text-xs font-mono font-semibold text-emerald-700 mb-4">
+            <p className="text-xs font-mono font-semibold text-blue-700 mb-4">
               Request {formatRequestId(selected.request_id)}
             </p>
             <div className="space-y-3 text-sm mb-4 bg-slate-50 rounded-lg p-3">
@@ -253,7 +247,7 @@ const ManageUnpaidRequest: React.FC = () => {
               <button
                 onClick={submitPayment}
                 disabled={submitting}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
               >
                 {submitting ? "Saving..." : "Confirm Cash Received"}
               </button>

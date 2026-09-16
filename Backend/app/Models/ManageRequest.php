@@ -24,6 +24,7 @@ class ManageRequest extends Model
         'status',
         'cancelled_by',
         'cancelled_reason',
+        'is_resident',
         'payment_status',
         'amount_paid',
         'payment_date',
@@ -40,6 +41,7 @@ class ManageRequest extends Model
         'approved_at' => 'datetime',
         'completed_at' => 'datetime',
         'amount_paid' => 'decimal:2',
+        'is_resident' => 'boolean',
     ];
 
     /** Human-readable reference code, e.g. REQ-000042 */

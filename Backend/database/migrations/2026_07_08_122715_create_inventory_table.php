@@ -15,6 +15,8 @@ return new class extends Migration
             $table->enum('type', ['item', 'consumable'])->default('item');
             $table->integer('quantity')->default(0);
             $table->boolean('is_borrowable')->default(false);
+            $table->boolean('is_builtin')->default(false);
+            $table->timestamp('ran_out_at')->nullable();
             
             $table->timestamps();
             

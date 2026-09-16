@@ -9,6 +9,7 @@ import {
   Package,
   FileArchive,
   UserPlus,
+  CalendarPlus,
   Wallet,
   HandCoins,
   Church,
@@ -39,6 +40,7 @@ const navGroups: {
     label: "Services & Requests",
     items: [
       { path: "/admin/secretary/scheduled-services", label: "Scheduled Services", icon: CalendarDays },
+      { path: "/admin/secretary/walk-in-booking", label: "Walk-in Booking", icon: CalendarPlus },
       { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
       { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
       { path: "/admin/secretary/special-intentions", label: "Special Intentions", icon: BookOpen },
