@@ -84,33 +84,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Login user - Returns redirect path
    */
+  const getLoginErrorMessage = (error: unknown): string => {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosErr = error as {
+        response?: { data?: { message?: string }; status?: number };
+      };
+      const apiMessage = axiosErr.response?.data?.message;
+      if (apiMessage) return apiMessage;
+      if (axiosErr.response?.status === 401) {
+        return 'Invalid email/username or password. Please try again.';
+      }
+      if (axiosErr.response?.status === 403) {
+        return 'This account cannot sign in. Please contact the parish office.';
+      }
+    }
+    if (error instanceof Error && error.message && !error.message.includes('status code')) {
+      return error.message;
+    }
+    return 'Login failed. Please try again.';
+  };
+
   const login = async (login: string, password: string): Promise<{ success: boolean; redirectPath: string }> => {
-    setIsLoading(true);
+    // Do not toggle global isLoading here — that remounts the login form and hides errors.
     setAuthError(null);
 
     try {
       const response = await authAPI.webLogin({ login, password });
-      
+
       if (!response.data.success) {
         throw new Error(response.data.message || 'Login failed');
       }
 
       const { user, token, role } = response.data.data;
-      
+
       saveAuth({ token, user, role });
       setUser(user);
       setAuthError(null);
-      
+
       const redirectPath = authStorage.getRedirectPath(role);
-      
+
       return { success: true, redirectPath };
-      
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      const message = getLoginErrorMessage(error);
+      console.error('Web login failed:', message, error);
       setAuthError(message);
       throw new Error(message);
-    } finally {
-      setIsLoading(false);
     }
   };
 

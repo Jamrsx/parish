@@ -90,6 +90,7 @@ export interface CertificateForm {
     certificate_id: number;
     full_name: string;
     birth_date?: string | null;
+    baptism_date?: string | null;
     marriage_date?: string | null;
     address: string;
     contact_number: string;
@@ -650,6 +651,8 @@ export interface WalkInBookingPayload {
     father_middle_name?: string;
     father_last_name?: string;
     birth_date?: string;
+    baptism_date?: string;
     marriage_date?: string;
     intention_text?: string;
+    godparents?: { godparent_name: string; relationship: 'godfather' | 'godmother' }[];
 }

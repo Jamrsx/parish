@@ -2,15 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-// Define the error type
-interface LoginError {
-  message?: string;
-  response?: {
-    data?: {
+const resolveLoginErrorMessage = (err: unknown): string => {
+  if (err && typeof err === 'object') {
+    const maybe = err as {
       message?: string;
+      response?: { data?: { message?: string }; status?: number };
     };
-  };
-}
+    if (maybe.response?.data?.message) return maybe.response.data.message;
+    if (maybe.message && !maybe.message.includes('status code')) return maybe.message;
+    if (maybe.response?.status === 401) {
+      return 'Invalid email/username or password. Please try again.';
+    }
+  }
+  return 'Invalid credentials. Please try again.';
+};
 
 // Validation functions - ✅ Updated to accept both email and username
 const validateLogin = (login: string): string => {
@@ -53,6 +58,7 @@ const Login: React.FC = () => {
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setLogin(value);
+    setError('');
     if (value) {
       const errorMsg = validateLogin(value);
       setLoginError(errorMsg);
@@ -64,6 +70,7 @@ const Login: React.FC = () => {
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setPassword(value);
+    setError('');
     if (value) {
       const errorMsg = validatePassword(value);
       setPasswordError(errorMsg);
@@ -97,14 +104,18 @@ const Login: React.FC = () => {
 
     try {
       const result = await loginUser(login, password);
-      
+
       if (result.success) {
         console.log('Web login success — navigate with replace (no back to login)');
         navigate(result.redirectPath, { replace: true });
+      } else {
+        console.log('Web login returned unsuccessful');
+        setError('Invalid email/username or password. Please try again.');
       }
     } catch (err: unknown) {
-      const loginError = err as LoginError;
-      setError(loginError.message || 'Invalid credentials. Please try again.');
+      const message = resolveLoginErrorMessage(err);
+      console.error('Web login error shown to user:', message);
+      setError(message);
     } finally {
       setLoading(false);
     }

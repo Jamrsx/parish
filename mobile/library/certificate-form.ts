@@ -8,6 +8,7 @@ export const certificateAPI = {
     service_id: number;
     full_name: string;
     birth_date?: string;
+    baptism_date?: string;
     marriage_date?: string;
     address: string;
     contact_number: string;

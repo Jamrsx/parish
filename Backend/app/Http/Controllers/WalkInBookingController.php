@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BaptismForm;
 use App\Models\CertificateForm;
 use App\Models\ChurchService;
+use App\Models\Godparent;
 use App\Models\ManageRequest;
 use App\Models\ServiceForm;
 use App\Models\SpecialIntention;
@@ -50,8 +51,12 @@ class WalkInBookingController extends Controller
             'father_middle_name' => 'nullable|string|max:50',
             'father_last_name' => 'nullable|string|max:50',
             'birth_date' => 'nullable|date',
+            'baptism_date' => 'nullable|date',
             'marriage_date' => 'nullable|date',
             'intention_text' => 'nullable|string|min:5|max:1000',
+            'godparents' => 'nullable|array',
+            'godparents.*.godparent_name' => 'required_with:godparents|string|max:100',
+            'godparents.*.relationship' => 'required_with:godparents|in:godfather,godmother',
         ]);
 
         if ($validator->fails()) {
@@ -107,6 +112,12 @@ class WalkInBookingController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'Birth date is required for a baptismal certificate.',
+                    ], 422);
+                }
+                if (!$request->filled('baptism_date')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Baptism date is required for a baptismal certificate.',
                     ], 422);
                 }
             }
@@ -184,11 +195,32 @@ class WalkInBookingController extends Controller
                     'preferred_time' => $preferredTime,
                 ]);
                 $baptismId = $baptism->baptism_id;
+
+                $godparents = $request->input('godparents', []);
+                if (is_array($godparents)) {
+                    foreach ($godparents as $gp) {
+                        $name = trim((string) ($gp['godparent_name'] ?? ''));
+                        $relationship = $gp['relationship'] ?? null;
+                        if ($name === '' || !in_array($relationship, ['godfather', 'godmother'], true)) {
+                            continue;
+                        }
+                        Godparent::create([
+                            'baptism_id' => $baptismId,
+                            'godparent_name' => $name,
+                            'relationship' => $relationship,
+                        ]);
+                    }
+                    Log::info('Walk-in baptism godparents saved', [
+                        'baptism_id' => $baptismId,
+                        'count' => count($godparents),
+                    ]);
+                }
             } elseif ($formType === 'certificate') {
                 $certificate = CertificateForm::create([
                     'service_id' => $churchService->service_id,
                     'full_name' => $clientName,
                     'birth_date' => $request->birth_date,
+                    'baptism_date' => $request->baptism_date,
                     'marriage_date' => $request->marriage_date,
                     'address' => $formAddress,
                     'contact_number' => $request->contact_number,

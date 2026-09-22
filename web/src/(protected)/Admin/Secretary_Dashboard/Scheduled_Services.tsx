@@ -50,7 +50,6 @@ interface RequestDetails {
   motherName?: string;
   fatherName?: string;
   serviceName?: string;
-  certificateType?: string;
 }
 
 interface ScheduledServices {
@@ -244,17 +243,49 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
   }
 
   if (formType === 'certificate' || request.certificateForm || request.certificate_form_id) {
-    const certType =
-      request.certificateForm?.certificate_type === 'marriage'
-        ? 'Marriage Certificate'
-        : 'Baptismal Certificate';
+    const formHandler = (service?.form_handler || '').toLowerCase();
+    const rawCertType = (
+      request.certificateForm?.certificate_type ||
+      request.certificateForm?.certificate_type_label ||
+      request.certificateForm?.service_name ||
+      serviceName ||
+      ''
+    )
+      .toString()
+      .toLowerCase();
+
+    let certType = 'Certificate';
+    if (
+      formHandler.includes('marriage') ||
+      rawCertType.includes('marriage') ||
+      serviceName.toLowerCase().includes('marriage')
+    ) {
+      certType = 'Marriage Certificate';
+    } else if (
+      formHandler.includes('baptism') ||
+      rawCertType.includes('baptism') ||
+      serviceName.toLowerCase().includes('baptism')
+    ) {
+      certType = 'Baptismal Certificate';
+    } else if (serviceName) {
+      certType = serviceName;
+    }
+
+    console.log('[ScheduledServices] Certificate type resolved', {
+      requestId: request.request_id,
+      formHandler,
+      rawCertType,
+      serviceName,
+      certType,
+    });
+
     return {
       ...base,
       type: certType,
       name: request.certificateForm?.full_name || getUserFullName(request.user) || 'N/A',
       requestDetails: {
         ...requestDetails,
-        certificateType: request.certificateForm?.certificate_type || 'N/A',
+        serviceName: serviceName || certType,
       },
     };
   }
@@ -1084,10 +1115,6 @@ const ScheduledServices: React.FC = () => {
                           <DetailField label="Mother's Name" value={details.motherName} />
                           <DetailField label="Father's Name" value={details.fatherName} />
                         </>
-                      )}
-                      
-                      {details.certificateType && (
-                        <DetailField label="Certificate Type" value={details.certificateType} />
                       )}
                     </>
                   )}

@@ -223,6 +223,12 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
             </p>
           </div>
           <div>
+            <span className="text-slate-500">Baptism Date</span>
+            <p className="font-medium text-slate-800">
+              {form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}
+            </p>
+          </div>
+          <div>
             <span className="text-slate-500">Marriage Date</span>
             <p className="font-medium text-slate-800">
               {form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}

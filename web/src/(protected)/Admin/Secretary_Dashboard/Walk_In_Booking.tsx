@@ -1,11 +1,46 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, ChevronLeft } from "lucide-react";
+import { CalendarPlus, ChevronLeft, Plus, Pencil, Trash2, X } from "lucide-react";
 import PageHeader from "./components/PageHeader";
 import { churchServiceAPI, formatFee, type ChurchService } from "../../../../library/church_service";
 import { manageRequestAPI } from "../../../../library/manage-request";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import AlertModal from "./Inventory/Modals/AlertModal";
+
+type WalkInGodparent = {
+  godparent_name: string;
+  relationship: "godfather" | "godmother";
+};
+
+type GodparentNameRow = {
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+};
+
+const emptyGodparentRow = (): GodparentNameRow => ({
+  first_name: "",
+  middle_name: "",
+  last_name: "",
+});
+
+const formatGodparentFullName = (row: GodparentNameRow): string =>
+  [row.first_name, row.middle_name, row.last_name]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
+const splitGodparentFullName = (full: string): GodparentNameRow => {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return emptyGodparentRow();
+  if (parts.length === 1) return { first_name: parts[0], middle_name: "", last_name: "" };
+  if (parts.length === 2) return { first_name: parts[0], middle_name: "", last_name: parts[1] };
+  return {
+    first_name: parts[0],
+    middle_name: parts.slice(1, -1).join(" "),
+    last_name: parts[parts.length - 1],
+  };
+};
 
 const TIME_OPTIONS = [
   { label: "8:00 AM", value: "08:00" },
@@ -39,7 +74,8 @@ const emptyForm = () => ({
   father_first_name: "",
   father_middle_name: "",
   father_last_name: "",
-  birth_date: "",
+    birth_date: "",
+  baptism_date: "",
   marriage_date: "",
   intention_text: "",
 });
@@ -54,6 +90,11 @@ const WalkInBooking: React.FC = () => {
   const [selected, setSelected] = useState<ChurchService | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [isResident, setIsResident] = useState(true);
+  const [godparents, setGodparents] = useState<WalkInGodparent[]>([]);
+  const [gpModalOpen, setGpModalOpen] = useState(false);
+  const [gpEditingIndex, setGpEditingIndex] = useState<number | null>(null);
+  const [gpRelationship, setGpRelationship] = useState<"godfather" | "godmother">("godfather");
+  const [gpRows, setGpRows] = useState<GodparentNameRow[]>([emptyGodparentRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -115,14 +156,23 @@ const WalkInBooking: React.FC = () => {
       if (!form.father_first_name.trim() || !form.father_last_name.trim()) {
         return "Father first name and last name are required.";
       }
+      const validGps = godparents.filter((gp) => gp.godparent_name.trim());
+      if (validGps.length === 0) {
+        return "Add at least one godparent (ninong or ninang).";
+      }
     }
     if (formType === "certificate") {
       const type = (selected?.service_type || "").toLowerCase();
       if (type.includes("marriage") && !form.marriage_date) {
         return "Marriage date is required.";
       }
-      if (!type.includes("marriage") && !form.birth_date) {
-        return "Birth date is required.";
+      if (!type.includes("marriage")) {
+        if (!form.birth_date) {
+          return "Birth date is required.";
+        }
+        if (!form.baptism_date) {
+          return "Baptism date is required.";
+        }
       }
     }
     if (formType === "special_intention" && form.intention_text.trim().length < 5) {
@@ -165,11 +215,18 @@ const WalkInBooking: React.FC = () => {
               father_first_name: form.father_first_name.trim(),
               father_middle_name: form.father_middle_name.trim() || undefined,
               father_last_name: form.father_last_name.trim(),
+              godparents: godparents
+                .filter((gp) => gp.godparent_name.trim())
+                .map((gp) => ({
+                  godparent_name: gp.godparent_name.trim(),
+                  relationship: gp.relationship,
+                })),
             }
           : {}),
         ...(formType === "certificate"
           ? {
               birth_date: form.birth_date || undefined,
+              baptism_date: form.baptism_date || undefined,
               marriage_date: form.marriage_date || undefined,
             }
           : {}),
@@ -186,6 +243,7 @@ const WalkInBooking: React.FC = () => {
         setSelected(null);
         setForm(emptyForm());
         setIsResident(true);
+        setGodparents([]);
       } else {
         setAlert({ type: "error", message: res.data.message || "Could not save booking." });
       }
@@ -205,6 +263,94 @@ const WalkInBooking: React.FC = () => {
     if (isCertificate) return TIME_OPTIONS;
     return TIME_OPTIONS.filter((opt) => !bookedSlots.includes(opt.value) && !bookedSlots.includes(`${opt.value}:00`));
   }, [bookedSlots, isCertificate]);
+
+  const godfathers = godparents.filter((gp) => gp.relationship === "godfather");
+  const godmothers = godparents.filter((gp) => gp.relationship === "godmother");
+
+  const openAddGodparent = () => {
+    setGpEditingIndex(null);
+    setGpRelationship("godfather");
+    setGpRows([emptyGodparentRow()]);
+    setGpModalOpen(true);
+    console.log("Walk-in open add godparent rows");
+  };
+
+  const openEditGodparent = (index: number) => {
+    const current = godparents[index];
+    setGpEditingIndex(index);
+    setGpRelationship(current.relationship);
+    setGpRows([splitGodparentFullName(current.godparent_name)]);
+    setGpModalOpen(true);
+    console.log("Walk-in edit godparent index:", index);
+  };
+
+  const updateGodparentRow = (index: number, key: keyof GodparentNameRow, value: string) => {
+    setGpRows((prev) => prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
+  };
+
+  const addGodparentRow = () => {
+    setGpRows((prev) => [...prev, emptyGodparentRow()]);
+    console.log("Walk-in add another godparent row");
+  };
+
+  const removeGodparentRow = (index: number) => {
+    setGpRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  };
+
+  const saveGodparent = () => {
+    const roleLabel = gpRelationship === "godfather" ? "godfather" : "godmother";
+
+    if (gpEditingIndex !== null) {
+      const fullName = formatGodparentFullName(gpRows[0] || emptyGodparentRow());
+      if (!gpRows[0]?.first_name.trim() || !gpRows[0]?.last_name.trim()) {
+        setAlert({ type: "error", message: "First name and last name are required." });
+        return;
+      }
+      setGodparents((prev) =>
+        prev.map((gp, i) =>
+          i === gpEditingIndex
+            ? { godparent_name: fullName, relationship: gpRelationship }
+            : gp
+        )
+      );
+      console.log("Walk-in godparent updated:", fullName, roleLabel);
+      setGpModalOpen(false);
+      return;
+    }
+
+    const prepared: WalkInGodparent[] = [];
+    for (let i = 0; i < gpRows.length; i++) {
+      const row = gpRows[i];
+      const first = row.first_name.trim();
+      const last = row.last_name.trim();
+      if (!first && !last && !row.middle_name.trim()) continue;
+      if (!first || !last) {
+        setAlert({
+          type: "error",
+          message: `Row ${i + 1}: first name and last name are required.`,
+        });
+        return;
+      }
+      prepared.push({
+        godparent_name: formatGodparentFullName(row),
+        relationship: gpRelationship,
+      });
+    }
+
+    if (prepared.length === 0) {
+      setAlert({ type: "error", message: "Add at least one godparent with first and last name." });
+      return;
+    }
+
+    setGodparents((prev) => [...prev, ...prepared]);
+    console.log("Walk-in godparents added from rows:", prepared.length, roleLabel);
+    setGpModalOpen(false);
+  };
+
+  const removeGodparent = (index: number) => {
+    console.log("Walk-in remove godparent index:", index);
+    setGodparents((prev) => prev.filter((_, i) => i !== index));
+  };
 
   return (
     <div>
@@ -236,6 +382,7 @@ const WalkInBooking: React.FC = () => {
                     setSelected(service);
                     setForm(emptyForm());
                     setIsResident(true);
+                    setGodparents([]);
                   }}
                   className="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition"
                 >
@@ -350,6 +497,78 @@ const WalkInBooking: React.FC = () => {
                 <input className={inputClass} placeholder="Father middle name" value={form.father_middle_name} onChange={(e) => setField("father_middle_name", e.target.value)} />
                 <input className={inputClass} placeholder="Father last name *" value={form.father_last_name} onChange={(e) => setField("father_last_name", e.target.value)} />
               </div>
+
+              <div className="pt-3">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Godparents</h3>
+                  <button
+                    type="button"
+                    onClick={openAddGodparent}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    <Plus size={16} />
+                    Add
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600 mb-2">Godfathers ({godfathers.length})</p>
+                    {godfathers.length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">None added yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {godfathers.map((gp) => {
+                          const index = godparents.indexOf(gp);
+                          return (
+                            <div
+                              key={`gf-${index}`}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-blue-100 bg-blue-50/50"
+                            >
+                              <span className="text-sm text-slate-800 truncate">{gp.godparent_name}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button type="button" onClick={() => openEditGodparent(index)} className="p-1 text-slate-400 hover:text-blue-600" title="Edit">
+                                  <Pencil size={14} />
+                                </button>
+                                <button type="button" onClick={() => removeGodparent(index)} className="p-1 text-slate-400 hover:text-red-600" title="Remove">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-rose-600 mb-2">Godmothers ({godmothers.length})</p>
+                    {godmothers.length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">None added yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {godmothers.map((gp) => {
+                          const index = godparents.indexOf(gp);
+                          return (
+                            <div
+                              key={`gm-${index}`}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50"
+                            >
+                              <span className="text-sm text-slate-800 truncate">{gp.godparent_name}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button type="button" onClick={() => openEditGodparent(index)} className="p-1 text-slate-400 hover:text-rose-600" title="Edit">
+                                  <Pencil size={14} />
+                                </button>
+                                <button type="button" onClick={() => removeGodparent(index)} className="p-1 text-slate-400 hover:text-red-600" title="Remove">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </section>
           )}
 
@@ -357,9 +576,21 @@ const WalkInBooking: React.FC = () => {
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Certificate details</h3>
               {(selected.service_type || "").toLowerCase().includes("marriage") ? (
-                <input className={inputClass} type="date" value={form.marriage_date} onChange={(e) => setField("marriage_date", e.target.value)} />
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Marriage date *</label>
+                  <input className={inputClass} type="date" value={form.marriage_date} onChange={(e) => setField("marriage_date", e.target.value)} />
+                </div>
               ) : (
-                <input className={inputClass} type="date" value={form.birth_date} onChange={(e) => setField("birth_date", e.target.value)} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Birth date *</label>
+                    <input className={inputClass} type="date" value={form.birth_date} onChange={(e) => setField("birth_date", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Baptism date *</label>
+                    <input className={inputClass} type="date" value={form.baptism_date} onChange={(e) => setField("baptism_date", e.target.value)} />
+                  </div>
+                </div>
               )}
             </section>
           )}
@@ -433,6 +664,120 @@ const WalkInBooking: React.FC = () => {
         message={alert?.message || ""}
         onClose={() => setAlert(null)}
       />
+
+      {gpModalOpen && (
+        <div className="fixed inset-0 bg-black/50 bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {gpEditingIndex !== null ? "Edit Godparent" : "Add Godparent"}
+              </h3>
+              <button type="button" onClick={() => setGpModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100">
+                <X size={18} className="text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGpRelationship("godfather")}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-semibold ${
+                    gpRelationship === "godfather"
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Godfather
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGpRelationship("godmother")}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-semibold ${
+                    gpRelationship === "godmother"
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Godmother
+                </button>
+              </div>
+
+              {gpRows.map((row, index) => {
+                const roleWord = gpRelationship === "godfather" ? "godfather" : "godmother";
+                return (
+                  <div key={`gp-row-${index}`} className="space-y-3 rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {gpEditingIndex !== null ? "Godparent" : `Person ${index + 1}`}
+                      </p>
+                      {gpEditingIndex === null && gpRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeGodparentRow(index)}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">First Name *</label>
+                      <input
+                        className={inputClass}
+                        placeholder={`Enter ${roleWord} first name`}
+                        value={row.first_name}
+                        onChange={(e) => updateGodparentRow(index, "first_name", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Middle Name</label>
+                      <input
+                        className={inputClass}
+                        placeholder={`Enter ${roleWord} middle name`}
+                        value={row.middle_name}
+                        onChange={(e) => updateGodparentRow(index, "middle_name", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Last Name *</label>
+                      <input
+                        className={inputClass}
+                        placeholder={`Enter ${roleWord} last name`}
+                        value={row.last_name}
+                        onChange={(e) => updateGodparentRow(index, "last_name", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {gpEditingIndex === null && (
+                <button
+                  type="button"
+                  onClick={addGodparentRow}
+                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg border border-dashed border-blue-300 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  <Plus size={16} />
+                  Add another
+                </button>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={saveGodparent}
+                className="w-full px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                {gpEditingIndex !== null
+                  ? "Save changes"
+                  : `Add Godparent${gpRows.length > 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

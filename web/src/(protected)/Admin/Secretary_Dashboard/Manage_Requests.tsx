@@ -1071,6 +1071,10 @@ const ManageRequests: React.FC = () => {
               <p className="font-medium">{form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}</p>
             </div>
             <div>
+              <span className="text-gray-500">Baptism Date:</span>
+              <p className="font-medium">{form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}</p>
+            </div>
+            <div>
               <span className="text-gray-500">Marriage Date:</span>
               <p className="font-medium">{form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}</p>
             </div>

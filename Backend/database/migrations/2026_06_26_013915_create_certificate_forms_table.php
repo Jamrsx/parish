@@ -18,7 +18,8 @@ return new class extends Migration
             
             
             $table->string('full_name', 100);
-            $table->date('birth_date')->nullable();  
+            $table->date('birth_date')->nullable();
+            $table->date('baptism_date')->nullable();
             $table->date('marriage_date')->nullable();  
             $table->text('address');
             $table->string('contact_number', 20);

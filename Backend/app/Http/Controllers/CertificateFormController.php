@@ -72,6 +72,7 @@ class CertificateFormController extends Controller
             'address' => 'required|string',
             'contact_number' => 'required|string|max:20',
             'birth_date' => 'nullable|date|before_or_equal:today',
+            'baptism_date' => 'nullable|date|before_or_equal:today',
             'marriage_date' => 'nullable|date|before_or_equal:today',
             'preferred_date' => 'required|date|after_or_equal:today',
             'preferred_time' => 'required|date_format:H:i',
@@ -92,6 +93,13 @@ class CertificateFormController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Birth date is required for baptismal certificate.',
+            ], 422);
+        }
+
+        if ($churchService->service_type === 'Baptismal Certificate' && empty($validated['baptism_date'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Baptism date is required for baptismal certificate.',
             ], 422);
         }
 
@@ -124,6 +132,7 @@ class CertificateFormController extends Controller
             'address' => $validated['address'],
             'contact_number' => $validated['contact_number'],
             'birth_date' => $validated['birth_date'] ?? null,
+            'baptism_date' => $validated['baptism_date'] ?? null,
             'marriage_date' => $validated['marriage_date'] ?? null,
             'preferred_date' => $validated['preferred_date'],
             'preferred_time' => $validated['preferred_time'],
@@ -176,6 +185,7 @@ class CertificateFormController extends Controller
                 'address' => 'sometimes|required|string',
                 'contact_number' => 'sometimes|required|string|max:20',
                 'birth_date' => 'nullable|date|before_or_equal:today',
+                'baptism_date' => 'nullable|date|before_or_equal:today',
                 'marriage_date' => 'nullable|date|before_or_equal:today',
                 'preferred_date' => 'sometimes|required|date|after_or_equal:today',
                 'preferred_time' => 'sometimes|required|date_format:H:i',

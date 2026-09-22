@@ -25,6 +25,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 interface BaptismalCertificateData {
   full_name: string;
   birth_date: string;
+  baptism_date: string;
   address: string;
   contact_number: string;
   preferred_date: string;
@@ -205,6 +206,7 @@ export default function BaptismalCertificate() {
   const [formData, setFormData] = useState<BaptismalCertificateData>({
     full_name: '',
     birth_date: '',
+    baptism_date: '',
     address: '',
     contact_number: '',
     preferred_date: today,
@@ -228,7 +230,9 @@ export default function BaptismalCertificate() {
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [activeDateField, setActiveDateField] = useState<'preferred_date' | 'birth_date'>('preferred_date');
+  const [activeDateField, setActiveDateField] = useState<
+    'preferred_date' | 'birth_date' | 'baptism_date'
+  >('preferred_date');
 
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
 
@@ -291,6 +295,13 @@ export default function BaptismalCertificate() {
     }
     if (!formData.birth_date) {
       newErrors.birth_date = 'Birth date is required';
+      isValid = false;
+    }
+    if (!formData.baptism_date) {
+      newErrors.baptism_date = 'Baptism date is required';
+      isValid = false;
+    } else if (formData.birth_date && formData.baptism_date < formData.birth_date) {
+      newErrors.baptism_date = 'Baptism date cannot be before birth date';
       isValid = false;
     }
     if (!formData.address.trim()) {
@@ -366,10 +377,12 @@ export default function BaptismalCertificate() {
       }
 
       // ✅ STEP 2: Create certificate form with service_id
+      console.log('[BaptismalCertificate] Submitting with baptism_date:', formData.baptism_date);
       const certificateResponse = await api.createCertificateForm({
         service_id: certificateService.service_id,
         full_name: formData.full_name,
         birth_date: formData.birth_date,
+        baptism_date: formData.baptism_date,
         address: formData.address,
         contact_number: formData.contact_number,
         preferred_date: formData.preferred_date,
@@ -397,7 +410,7 @@ export default function BaptismalCertificate() {
 
       showCustomAlert(
         'Request Submitted!',
-        `Your Baptismal Certificate request has been submitted successfully!\n\nName: ${formData.full_name}\nBirth Date: ${formData.birth_date}\nRequest Date: ${formData.preferred_date}\nTime: ${getDisplayTime(formData.preferred_time)}`,
+        `Your Baptismal Certificate request has been submitted successfully!\n\nName: ${formData.full_name}\nBirth Date: ${formData.birth_date}\nBaptism Date: ${formData.baptism_date}\nRequest Date: ${formData.preferred_date}\nTime: ${getDisplayTime(formData.preferred_time)}`,
         [
           { 
             text: 'OK', 
@@ -498,6 +511,25 @@ export default function BaptismalCertificate() {
             </Text>
           </TouchableOpacity>
           <ErrorMessage message={errors.birth_date} />
+        </View>
+
+        <View className="mb-3">
+          <Text className="text-sm text-gray-600 font-medium mb-1">Baptism Date *</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setActiveDateField('baptism_date');
+              setSelectedMonth(formData.baptism_date ? new Date(formData.baptism_date) : new Date());
+              setShowDatePicker(true);
+            }}
+            className={`border rounded-xl px-4 py-3 bg-gray-50 ${
+              errors.baptism_date ? 'border-red-500' : 'border-gray-300'
+            }`}
+          >
+            <Text className={formData.baptism_date ? 'text-gray-800' : 'text-gray-400'}>
+              {formData.baptism_date || 'Select baptism date'}
+            </Text>
+          </TouchableOpacity>
+          <ErrorMessage message={errors.baptism_date} />
         </View>
 
         <View className="mb-3">
@@ -648,7 +680,12 @@ export default function BaptismalCertificate() {
           <View className="bg-white rounded-t-3xl p-4" style={{ maxHeight: '90%' }}>
             <View className="flex-row justify-between items-center mb-4 px-2">
               <Text className="text-xl font-bold text-gray-800">
-                Select {activeDateField === 'preferred_date' ? 'Request Date' : 'Birth Date'}
+                Select{' '}
+                {activeDateField === 'preferred_date'
+                  ? 'Request Date'
+                  : activeDateField === 'baptism_date'
+                  ? 'Baptism Date'
+                  : 'Birth Date'}
               </Text>
               <TouchableOpacity onPress={() => setShowDatePicker(false)} className="p-2">
                 <Feather name="x" size={22} color="#6B7280" />
@@ -660,6 +697,7 @@ export default function BaptismalCertificate() {
               onMonthChange={changeMonth}
               onDateSelect={handleDateSelect}
               isDateDisabled={isDateDisabled}
+              enableYearPicker={activeDateField === 'birth_date' || activeDateField === 'baptism_date'}
             />
             <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-600 py-3 rounded-xl mx-2">
               <Text className="text-white text-center font-semibold">Close</Text>

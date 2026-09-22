@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // BASE URL
-const API_BASE_URL = 'http://10.174.201.74:8000/api';
+const API_BASE_URL = 'http://192.168.1.7:8000/api';
 
 // TYPES
 export interface User {
@@ -100,6 +100,7 @@ export interface CertificateForm {
   service_id: number;
   full_name: string;
   birth_date?: string;
+  baptism_date?: string;
   marriage_date?: string;
   address: string;
   contact_number: string;
@@ -321,6 +322,7 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     service_id: number;
     full_name: string;
     birth_date?: string;
+    baptism_date?: string;
     marriage_date?: string;
     address: string;
     contact_number: string;

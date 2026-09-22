@@ -12,6 +12,7 @@ class CertificateForm extends Model
         'service_id',      
         'full_name',
         'birth_date',
+        'baptism_date',
         'marriage_date',
         'address',
         'contact_number',
@@ -21,6 +22,7 @@ class CertificateForm extends Model
     
     protected $casts = [
         'birth_date' => 'date',
+        'baptism_date' => 'date',
         'marriage_date' => 'date',
         'preferred_date' => 'date',      
         'preferred_time' => 'string',    
