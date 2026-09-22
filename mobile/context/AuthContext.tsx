@@ -143,24 +143,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // LOGIN
   const login = useCallback(async (loginField: string, password: string) => {
-    setIsLoading(true);
-    setAuthError(null); 
+    // Do not toggle global isLoading here — auth layout unmounts login and hides error UI.
+    setAuthError(null);
     try {
+      console.log('[AuthContext] mobile login attempt');
       const response = await api.login(loginField, password);
-      
+
       if (response.success && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
         authCheckDone.current = true;
-        setAuthError(null); 
+        setAuthError(null);
+        console.log('[AuthContext] mobile login success');
       } else {
-        throw new Error('Invalid credentials');
+        throw {
+          status: 401,
+          data: { message: response.message || 'Invalid email/username or password' },
+        };
       }
     } catch (error: any) {
-      setAuthError('Invalid email/username or password'); 
-      throw new Error('Invalid credentials');
-    } finally {
-      setIsLoading(false);
+      const message =
+        error?.data?.message ||
+        error?.message ||
+        'Invalid email/username or password';
+      console.log('[AuthContext] mobile login failed:', message);
+      setAuthError(message);
+      throw new Error(message);
     }
   }, []);
 

@@ -34,7 +34,7 @@ const CustomAlert = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View className="absolute inset-0 bg-black/50 justify-center items-center z-50">
+      <View className="flex-1 bg-black/20 backdrop-blur-sm items-center justify-center z-50">
         <View className="bg-white rounded-2xl p-6 w-11/12 max-w-sm">
           <Text className="text-xl font-bold text-gray-800 text-center mb-2">
             {title}
@@ -56,13 +56,15 @@ const CustomAlert = ({
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login } = useAuth();
 
   // STATE
   const [loginField, setLoginField] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ login?: string; password?: string }>({});
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
@@ -71,6 +73,10 @@ export default function LoginScreen() {
   const showCustomAlert = (title: string, message: string) => {
     setAlertConfig({ title, message });
     setAlertVisible(true);
+  };
+
+  const clearLoginError = () => {
+    if (loginError) setLoginError(null);
   };
 
   const validateField = (field: string, value: string): string => {
@@ -90,9 +96,9 @@ export default function LoginScreen() {
     const newErrors: { login?: string; password?: string } = {};
     let isValid = true;
 
-    const loginError = validateField('login', loginField);
-    if (loginError) {
-      newErrors.login = loginError;
+    const fieldLoginError = validateField('login', loginField);
+    if (fieldLoginError) {
+      newErrors.login = fieldLoginError;
       isValid = false;
     }
 
@@ -111,12 +117,22 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!validateAllFields()) return;
 
+    setIsSubmitting(true);
+    setLoginError(null);
+
     try {
       await login(loginField.trim(), password);
       console.log('Login success — replacing stack to home (no back to login)');
       router.replace('/Parishioner/(protected)/(tabs)/home');
-    } catch {
-      showCustomAlert('Login Failed', 'Invalid email/username or password');
+    } catch (error: any) {
+      const message =
+        error?.message ||
+        'Invalid email/username or password. Please check your credentials and try again.';
+      console.log('[Login] failed:', message);
+      setLoginError(message);
+      showCustomAlert('Login Failed', message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -155,6 +171,14 @@ export default function LoginScreen() {
                 </Text>
               </View>
 
+              {loginError ? (
+                <View className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                  <Text className="text-red-700 text-sm text-center font-medium">
+                    {loginError}
+                  </Text>
+                </View>
+              ) : null}
+
               {/* LOGIN FIELD */}
               <View className="mb-4">
                 <Text className="text-gray-700 mb-2 font-medium">
@@ -171,6 +195,7 @@ export default function LoginScreen() {
                   value={loginField}
                   onChangeText={(text) => {
                     setLoginField(text);
+                    clearLoginError();
                     if (errors.login) setErrors(prev => ({ ...prev, login: undefined }));
                   }}
                   onBlur={() => {
@@ -179,6 +204,7 @@ export default function LoginScreen() {
                     if (error) setErrors(prev => ({ ...prev, login: error }));
                   }}
                   autoCapitalize="none"
+                  editable={!isSubmitting}
                 />
                 {touchedFields.has('login') && errors.login && (
                   <Text className="text-red-500 text-xs mt-1 ml-1">{errors.login}</Text>
@@ -201,6 +227,7 @@ export default function LoginScreen() {
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
+                    clearLoginError();
                     if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
                   }}
                   onBlur={() => {
@@ -209,6 +236,7 @@ export default function LoginScreen() {
                     if (error) setErrors(prev => ({ ...prev, password: error }));
                   }}
                   secureTextEntry
+                  editable={!isSubmitting}
                 />
                 {touchedFields.has('password') && errors.password && (
                   <Text className="text-red-500 text-xs mt-1 ml-1">{errors.password}</Text>
@@ -217,12 +245,12 @@ export default function LoginScreen() {
 
               {/* LOGIN BUTTON */}
               <TouchableOpacity
-                className="w-full bg-blue-600 py-3.5 rounded-lg mb-3"
+                className={`w-full bg-blue-600 py-3.5 rounded-lg mb-3 ${isSubmitting ? 'opacity-70' : ''}`}
                 onPress={handleLogin}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 activeOpacity={0.8}
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <ActivityIndicator color="white" />
                 ) : (
                   <Text className="text-white text-center font-semibold text-lg">Sign In</Text>
@@ -232,7 +260,7 @@ export default function LoginScreen() {
               {/* Sign Up Link */}
               <View className="flex-row justify-center mt-2">
                 <Text className="text-gray-600">Don&apos;t have an account? </Text>
-                <TouchableOpacity onPress={handleSignUp}>
+                <TouchableOpacity onPress={handleSignUp} disabled={isSubmitting}>
                   <Text className="text-blue-600 font-semibold">Create Account</Text>
                 </TouchableOpacity>
               </View>
