@@ -21,6 +21,7 @@ class User extends Authenticatable
         'last_name',
         'contact_number',
         'address',
+        'is_resident',
         'email',
         'username',
         'password',
@@ -38,6 +39,7 @@ class User extends Authenticatable
         'last_login' => 'datetime',
         'is_active' => 'boolean',
         'is_available' => 'boolean',
+        'is_resident' => 'boolean',
     ];
 
     /**

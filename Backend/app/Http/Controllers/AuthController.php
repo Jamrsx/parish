@@ -319,6 +319,7 @@ class AuthController extends Controller
             'username' => $user->username,
             'contact_number' => $user->contact_number,
             'address' => $user->address,
+            'is_resident' => (bool) ($user->is_resident ?? true),
             'role' => $user->role,
             'role_label' => $user->role_label,
             'is_active' => $user->is_active,
@@ -391,6 +392,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'contact_number' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
+            'is_resident' => 'required|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -400,6 +402,9 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $rawResident = $request->input('is_resident');
+        $isResident = !in_array($rawResident, [false, 0, '0', 'false', 'False', 'off', 'no'], true);
+
         $user = User::create([
             'first_name' => $request->first_name,
             'middle_name' => $request->middle_name,
@@ -408,6 +413,12 @@ class AuthController extends Controller
             'contact_number' => $request->contact_number,
             'password' => $request->password,
             'role' => 'priest',
+            'is_resident' => $isResident,
+        ]);
+
+        \Log::info('Priest created with residency', [
+            'user_id' => $user->user_id,
+            'is_resident' => $isResident,
         ]);
 
         return response()->json([

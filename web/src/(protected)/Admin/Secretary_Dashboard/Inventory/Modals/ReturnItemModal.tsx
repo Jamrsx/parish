@@ -22,16 +22,18 @@ const ReturnItemModal: React.FC<ReturnItemModalProps> = ({
   onConfirm,
 }) => {
   const [hasDamage, setHasDamage] = useState(false);
-  const [quantityDamaged, setQuantityDamaged] = useState(1);
+  const [quantityDamagedInput, setQuantityDamagedInput] = useState("1");
   const [damageNotes, setDamageNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const borrowedQty = record?.quantity_borrowed || 1;
+  const quantityDamaged =
+    quantityDamagedInput === "" ? 0 : Number(quantityDamagedInput);
 
   useEffect(() => {
     if (isOpen) {
       setHasDamage(false);
-      setQuantityDamaged(1);
+      setQuantityDamagedInput("1");
       setDamageNotes("");
       setError(null);
       console.log("Return item modal opened:", record);
@@ -39,6 +41,22 @@ const ReturnItemModal: React.FC<ReturnItemModalProps> = ({
   }, [isOpen, record]);
 
   if (!isOpen || !record) return null;
+
+  const handleDamagedQtyChange = (raw: string) => {
+    console.log("Damaged quantity typed:", raw);
+    if (raw === "") {
+      setQuantityDamagedInput("");
+      return;
+    }
+    // Allow only digits; parseInt drops leading zeros ("01" -> 1)
+    if (!/^\d+$/.test(raw)) return;
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) {
+      setQuantityDamagedInput("");
+      return;
+    }
+    setQuantityDamagedInput(String(Math.min(borrowedQty, Math.max(0, n))));
+  };
 
   const handleSubmit = () => {
     if (hasDamage) {
@@ -103,6 +121,7 @@ const ReturnItemModal: React.FC<ReturnItemModalProps> = ({
                 type="button"
                 onClick={() => {
                   setHasDamage(true);
+                  setQuantityDamagedInput((prev) => (prev === "" || prev === "0" ? "1" : prev));
                   setError(null);
                 }}
                 className={`px-3 py-2.5 rounded-lg text-sm font-semibold border transition ${
@@ -123,11 +142,11 @@ const ReturnItemModal: React.FC<ReturnItemModalProps> = ({
                   How many are damaged? *
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={borrowedQty}
-                  value={quantityDamaged}
-                  onChange={(e) => setQuantityDamaged(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={quantityDamagedInput}
+                  onChange={(e) => handleDamagedQtyChange(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 />
                 <p className="text-xs text-slate-500 mt-1">Max: {borrowedQty}</p>

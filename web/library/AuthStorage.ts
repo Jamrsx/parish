@@ -20,6 +20,7 @@ export interface User {
   role_label: string;
   is_active?: boolean;
   is_available?: boolean;
+  is_resident?: boolean;
   last_login?: string | null;
   created_at?: string;
   updated_at?: string;

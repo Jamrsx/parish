@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { inventoryAPI } from "../../../../../library/inventory";
 import {
   borrowRecordsAPI,
@@ -18,12 +18,15 @@ import BorrowItemsTable from "./components/BorrowItemsTable";
 import BorrowerLogsTable from "./components/BorrowerLogsTable";
 import AddItemModal from "./Modals/AddItemModal";
 import EditItemModal from "./Modals/EditItemModal";
+import AdjustStockModal, { type StockAdjustMode } from "./Modals/AdjustStockModal";
 import BorrowItemModal from "./Modals/BorrowItemModal";
 import ReturnItemModal from "./Modals/ReturnItemModal";
 import AlertModal from "./Modals/AlertModal";
 import ConfirmationModal from "./Modals/ConfirmationModal";
 import PageHeader from "../components/PageHeader";
 import { Package, Plus } from "lucide-react";
+
+const INVENTORY_PAGE_SIZE = 10;
 
 const Manage_Inventory: React.FC = () => {
   // State management
@@ -36,12 +39,16 @@ const Manage_Inventory: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("inventory");
+  const [inventoryPage, setInventoryPage] = useState(1);
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustMode, setAdjustMode] = useState<StockAdjustMode>("add");
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false);
   const [returnRecord, setReturnRecord] = useState<BorrowRecord | null>(null);
   const [returning, setReturning] = useState(false);
 
@@ -219,6 +226,26 @@ const fetchAllBorrowRecords = useCallback(async () => {
 
     return matchesSearch && matchesType && matchesCategory && matchesStatus;
   });
+
+  useEffect(() => {
+    setInventoryPage(1);
+  }, [searchTerm, filterType, filterStatus, filterCategory, activeTab]);
+
+  const inventoryTotalPages = Math.max(
+    1,
+    Math.ceil(mainInventoryItems.length / INVENTORY_PAGE_SIZE)
+  );
+
+  const paginatedMainInventoryItems = useMemo(() => {
+    const start = (inventoryPage - 1) * INVENTORY_PAGE_SIZE;
+    return mainInventoryItems.slice(start, start + INVENTORY_PAGE_SIZE);
+  }, [mainInventoryItems, inventoryPage]);
+
+  useEffect(() => {
+    if (inventoryPage > inventoryTotalPages) {
+      setInventoryPage(inventoryTotalPages);
+    }
+  }, [inventoryPage, inventoryTotalPages]);
 
   // FILTER - Borrowed List View (Only borrowed and overdue records)
   const filteredBorrowRecords = allBorrowRecords
@@ -435,6 +462,61 @@ const fetchAllBorrowRecords = useCallback(async () => {
     setShowEditModal(true);
   };
 
+  const openAdjustStockModal = (item: InventoryItem, mode: StockAdjustMode) => {
+    console.log("[Inventory] Open adjust stock", { id: item.inventory_id, name: item.name, mode, qty: item.quantity });
+    setSelectedItem(item);
+    setAdjustMode(mode);
+    setShowAdjustModal(true);
+  };
+
+  const handleAdjustStock = async (amount: number) => {
+    if (!selectedItem) return;
+
+    const current = selectedItem.quantity || 0;
+    const next =
+      adjustMode === "add" ? current + amount : Math.max(0, current - amount);
+
+    if (adjustMode === "deduct" && amount > current) {
+      showAlert("error", `Cannot deduct ${amount}. Current stock is only ${current}.`);
+      return;
+    }
+
+    setAdjustSubmitting(true);
+    try {
+      console.log("[Inventory] Saving adjusted stock", {
+        id: selectedItem.inventory_id,
+        mode: adjustMode,
+        current,
+        amount,
+        next,
+      });
+      const response = await inventoryAPI.update(selectedItem.inventory_id, {
+        quantity: next,
+      });
+      if (response.data.success) {
+        showAlert(
+          "success",
+          adjustMode === "add"
+            ? `Added ${amount}. ${selectedItem.name} is now ${next}.`
+            : `Deducted ${amount}. ${selectedItem.name} is now ${next}.`
+        );
+        setShowAdjustModal(false);
+        setSelectedItem(null);
+        fetchItems();
+      } else {
+        showAlert("error", response.data.message || "Failed to update stock.");
+      }
+    } catch (error: any) {
+      console.error("Error adjusting stock:", error);
+      showAlert(
+        "error",
+        error?.response?.data?.message || "Failed to update stock."
+      );
+    } finally {
+      setAdjustSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -527,10 +609,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {activeTab === "inventory" && (
             <InventoryTable
-              items={mainInventoryItems}
+              items={paginatedMainInventoryItems}
               loading={loading}
               onEdit={openEditModal}
               onDelete={handleDelete}
+              onAdjustStock={openAdjustStockModal}
             />
           )}
           {activeTab === "borrow" && (
@@ -548,6 +631,49 @@ const fetchAllBorrowRecords = useCallback(async () => {
             />
           )}
         </div>
+
+        {activeTab === "inventory" && !loading && mainInventoryItems.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+            <p className="text-sm text-slate-500">
+              Showing{" "}
+              <strong>
+                {(inventoryPage - 1) * INVENTORY_PAGE_SIZE + 1}
+                –
+                {Math.min(inventoryPage * INVENTORY_PAGE_SIZE, mainInventoryItems.length)}
+              </strong>{" "}
+              of <strong>{mainInventoryItems.length}</strong> items
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.max(1, inventoryPage - 1);
+                  console.log("[Inventory] Page prev:", next);
+                  setInventoryPage(next);
+                }}
+                disabled={inventoryPage <= 1}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Previous
+              </button>
+              <div className="px-3 py-2 text-slate-600 font-medium text-sm">
+                Page {inventoryPage} of {inventoryTotalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.min(inventoryTotalPages, inventoryPage + 1);
+                  console.log("[Inventory] Page next:", next);
+                  setInventoryPage(next);
+                }}
+                disabled={inventoryPage >= inventoryTotalPages}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ADD ITEM MODAL */}
@@ -583,6 +709,18 @@ const fetchAllBorrowRecords = useCallback(async () => {
         selectedItem={selectedItem}
         editItem={editItem}
         setEditItem={setEditItem}
+      />
+
+      <AdjustStockModal
+        isOpen={showAdjustModal}
+        mode={adjustMode}
+        item={selectedItem}
+        submitting={adjustSubmitting}
+        onClose={() => {
+          if (adjustSubmitting) return;
+          setShowAdjustModal(false);
+        }}
+        onConfirm={handleAdjustStock}
       />
 
       {/* RETURN MODAL */}

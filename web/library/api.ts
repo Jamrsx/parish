@@ -154,6 +154,7 @@ export interface CreatePriestData {
   email: string;
   contact_number?: string | null;
   password: string;
+  is_resident: boolean | number;
 }
 
 export interface CreateCashierData {

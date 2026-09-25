@@ -16,6 +16,7 @@ interface PriestFormData {
   email: string;
   password: string;
   password_confirmation: string;
+  is_resident: boolean;
 }
 
 interface FormErrors {
@@ -51,6 +52,7 @@ const ManagePriests: React.FC = () => {
     email: '',
     password: '',
     password_confirmation: '',
+    is_resident: true,
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [alertModal, setAlertModal] = useState<{
@@ -162,6 +164,7 @@ const ManagePriests: React.FC = () => {
         contact_number: formData.contact_number.trim() || null,
         email: formData.email.trim(),
         password: formData.password,
+        is_resident: formData.is_resident ? 1 : 0,
       });
 
       console.log('Create priest response:', response.data);
@@ -180,6 +183,7 @@ const ManagePriests: React.FC = () => {
           email: '',
           password: '',
           password_confirmation: '',
+          is_resident: true,
         });
         await fetchPriests();
       }
@@ -395,6 +399,48 @@ const ManagePriests: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Residency *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('Priest residency: resident');
+                      setFormData((prev) => ({ ...prev, is_resident: true }));
+                    }}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium text-left ${
+                      formData.is_resident
+                        ? 'border-blue-600 bg-blue-50 text-blue-800'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    Resident
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5">
+                      Lives in the parish
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('Priest residency: non-resident');
+                      setFormData((prev) => ({ ...prev, is_resident: false }));
+                    }}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium text-left ${
+                      !formData.is_resident
+                        ? 'border-blue-600 bg-blue-50 text-blue-800'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    Non-resident
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5">
+                      Lives outside the parish
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Gmail / Email *
                 </label>
                 <div className="relative">
@@ -532,6 +578,15 @@ const ManagePriests: React.FC = () => {
                       {priest.contact_number && (
                         <p className="text-xs text-slate-400 truncate">{priest.contact_number}</p>
                       )}
+                      <span
+                        className={`inline-flex mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          priest.is_resident === false
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {priest.is_resident === false ? 'Non-resident' : 'Resident'}
+                      </span>
                     </div>
                     <span
                       className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold border ${

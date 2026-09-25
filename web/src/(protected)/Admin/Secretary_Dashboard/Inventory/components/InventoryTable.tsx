@@ -8,6 +8,7 @@ interface InventoryTableProps {
   loading: boolean;
   onEdit: (item: InventoryItem) => void;
   onDelete: (itemId: number) => void;
+  onAdjustStock: (item: InventoryItem, mode: "add" | "deduct") => void;
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
@@ -15,6 +16,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   loading,
   onEdit,
   onDelete,
+  onAdjustStock,
 }) => {
   const getMainInventoryStatus = (item: InventoryItem): string => {
     if (item.quantity <= 0) {
@@ -83,7 +85,7 @@ const getCategoryDisplay = (category?: string) => getCategoryInfo(category || ''
             <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
               Available
             </th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap">
               Actions
             </th>
           </tr>
@@ -137,21 +139,38 @@ const getCategoryDisplay = (category?: string) => getCategoryInfo(category || ''
                 <td className="px-6 py-4 text-gray-900">
                   {item.available_quantity ?? item.quantity}
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2 flex-wrap">
+                <td className="px-4 py-4 whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1.5">
                     <button
+                      type="button"
+                      onClick={() => onAdjustStock(item, "add")}
+                      className="px-2.5 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAdjustStock(item, "deduct")}
+                      disabled={item.quantity <= 0}
+                      className="px-2.5 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Deduct
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => onEdit(item)}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-2.5 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
                       Edit
                     </button>
                     {!item.is_builtin && (
-                    <button
-                      onClick={() => onDelete(item.inventory_id)}
-                      className="px-3 py-1.5 text-sm border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
-                    >
-                      Delete
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(item.inventory_id)}
+                        className="px-2.5 py-1.5 text-xs font-medium border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50"
+                      >
+                        Delete
+                      </button>
                     )}
                   </div>
                 </td>
