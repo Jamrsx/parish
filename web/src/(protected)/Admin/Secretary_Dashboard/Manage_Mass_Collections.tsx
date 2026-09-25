@@ -27,6 +27,7 @@ const ManageMassCollections: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
   const [preview, setPreview] = useState<MassCollectionRow | null>(null);
   const [form, setForm] = useState({
     mass_date: todayLocal(),
@@ -37,6 +38,25 @@ const ManageMassCollections: React.FC = () => {
   const [denomRows, setDenomRows] = useState<DenominationLine[]>([emptyDenominationRow()]);
 
   const grandTotal = useMemo(() => sumDenominationLines(denomRows), [denomRows]);
+
+  const availableDates = useMemo(() => {
+    const dates = Array.from(
+      new Set(rows.map((row) => row.mass_date).filter(Boolean))
+    ).sort((a, b) => b.localeCompare(a));
+    return dates;
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (dateFilter === "all") return rows;
+    return rows.filter((row) => row.mass_date === dateFilter);
+  }, [rows, dateFilter]);
+
+  useEffect(() => {
+    if (dateFilter !== "all" && !availableDates.includes(dateFilter)) {
+      console.log("Mass collection date filter cleared; date no longer available:", dateFilter);
+      setDateFilter("all");
+    }
+  }, [availableDates, dateFilter]);
 
   const fetchRows = useCallback(async () => {
     try {
@@ -152,7 +172,7 @@ const ManageMassCollections: React.FC = () => {
         <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{feedback}</div>
       )}
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -163,6 +183,25 @@ const ManageMassCollections: React.FC = () => {
           <option value="received">Received</option>
           <option value="rejected">Rejected</option>
         </select>
+        <select
+          value={dateFilter}
+          onChange={(e) => {
+            console.log("Mass collection date filter:", e.target.value);
+            setDateFilter(e.target.value);
+          }}
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white min-w-[180px]"
+          title="Only dates with recorded mass collections are listed"
+        >
+          <option value="all">All dates</option>
+          {availableDates.map((date) => (
+            <option key={date} value={date}>
+              {date}
+            </option>
+          ))}
+        </select>
+        {availableDates.length === 0 && !loading && (
+          <span className="text-xs text-slate-500 self-center">No collection dates available</span>
+        )}
         <button onClick={fetchRows} disabled={loading} className="px-4 py-2 bg-slate-100 rounded-lg text-sm disabled:opacity-50">
           Refresh
         </button>
@@ -185,14 +224,16 @@ const ManageMassCollections: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
                 <SecretaryTableSkeleton columns={7} />
-              ) : rows.length === 0 ? (
+              ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-500">
-                    No mass collections yet
+                    {dateFilter !== "all"
+                      ? `No mass collections on ${dateFilter}`
+                      : "No mass collections yet"}
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                filteredRows.map((row) => (
                   <tr key={row.collection_id}>
                     <td className="px-4 py-3">
                       {row.mass_date}

@@ -31,6 +31,7 @@ const ManageDonations: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [nameSearch, setNameSearch] = useState("");
   const [form, setForm] = useState({
     donor_name: "",
     contribution_type: "donation" as "donation" | "love_offering",
@@ -41,6 +42,12 @@ const ManageDonations: React.FC = () => {
   const [preview, setPreview] = useState<DonationRow | null>(null);
 
   const grandTotal = useMemo(() => sumDenominationLines(denomRows), [denomRows]);
+
+  const filteredRows = useMemo(() => {
+    const q = nameSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => (row.donor_name || "").toLowerCase().includes(q));
+  }, [rows, nameSearch]);
 
   const fetchRows = useCallback(async () => {
     try {
@@ -161,6 +168,16 @@ const ManageDonations: React.FC = () => {
       )}
 
       <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          type="search"
+          value={nameSearch}
+          onChange={(e) => {
+            console.log("Donations search:", e.target.value);
+            setNameSearch(e.target.value);
+          }}
+          placeholder="Search donor..."
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white min-w-[200px] flex-1 max-w-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -203,14 +220,16 @@ const ManageDonations: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
                 <SecretaryTableSkeleton columns={8} />
-              ) : rows.length === 0 ? (
+              ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center text-slate-500">
-                    No donations recorded yet
+                    {nameSearch.trim()
+                      ? `No donor matching "${nameSearch.trim()}"`
+                      : "No donations recorded yet"}
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                filteredRows.map((row) => (
                   <tr key={row.donation_id}>
                     <td className="px-4 py-3 font-medium">{row.donor_name}</td>
                     <td className="px-4 py-3">

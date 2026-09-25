@@ -42,6 +42,7 @@ const ManageSpecialIntentions: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [nameSearch, setNameSearch] = useState("");
   const [preview, setPreview] = useState<SpecialIntentionRow | null>(null);
   const [rejectRow, setRejectRow] = useState<SpecialIntentionRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<SpecialIntentionRow | null>(null);
@@ -56,6 +57,12 @@ const ManageSpecialIntentions: React.FC = () => {
   const [denomRows, setDenomRows] = useState<DenominationLine[]>([emptyDenominationRow()]);
 
   const grandTotal = useMemo(() => sumDenominationLines(denomRows), [denomRows]);
+
+  const filteredRows = useMemo(() => {
+    const q = nameSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => (row.parishioner_name || "").toLowerCase().includes(q));
+  }, [rows, nameSearch]);
 
   const fetchRows = useCallback(async () => {
     try {
@@ -229,7 +236,17 @@ const ManageSpecialIntentions: React.FC = () => {
         <div className="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{feedback}</div>
       )}
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          type="search"
+          value={nameSearch}
+          onChange={(e) => {
+            console.log("Special intentions search:", e.target.value);
+            setNameSearch(e.target.value);
+          }}
+          placeholder="Search parishioner..."
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white min-w-[200px] flex-1 max-w-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -263,14 +280,16 @@ const ManageSpecialIntentions: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {loading && rows.length === 0 ? (
                 <SecretaryTableSkeleton columns={7} />
-              ) : rows.length === 0 ? (
+              ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-slate-500">
-                    No special intentions in this filter
+                    {nameSearch.trim()
+                      ? `No parishioner matching "${nameSearch.trim()}"`
+                      : "No special intentions in this filter"}
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => {
+                filteredRows.map((row) => {
                   const badge = statusBadge(row.status);
                   return (
                     <tr key={row.intention_id}>
