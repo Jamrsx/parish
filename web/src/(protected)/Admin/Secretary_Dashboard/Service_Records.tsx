@@ -238,10 +238,35 @@ const ServiceRecords: React.FC = () => {
     if (!user) return 'N/A';
     if (user.full_name) return user.full_name;
     if (user.first_name) {
-      const middle = user.middle_name ? ` ${user.middle_name}` : '';
-      return `${user.first_name}${middle} ${user.last_name}`;
+      const middle = user.middle_name ? ` ${user.middle_name} ` : ' ';
+      return `${user.first_name}${middle}${user.last_name || ''}`.replace(/\s+/g, ' ').trim();
     }
     return 'N/A';
+  };
+
+  const isMarriageRequest = (request: ExtendedManageRequest): boolean => {
+    const name = `${getServiceName(request) || ''}`.toLowerCase();
+    const handler = `${request.service?.form_handler || ''}`.toLowerCase();
+    const certType = `${
+      request.certificateForm?.certificate_type ||
+      request.certificateForm?.certificate_type_label ||
+      ''
+    }`.toLowerCase();
+    return name.includes('marriage') || handler.includes('marriage') || certType.includes('marriage');
+  };
+
+  const getRecordDisplayName = (request: ExtendedManageRequest): string => {
+    if (isMarriageRequest(request)) {
+      const coupleName =
+        request.serviceForm?.full_name?.trim() ||
+        request.certificateForm?.full_name?.trim() ||
+        '';
+      if (coupleName) {
+        console.log('[ServiceRecords] Couple name for request', request.request_id, coupleName);
+        return coupleName;
+      }
+    }
+    return getUserFullName(request.user);
   };
 
   const getRescheduledByName = (request: ExtendedManageRequest): string => {
@@ -554,7 +579,7 @@ const ServiceRecords: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-gray-700 font-medium">
-                      {getUserFullName(request.user)}
+                      {getRecordDisplayName(request)}
                     </td>
                     <td className="px-4 py-4 min-w-[9.5rem]">
                       <div className="flex flex-col gap-1">
@@ -686,10 +711,14 @@ const ServiceRecords: React.FC = () => {
 
               {/* User Info */}
               <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-500 mb-2">Submitted By</p>
-                <p className="font-medium text-gray-800">{getUserFullName(viewModal.request.user)}</p>
+                <p className="text-sm text-gray-500 mb-2">
+                  {isMarriageRequest(viewModal.request) ? 'Contact / Account' : 'Submitted By'}
+                </p>
+                {!isMarriageRequest(viewModal.request) && (
+                  <p className="font-medium text-gray-800">{getRecordDisplayName(viewModal.request)}</p>
+                )}
                 {viewModal.request.user && (
-                  <div className="text-sm text-gray-600 mt-2 space-y-1.5">
+                  <div className={`text-sm text-gray-600 space-y-1.5 ${isMarriageRequest(viewModal.request) ? '' : 'mt-2'}`}>
                     <p className="flex items-center gap-2">
                       <Mail size={14} className="text-slate-400" />
                       {viewModal.request.user.email || 'N/A'}

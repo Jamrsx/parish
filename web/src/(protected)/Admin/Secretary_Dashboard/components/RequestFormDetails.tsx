@@ -1,7 +1,7 @@
 import React from 'react';
 import { User as UserIcon, Users } from 'lucide-react';
 import type { BaptismForm, CertificateForm, FormType, ServiceForm } from '../../../../../library/manage-request';
-import { formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress } from './requestHelpers';
+import { formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress, splitCoupleNames } from './requestHelpers';
 
 interface BaptismFormGodparent {
   godparent_name: string;
@@ -51,6 +51,36 @@ const isBaptismFormGodparent = (gp: Godparent): gp is BaptismFormGodparent =>
 
 const isManageRequestGodparent = (gp: Godparent): gp is ManageRequestGodparent =>
   'name' in gp && 'type' in gp;
+
+const isMarriageRelated = (service?: {
+  service_type?: string;
+  form_handler?: string | null;
+} | null): boolean => {
+  const type = (service?.service_type || '').toLowerCase();
+  const handler = (service?.form_handler || '').toLowerCase();
+  return type.includes('marriage') || handler.includes('marriage');
+};
+
+const CoupleNamesBlock: React.FC<{ fullName?: string | null }> = ({ fullName }) => {
+  const { husband, wife } = splitCoupleNames(fullName);
+  return (
+    <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+        Couple&apos;s Name
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span className="text-slate-500 text-sm">Husband</span>
+          <p className="font-medium text-slate-800 mt-0.5">{husband}</p>
+        </div>
+        <div>
+          <span className="text-slate-500 text-sm">Wife</span>
+          <p className="font-medium text-slate-800 mt-0.5">{wife}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, formatDateOnly }) => {
   const formType = request.form_type;
@@ -177,6 +207,9 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
       );
     }
 
+    const isMarriageService = isMarriageRelated(request.service) ||
+      serviceType.toLowerCase().includes('marriage');
+
     return (
       <div className="space-y-3">
         <h4 className="font-semibold text-slate-700 border-b border-slate-200 pb-2">Service Details</h4>
@@ -185,10 +218,14 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
             <span className="text-slate-500">Service Name</span>
             <p className="font-medium text-slate-800">{serviceType}</p>
           </div>
-          <div>
-            <span className="text-slate-500">Full Name</span>
-            <p className="font-medium text-slate-800">{form.full_name}</p>
-          </div>
+          {isMarriageService ? (
+            <CoupleNamesBlock fullName={form.full_name} />
+          ) : (
+            <div>
+              <span className="text-slate-500">Full Name</span>
+              <p className="font-medium text-slate-800">{form.full_name}</p>
+            </div>
+          )}
           <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
             <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>
@@ -201,6 +238,10 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
 
   if (formType === 'certificate' && request.certificateForm) {
     const form = request.certificateForm;
+    const marriageCert = isMarriageRelated(request.service) ||
+      `${form.certificate_type || ''} ${form.certificate_type_label || ''} ${form.service_name || ''}`
+        .toLowerCase()
+        .includes('marriage');
 
     return (
       <div className="space-y-3">
@@ -212,28 +253,37 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
               {form.certificate_type_label || form.certificate_type || 'N/A'}
             </p>
           </div>
-          <div>
-            <span className="text-slate-500">Full Name</span>
-            <p className="font-medium text-slate-800">{form.full_name}</p>
-          </div>
-          <div>
-            <span className="text-slate-500">Birth Date</span>
-            <p className="font-medium text-slate-800">
-              {form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}
-            </p>
-          </div>
-          <div>
-            <span className="text-slate-500">Baptism Date</span>
-            <p className="font-medium text-slate-800">
-              {form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}
-            </p>
-          </div>
-          <div>
-            <span className="text-slate-500">Marriage Date</span>
-            <p className="font-medium text-slate-800">
-              {form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}
-            </p>
-          </div>
+          {marriageCert ? (
+            <CoupleNamesBlock fullName={form.full_name} />
+          ) : (
+            <div>
+              <span className="text-slate-500">Full Name</span>
+              <p className="font-medium text-slate-800">{form.full_name}</p>
+            </div>
+          )}
+          {marriageCert ? (
+            <div>
+              <span className="text-slate-500">Marriage Date</span>
+              <p className="font-medium text-slate-800">
+                {form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <span className="text-slate-500">Birth Date</span>
+                <p className="font-medium text-slate-800">
+                  {form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">Baptism Date</span>
+                <p className="font-medium text-slate-800">
+                  {form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}
+                </p>
+              </div>
+            </>
+          )}
           <div className="md:col-span-2">
             <span className="text-slate-500">Contact</span>
             <p className="font-medium text-slate-800">{formatPhilippinePhone(form.contact_number)}</p>

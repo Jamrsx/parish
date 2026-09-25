@@ -59,6 +59,8 @@ const emptyForm = () => ({
   first_name: "",
   middle_name: "",
   last_name: "",
+  husband_name: "",
+  wife_name: "",
   contact_number: "",
   address: "",
   preferred_date: "",
@@ -79,6 +81,23 @@ const emptyForm = () => ({
   marriage_date: "",
   intention_text: "",
 });
+
+const isCoupleWalkInService = (service: ChurchService | null, formType: string): boolean => {
+  if (!service) return false;
+  const type = `${service.service_type || ""} ${service.service_name || ""}`.toLowerCase();
+  const handler = (service.form_handler || "").toLowerCase();
+  if (formType === "certificate") {
+    return type.includes("marriage") || handler.includes("marriage");
+  }
+  if (formType === "service") {
+    return (
+      type.trim() === "marriage" ||
+      handler === "marriage" ||
+      (type.includes("marriage") && !type.includes("certificate"))
+    );
+  }
+  return false;
+};
 
 const inputClass =
   "w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent";
@@ -132,9 +151,17 @@ const WalkInBooking: React.FC = () => {
   };
 
   const formType = selected?.form_type || (selected?.is_baptism ? "baptism" : selected?.is_certificate ? "certificate" : "service");
+  const isCoupleBooking = isCoupleWalkInService(selected, formType);
 
   const validateClient = () => {
-    if (!form.first_name.trim() || !form.last_name.trim()) {
+    if (isCoupleBooking) {
+      if (!form.husband_name.trim() || !form.wife_name.trim()) {
+        return "Husband and wife full names are required.";
+      }
+      if (form.husband_name.trim().length > 50 || form.wife_name.trim().length > 50) {
+        return "Each full name must be 50 characters or less.";
+      }
+    } else if (!form.first_name.trim() || !form.last_name.trim()) {
       return "First name and last name are required.";
     }
     if (!/^09\d{9}$/.test(form.contact_number)) {
@@ -192,11 +219,28 @@ const WalkInBooking: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const husband = form.husband_name.trim();
+      const wife = form.wife_name.trim();
+      const couplePayload = isCoupleBooking
+        ? {
+            first_name: husband,
+            middle_name: "&",
+            last_name: wife,
+          }
+        : {
+            first_name: form.first_name.trim(),
+            middle_name: form.middle_name.trim() || undefined,
+            last_name: form.last_name.trim(),
+          };
+
+      console.log("Walk-in booking name payload:", {
+        isCoupleBooking,
+        ...couplePayload,
+      });
+
       const payload = {
         service_id: selected.service_id,
-        first_name: form.first_name.trim(),
-        middle_name: form.middle_name.trim() || undefined,
-        last_name: form.last_name.trim(),
+        ...couplePayload,
         contact_number: form.contact_number,
         is_resident: isResident ? 1 : 0,
         address: isResident ? undefined : form.address.trim(),
@@ -419,19 +463,47 @@ const WalkInBooking: React.FC = () => {
           </div>
 
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Walk-in client</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input className={inputClass} placeholder="First name *" value={form.first_name} onChange={(e) => setField("first_name", e.target.value)} />
-              <input className={inputClass} placeholder="Middle name" value={form.middle_name} onChange={(e) => setField("middle_name", e.target.value)} />
-              <input className={inputClass} placeholder="Last name *" value={form.last_name} onChange={(e) => setField("last_name", e.target.value)} />
-              <input
-                className={inputClass}
-                placeholder="09XXXXXXXXX *"
-                maxLength={11}
-                value={form.contact_number}
-                onChange={(e) => handlePhone(e.target.value)}
-              />
-            </div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+              {isCoupleBooking ? "Couple information" : "Walk-in client"}
+            </h3>
+            {isCoupleBooking ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  className={inputClass}
+                  placeholder="Husband's full name *"
+                  maxLength={50}
+                  value={form.husband_name}
+                  onChange={(e) => setField("husband_name", e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  placeholder="Wife's full name *"
+                  maxLength={50}
+                  value={form.wife_name}
+                  onChange={(e) => setField("wife_name", e.target.value)}
+                />
+                <input
+                  className={`${inputClass} sm:col-span-2`}
+                  placeholder="09XXXXXXXXX *"
+                  maxLength={11}
+                  value={form.contact_number}
+                  onChange={(e) => handlePhone(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input className={inputClass} placeholder="First name *" value={form.first_name} onChange={(e) => setField("first_name", e.target.value)} />
+                <input className={inputClass} placeholder="Middle name" value={form.middle_name} onChange={(e) => setField("middle_name", e.target.value)} />
+                <input className={inputClass} placeholder="Last name *" value={form.last_name} onChange={(e) => setField("last_name", e.target.value)} />
+                <input
+                  className={inputClass}
+                  placeholder="09XXXXXXXXX *"
+                  maxLength={11}
+                  value={form.contact_number}
+                  onChange={(e) => handlePhone(e.target.value)}
+                />
+              </div>
+            )}
             <div className="mt-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Residency</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

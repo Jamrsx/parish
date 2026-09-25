@@ -51,10 +51,30 @@ const getUserFullName = (user: User | undefined | null): string => {
 };
 
 const getServiceDisplayName = (request: ManageRequest): string => {
-  if (request.service?.service_name) return request.service.service_name;
-  if (request.baptismForm) return "Baptism";
-  if (request.certificateForm) return "Certificate";
-  if (request.serviceForm) return "Church Service";
+  const fromService =
+    request.service?.service_name || request.service?.service_type || "";
+  if (fromService) return fromService;
+
+  if (request.baptismForm || request.form_type === "baptism") return "Baptism";
+
+  if (request.certificateForm || request.form_type === "certificate") {
+    const raw = (
+      request.certificateForm?.certificate_type ||
+      request.certificateForm?.certificate_type_label ||
+      request.certificateForm?.service_name ||
+      ""
+    )
+      .toString()
+      .toLowerCase();
+    if (raw.includes("marriage")) return "Marriage Certificate";
+    if (raw.includes("baptism")) return "Baptismal Certificate";
+    return "Certificate";
+  }
+
+  if (request.serviceForm || request.form_type === "service") {
+    return "Church Service";
+  }
+
   return "Unknown";
 };
 
@@ -119,6 +139,15 @@ const SecretaryHomePage: React.FC = () => {
 
       const requests: ManageRequest[] = response.data?.data?.data || [];
       console.log("Secretary dashboard loaded requests:", requests.length);
+      console.log(
+        "Recent request labels:",
+        requests.slice(0, 10).map((r) => ({
+          id: r.request_id,
+          label: getServiceDisplayName(r),
+          service_type: r.service?.service_type,
+          service_name: r.service?.service_name,
+        }))
+      );
 
       setRecentRequests(requests.slice(0, 10));
       setStats({

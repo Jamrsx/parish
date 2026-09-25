@@ -68,3 +68,24 @@ export const getRequestFormAddress = (request?: {
     ''
   );
 };
+
+/** Split "Husband & Wife" (or similar) into separate names for display. */
+export const splitCoupleNames = (
+  fullName?: string | null
+): { husband: string; wife: string } => {
+  const raw = (fullName || '').trim();
+  if (!raw) return { husband: 'N/A', wife: 'N/A' };
+
+  const separators = [' & ', ' and ', ' And ', ' AND '];
+  for (const sep of separators) {
+    const idx = raw.indexOf(sep);
+    if (idx > 0) {
+      return {
+        husband: raw.slice(0, idx).trim() || 'N/A',
+        wife: raw.slice(idx + sep.length).trim() || 'N/A',
+      };
+    }
+  }
+
+  return { husband: raw, wife: 'N/A' };
+};
