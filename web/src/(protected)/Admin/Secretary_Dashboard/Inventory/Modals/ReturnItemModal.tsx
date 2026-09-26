@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import type { BorrowRecord } from "../../../../../library/borrowRecords";
+import type { BorrowRecord } from "../../../../../../library/borrowRecords";
 import { AlertTriangle } from "lucide-react";
 
 interface ReturnItemModalProps {

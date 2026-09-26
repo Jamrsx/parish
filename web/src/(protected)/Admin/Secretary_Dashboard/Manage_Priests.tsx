@@ -137,7 +137,7 @@ const ManagePriests: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleChange = (field: keyof PriestFormData, value: string) => {
+  const handleChange = (field: keyof FormErrors, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));

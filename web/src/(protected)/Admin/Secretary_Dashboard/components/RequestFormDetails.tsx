@@ -18,7 +18,7 @@ type Godparent = BaptismFormGodparent | ManageRequestGodparent;
 interface RequestFormDetailsProps {
   request: {
     form_type?: FormType | null;
-    is_resident?: boolean;
+    is_resident?: boolean | number | string | null;
     baptismForm?: BaptismForm;
     serviceForm?: ServiceForm;
     certificateForm?: CertificateForm;
@@ -27,7 +27,11 @@ interface RequestFormDetailsProps {
   formatDateOnly: (dateString: string | undefined) => string;
 }
 
-const ResidencyFields: React.FC<{ isResident?: boolean; address?: string | null; spanClass?: string }> = ({
+const ResidencyFields: React.FC<{
+  isResident?: boolean | number | string | null;
+  address?: string | null;
+  spanClass?: string;
+}> = ({
   isResident,
   address,
   spanClass = 'md:col-span-2',
