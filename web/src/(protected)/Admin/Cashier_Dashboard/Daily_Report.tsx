@@ -42,7 +42,7 @@ const DailyReport: React.FC = () => {
     fetchReport();
   }, [fetchReport]);
 
-  const handleFullDayPdf = () => {
+  const handleFullDayPdf = async () => {
     if (!report) {
       alert("Load a daily report first before generating the PDF.");
       return;
@@ -50,7 +50,7 @@ const DailyReport: React.FC = () => {
     try {
       setGeneratingPdf("full-day");
       console.log("Generating full-day cash count PDF for:", report.date);
-      downloadCashCountPdf(report, { mode: "full-day" });
+      await downloadCashCountPdf(report, { mode: "full-day" });
     } catch (err) {
       console.error("Cash count PDF error:", err);
       alert("Could not generate the full-day Cash Count Form PDF. Please try again.");
@@ -59,7 +59,7 @@ const DailyReport: React.FC = () => {
     }
   };
 
-  const handlePerMassPdf = (mass: MassCollectionRow) => {
+  const handlePerMassPdf = async (mass: MassCollectionRow) => {
     if (!report) return;
     try {
       setGeneratingPdf(mass.collection_id);
@@ -68,7 +68,7 @@ const DailyReport: React.FC = () => {
         mass_type: mass.mass_type,
         mass_time: mass.mass_time,
       });
-      downloadCashCountPdf(report, {
+      await downloadCashCountPdf(report, {
         mode: "per-mass",
         massCollectionId: mass.collection_id,
         timeLabel: formatMassTimeLabel(mass.mass_time),

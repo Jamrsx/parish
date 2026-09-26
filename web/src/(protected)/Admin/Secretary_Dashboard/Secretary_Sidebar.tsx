@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
+import PageLoader from "../../../components/PageLoader";
 import { useAuth } from "../../../../context/AuthContext";
 import { manageRequestAPI } from "../../../../library/manage-request";
 import {
@@ -356,7 +357,9 @@ const SecretarySidebar: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto bg-slate-50">
           <div className="p-6 max-w-7xl mx-auto w-full">
-            <Outlet />
+            <Suspense fallback={<PageLoader fullScreen={false} />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

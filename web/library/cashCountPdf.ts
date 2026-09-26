@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 import type { DailyReportData, DenominationLine, MassCollectionRow } from "./cashier";
 
 /** Paper form denomination rows (20 bill vs 20 coin cannot both be known from stored data). */
@@ -270,10 +270,10 @@ const fillMetaLine = (label: string, value: string, blankPad = 28) => {
   return `${label}: ${padded}`;
 };
 
-export const downloadCashCountPdf = (
+export const downloadCashCountPdf = async (
   report: DailyReportData,
   options: CashCountPdfOptions = {}
-) => {
+): Promise<void> => {
   const mode = options.mode || "full-day";
   const selectedMass =
     mode === "per-mass"
@@ -298,7 +298,10 @@ export const downloadCashCountPdf = (
         : "";
 
   const grid = buildCashCountGrid(report, options);
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  console.log("[CashCountPdf] Loading PDF library...");
+  const { jsPDF: JsPDF } = await import("jspdf");
+  console.log("[CashCountPdf] PDF library loaded");
+  const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();

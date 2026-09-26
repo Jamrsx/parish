@@ -1,50 +1,55 @@
 // App.tsx
+import { lazy, Suspense, type ComponentType } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { GuestOnly, RequireAuth } from "./components/AuthRoute";
 import { authStorage } from "../library/AuthStorage";
+import PageLoader from "./components/PageLoader";
 
 // Auth Pages
 import Login from "./(auth)/login";
 import Signup from "./(auth)/signup";
 
-// Admin - Secretary
+// Admin - Secretary (layout shell stays eager so the sidebar never flickers)
 import SecretarySidebar from './(protected)/Admin/Secretary_Dashboard/Secretary_Sidebar';
-import SecretaryDashboard from "./(protected)/Admin/Secretary_Dashboard/SecretaryHomePage";
-import ManageRequests from "./(protected)/Admin/Secretary_Dashboard/Manage_Requests";
-import ManageInventory from "./(protected)/Admin/Secretary_Dashboard/Inventory/Manage_Inventory";
-import ScheduledServices from "./(protected)/Admin/Secretary_Dashboard/Scheduled_Services";
-import ServiceRecords from "./(protected)/Admin/Secretary_Dashboard/Service_Records";
-import ManagePriests from "./(protected)/Admin/Secretary_Dashboard/Manage_Priests";
-import ManageCashiers from "./(protected)/Admin/Secretary_Dashboard/Manage_Cashiers";
-import ManageDonations from "./(protected)/Admin/Secretary_Dashboard/Manage_Donations";
-import ManageMassCollections from "./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections";
-import ManageSpecialIntentions from "./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions";
-import ManageServices from "./(protected)/Admin/Secretary_Dashboard/Manage_Services";
-import WalkInBooking from "./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking";
+
+const lazyPage = (name: string, loader: () => Promise<{ default: ComponentType }>) =>
+  lazy(() => {
+    console.log(`[Router] Loading page: ${name}`);
+    return loader();
+  });
+
+const SecretaryDashboard = lazyPage("SecretaryDashboard", () => import("./(protected)/Admin/Secretary_Dashboard/SecretaryHomePage"));
+const ManageRequests = lazyPage("ManageRequests", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Requests"));
+const ManageInventory = lazyPage("ManageInventory", () => import("./(protected)/Admin/Secretary_Dashboard/Inventory/Manage_Inventory"));
+const ScheduledServices = lazyPage("ScheduledServices", () => import("./(protected)/Admin/Secretary_Dashboard/Scheduled_Services"));
+const ServiceRecords = lazyPage("ServiceRecords", () => import("./(protected)/Admin/Secretary_Dashboard/Service_Records"));
+const ManagePriests = lazyPage("ManagePriests", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Priests"));
+const ManageCashiers = lazyPage("ManageCashiers", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Cashiers"));
+const ManageDonations = lazyPage("ManageDonations", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Donations"));
+const ManageMassCollections = lazyPage("ManageMassCollections", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections"));
+const ManageSpecialIntentions = lazyPage("ManageSpecialIntentions", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions"));
+const ManageServices = lazyPage("ManageServices", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Services"));
+const WalkInBooking = lazyPage("WalkInBooking", () => import("./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking"));
 
 // Admin - Cashier
-import CashierDashboard from "./(protected)/Admin/Cashier_Dashboard/CashierHomePage";
+const CashierDashboard = lazyPage("CashierDashboard", () => import("./(protected)/Admin/Cashier_Dashboard/CashierHomePage"));
 
 // Priest
-import PriestHomePage from "./(protected)/Admin/Priest_Dashboard/PriestHomePage";
-import PriestIncome from "./(protected)/Admin/Priest_Dashboard/PriestIncome";
-import PriestInventory from "./(protected)/Admin/Priest_Dashboard/PriestInventory";
+const PriestHomePage = lazyPage("PriestHomePage", () => import("./(protected)/Admin/Priest_Dashboard/PriestHomePage"));
+const PriestIncome = lazyPage("PriestIncome", () => import("./(protected)/Admin/Priest_Dashboard/PriestIncome"));
+const PriestInventory = lazyPage("PriestInventory", () => import("./(protected)/Admin/Priest_Dashboard/PriestInventory"));
 
 // Parishioner
-import ParishionerHome from "./(protected)/Parishioner_Dashboard/ParishionerHomePage";
-import ParishionerChurchService from "./(protected)/Parishioner_Dashboard/Church_service";
-import ParishionerProfile from "./(protected)/Parishioner_Dashboard/Profile";
+const ParishionerHome = lazyPage("ParishionerHome", () => import("./(protected)/Parishioner_Dashboard/ParishionerHomePage"));
+const ParishionerChurchService = lazyPage("ParishionerChurchService", () => import("./(protected)/Parishioner_Dashboard/Church_service"));
+const ParishionerProfile = lazyPage("ParishionerProfile", () => import("./(protected)/Parishioner_Dashboard/Profile"));
 
 function HomeRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (isAuthenticated && user) {
@@ -58,6 +63,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public Routes — logged-in users cannot stay here */}
           <Route
@@ -165,6 +171,7 @@ function App() {
 
           <Route path="*" element={<HomeRedirect />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );
