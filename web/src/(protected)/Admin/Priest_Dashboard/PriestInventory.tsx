@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
 import { priestAPI } from '../../../../library/priest';
 import type { InventoryItem } from '../../../../library/inventory';
-import { LogOut, RefreshCw, Search } from 'lucide-react';
+import { History, LogOut, Package, RefreshCw, Search } from 'lucide-react';
 import PriestNav from './PriestNav';
+import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
 
 const statusLabel = (item: InventoryItem): { text: string; className: string } => {
   if (item.quantity <= 0) {
@@ -29,6 +30,7 @@ const PriestInventory: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 10;
+  const [view, setView] = useState<'items' | 'history'>('items');
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -135,6 +137,44 @@ const PriestInventory: React.FC = () => {
 
         <PriestNav />
 
+        <div
+          role="tablist"
+          aria-label="Inventory views"
+          className="mb-6 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm"
+        >
+          {([
+            { id: 'items', label: 'Items', icon: Package },
+            { id: 'history', label: 'History', icon: History },
+          ] as const).map(({ id, label, icon: Icon }) => {
+            const active = view === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => {
+                  console.log('[PriestInventory] View changed:', id);
+                  setView(id);
+                }}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  active ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {view === 'history' ? (
+          <InventoryHistoryPanel
+            fetcher={priestAPI.getInventoryHistory}
+            readOnlyNote="View only. Shows every stock added or deducted, new items, borrows, returns and edits made by the secretary."
+          />
+        ) : (
+        <>
         <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Inventory</h2>
@@ -262,6 +302,8 @@ const PriestInventory: React.FC = () => {
               Next
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

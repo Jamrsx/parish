@@ -167,6 +167,25 @@ export interface CreateCashierData {
   password: string;
 }
 
+export interface UpdateStaffBaseData {
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  contact_number?: string | null;
+  password?: string;
+  password_confirmation?: string;
+}
+
+export interface UpdatePriestData extends UpdateStaffBaseData {
+  email: string;
+  is_resident: boolean | number;
+}
+
+export interface UpdateCashierData extends UpdateStaffBaseData {
+  username: string;
+  email?: string | null;
+}
+
 export const usersAPI = {
   listPriests: (options?: { activeOnly?: boolean; availableOnly?: boolean }) =>
     api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
@@ -191,6 +210,12 @@ export const usersAPI = {
 
   createCashier: (data: CreateCashierData) =>
     api.post<ApiResponse<User>>('/admin/create-cashier', data),
+
+  updatePriest: (userId: number, data: UpdatePriestData) =>
+    api.put<ApiResponse<User>>(`/admin/users/${userId}`, data),
+
+  updateCashier: (userId: number, data: UpdateCashierData) =>
+    api.put<ApiResponse<User>>(`/admin/users/${userId}`, data),
 
   disablePriest: (userId: number) =>
     api.post<ApiResponse<User>>(`/admin/users/${userId}/disable`),

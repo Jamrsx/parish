@@ -24,9 +24,13 @@ import ReturnItemModal from "./Modals/ReturnItemModal";
 import AlertModal from "./Modals/AlertModal";
 import ConfirmationModal from "./Modals/ConfirmationModal";
 import PageHeader from "../components/PageHeader";
+import InventoryHistoryPanel from "../../components/InventoryHistoryPanel";
 import { Package, Plus } from "lucide-react";
 
 const INVENTORY_PAGE_SIZE = 10;
+
+const apiErrorMessage = (error: unknown): string | undefined =>
+  (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 
 const Manage_Inventory: React.FC = () => {
   // State management
@@ -40,6 +44,7 @@ const Manage_Inventory: React.FC = () => {
   const [categories, setCategories] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("inventory");
   const [inventoryPage, setInventoryPage] = useState(1);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -192,6 +197,7 @@ const fetchAllBorrowRecords = useCallback(async () => {
           returned: data.returned_items,
         });
       }
+      setHistoryRefreshKey((key) => key + 1);
     } catch (error) {
       console.error("Error fetching items:", error);
       showAlert("error", "Failed to load inventory items.");
@@ -362,11 +368,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
       } else {
         showAlert("error", response.data.message || "Failed to return item.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error returning item:", error);
       showAlert(
         "error",
-        error?.response?.data?.message || "Failed to return item."
+        apiErrorMessage(error) || "Failed to return item."
       );
     } finally {
       setReturning(false);
@@ -387,11 +393,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
             showAlert("success", "Item deleted successfully!");
             fetchItems();
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error deleting item:", error);
           showAlert(
             "error",
-            error?.response?.data?.message || "Failed to delete item."
+            apiErrorMessage(error) || "Failed to delete item."
           );
         }
       },
@@ -469,7 +475,7 @@ const fetchAllBorrowRecords = useCallback(async () => {
     setShowAdjustModal(true);
   };
 
-  const handleAdjustStock = async (amount: number) => {
+  const handleAdjustStock = async (amount: number, note?: string) => {
     if (!selectedItem) return;
 
     const current = selectedItem.quantity || 0;
@@ -489,9 +495,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
         current,
         amount,
         next,
+        note,
       });
       const response = await inventoryAPI.update(selectedItem.inventory_id, {
         quantity: next,
+        ...(note ? { history_note: note } : {}),
       });
       if (response.data.success) {
         showAlert(
@@ -506,11 +514,11 @@ const fetchAllBorrowRecords = useCallback(async () => {
       } else {
         showAlert("error", response.data.message || "Failed to update stock.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error adjusting stock:", error);
       showAlert(
         "error",
-        error?.response?.data?.message || "Failed to update stock."
+        apiErrorMessage(error) || "Failed to update stock."
       );
     } finally {
       setAdjustSubmitting(false);
@@ -546,19 +554,28 @@ const fetchAllBorrowRecords = useCallback(async () => {
         {/* View Mode Tabs */}
         <InventoryTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
+        {activeTab === "history" && (
+          <InventoryHistoryPanel
+            fetcher={inventoryAPI.getHistory}
+            refreshKey={historyRefreshKey}
+          />
+        )}
+
         {/* Filters */}
-        <InventoryFilters
-          activeTab={activeTab}
-          searchTerm={searchTerm}
-          filterType={filterType}
-          filterStatus={filterStatus}
-          filterCategory={filterCategory}
-          categories={categories}
-          onSearchChange={setSearchTerm}
-          onFilterTypeChange={setFilterType}
-          onFilterStatusChange={setFilterStatus}
-          onFilterCategoryChange={setFilterCategory}
-        />
+        {activeTab !== "history" && (
+          <InventoryFilters
+            activeTab={activeTab}
+            searchTerm={searchTerm}
+            filterType={filterType}
+            filterStatus={filterStatus}
+            filterCategory={filterCategory}
+            categories={categories}
+            onSearchChange={setSearchTerm}
+            onFilterTypeChange={setFilterType}
+            onFilterStatusChange={setFilterStatus}
+            onFilterCategoryChange={setFilterCategory}
+          />
+        )}
 
         {/* Info Banner */}
         {activeTab === "logs" && (
@@ -606,31 +623,33 @@ const fetchAllBorrowRecords = useCallback(async () => {
         )}
 
         {/* Items Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {activeTab === "inventory" && (
-            <InventoryTable
-              items={paginatedMainInventoryItems}
-              loading={loading}
-              onEdit={openEditModal}
-              onDelete={handleDelete}
-              onAdjustStock={openAdjustStockModal}
-            />
-          )}
-          {activeTab === "borrow" && (
-            <BorrowItemsTable
-              items={mainInventoryItems}
-              loading={loading}
-              onBorrow={openBorrowModal}
-            />
-          )}
-          {activeTab === "logs" && (
-            <BorrowerLogsTable
-              records={filteredBorrowRecords}
-              loading={loading}
-              onReturn={handleReturn}
-            />
-          )}
-        </div>
+        {activeTab !== "history" && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {activeTab === "inventory" && (
+              <InventoryTable
+                items={paginatedMainInventoryItems}
+                loading={loading}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+                onAdjustStock={openAdjustStockModal}
+              />
+            )}
+            {activeTab === "borrow" && (
+              <BorrowItemsTable
+                items={mainInventoryItems}
+                loading={loading}
+                onBorrow={openBorrowModal}
+              />
+            )}
+            {activeTab === "logs" && (
+              <BorrowerLogsTable
+                records={filteredBorrowRecords}
+                loading={loading}
+                onReturn={handleReturn}
+              />
+            )}
+          </div>
+        )}
 
         {activeTab === "inventory" && !loading && mainInventoryItems.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">

@@ -1,8 +1,8 @@
 import React from "react";
-import { Package, Handshake, ScrollText } from "lucide-react";
+import { Package, Handshake, ScrollText, History } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type TabType = "inventory" | "borrow" | "logs";
+export type TabType = "inventory" | "borrow" | "logs" | "history";
 
 interface InventoryTabsProps {
   activeTab: TabType;
@@ -13,6 +13,7 @@ const tabs: { id: TabType; label: string; icon: LucideIcon }[] = [
   { id: "inventory", label: "Main Inventory", icon: Package },
   { id: "borrow", label: "Borrow Items", icon: Handshake },
   { id: "logs", label: "Borrower Logs", icon: ScrollText },
+  { id: "history", label: "Inventory History", icon: History },
 ];
 
 const InventoryTabs: React.FC<InventoryTabsProps> = ({ activeTab, onTabChange }) => {

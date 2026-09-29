@@ -595,6 +595,126 @@ class AuthController extends Controller
     }
 
     /**
+     * Update priest or cashier account details (Admin only)
+     */
+    public function updateStaffAccount(Request $request, $id)
+    {
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        if (!$user->isPriest() && !$user->isCashier()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only priest or cashier accounts can be edited here.'
+            ], 422);
+        }
+
+        $isPriest = $user->isPriest();
+        $label = $isPriest ? 'Priest' : 'Cashier';
+
+        $rules = [
+            'first_name' => 'required|string|max:50',
+            'middle_name' => 'nullable|string|max:50',
+            'last_name' => 'required|string|max:50',
+            'contact_number' => ['nullable', 'regex:/^09\d{9}$/'],
+            'password' => 'nullable|string|min:8|confirmed',
+        ];
+
+        if ($isPriest) {
+            $rules['email'] = [
+                'required', 'email', 'max:100',
+                Rule::unique('users', 'email')->ignore($user->user_id, 'user_id'),
+            ];
+            $rules['is_resident'] = 'required|boolean';
+        } else {
+            $rules['username'] = [
+                'required', 'string', 'regex:/^[a-zA-Z0-9._-]{3,50}$/',
+                Rule::unique('users', 'username')->ignore($user->user_id, 'user_id'),
+            ];
+            $rules['email'] = [
+                'nullable', 'email', 'max:100',
+                Rule::unique('users', 'email')->ignore($user->user_id, 'user_id'),
+            ];
+        }
+
+        $validator = Validator::make($request->all(), $rules, [
+            'contact_number.regex' => 'Enter 11-digit PH number (e.g., 09123456789).',
+            'username.regex' => 'Username must be 3–50 characters (letters, numbers, . _ -).',
+            'email.unique' => 'This email is already used by another account.',
+            'username.unique' => 'This username is already taken.',
+            'password.confirmed' => 'Passwords do not match.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first() ?: 'Please check the form.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $updateData = [
+            'first_name' => trim($request->first_name),
+            'middle_name' => $request->filled('middle_name') ? trim($request->middle_name) : null,
+            'last_name' => trim($request->last_name),
+            'contact_number' => $request->filled('contact_number') ? $request->contact_number : null,
+            'email' => $request->filled('email') ? trim($request->email) : null,
+        ];
+
+        if ($isPriest) {
+            $rawResident = $request->input('is_resident');
+            $updateData['is_resident'] = !in_array($rawResident, [false, 0, '0', 'false', 'False', 'off', 'no'], true);
+        } else {
+            $updateData['username'] = trim($request->username);
+        }
+
+        $passwordChanged = $request->filled('password');
+        if ($passwordChanged) {
+            $updateData['password'] = $request->password;
+        }
+
+        $user->fill($updateData);
+        $changedFields = array_values(array_diff(array_keys($user->getDirty()), ['password']));
+        if ($passwordChanged) {
+            $changedFields[] = 'password';
+        }
+
+        if (empty($changedFields)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No changes to save.',
+                'data' => $this->formatUserData($user)
+            ]);
+        }
+
+        $user->save();
+
+        if ($passwordChanged) {
+            $user->tokens()->delete();
+        }
+
+        \Log::info("{$label} account updated", [
+            'user_id' => $user->user_id,
+            'updated_by' => auth('sanctum')->id(),
+            'changed_fields' => $changedFields,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $passwordChanged
+                ? "{$label} account updated. The password was changed, so they need to log in again."
+                : "{$label} account updated successfully.",
+            'data' => $this->formatUserData($user->fresh())
+        ]);
+    }
+
+    /**
      * Priest only: Update availability for new assignments
      */
     public function updatePriestAvailability(Request $request)

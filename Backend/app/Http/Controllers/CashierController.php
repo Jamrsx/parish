@@ -166,6 +166,7 @@ class CashierController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('or_number', 'LIKE', "%{$search}%")
+                    ->orWhere('notes', 'LIKE', "%{$search}%")
                     ->orWhereHas('request.user', function ($sub) use ($search) {
                         $sub->where('first_name', 'LIKE', "%{$search}%")
                             ->orWhere('last_name', 'LIKE', "%{$search}%");
@@ -176,7 +177,7 @@ class CashierController extends Controller
             });
         }
 
-        $perPage = $request->input('per_page', 20);
+        $perPage = min(100, max(1, (int) $request->input('per_page', 20)));
         $rows = $query->orderByDesc('created_at')->paginate($perPage);
         $rows->getCollection()->transform(fn ($p) => $this->transformPayment($p));
 

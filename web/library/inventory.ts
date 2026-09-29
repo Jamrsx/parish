@@ -33,7 +33,83 @@ export interface UpdateInventoryData {
     type?: 'item' | 'consumable';
     category?: string;
     is_borrowable?: boolean;
+    history_note?: string;
 }
+
+export type InventoryHistoryAction =
+    | 'created'
+    | 'stock_in'
+    | 'stock_out'
+    | 'borrowed'
+    | 'returned'
+    | 'returned_damaged'
+    | 'edited'
+    | 'deleted';
+
+export type InventoryHistoryGroup = 'all' | 'stock_in' | 'stock_out' | 'new' | 'borrow' | 'edits';
+
+export interface InventoryHistoryChange {
+    field: string;
+    label: string;
+    from: string | number | boolean | null;
+    to: string | number | boolean | null;
+}
+
+export interface InventoryHistoryRow {
+    history_id: number;
+    inventory_id: number | null;
+    item_name: string;
+    action: InventoryHistoryAction;
+    action_label: string;
+    quantity_change: number;
+    quantity_before: number | null;
+    quantity_after: number | null;
+    borrow_record_id: number | null;
+    details: {
+        changes?: InventoryHistoryChange[];
+        borrower_name?: string | null;
+        borrower_phone?: string | null;
+        location?: string | null;
+        expected_return_date?: string | null;
+        quantity_borrowed?: number;
+        quantity_damaged?: number;
+        damage_notes?: string | null;
+        category?: string | null;
+        type?: string | null;
+        is_borrowable?: boolean;
+        source?: string;
+    } | null;
+    notes: string | null;
+    performed_by: string | null;
+    performed_by_role: string | null;
+    occurred_at: string;
+}
+
+export interface InventoryHistorySummary {
+    stock_in_qty: number;
+    stock_in_count: number;
+    stock_out_qty: number;
+    stock_out_count: number;
+    new_items: number;
+    borrowed: number;
+    returned: number;
+    edits: number;
+    total: number;
+}
+
+export interface InventoryHistoryParams {
+    group?: InventoryHistoryGroup;
+    inventory_id?: number;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+    per_page?: number;
+    page?: number;
+}
+
+export type InventoryHistoryResponse = ApiResponse<PaginatedResponse<InventoryHistoryRow>> & {
+    summary?: InventoryHistorySummary;
+};
 
 export interface BorrowFormData {
     borrower_name: string;
@@ -126,6 +202,11 @@ export const inventoryAPI = {
  */
     getCategories: () => {
         return api.get<ApiResponse<string[]>>('/admin/inventory/categories');
+    },
+
+    getHistory: (params?: InventoryHistoryParams) => {
+        console.log('[InventoryHistory] Fetch (secretary):', params);
+        return api.get<InventoryHistoryResponse>('/admin/inventory/history', { params });
     }
 };
 

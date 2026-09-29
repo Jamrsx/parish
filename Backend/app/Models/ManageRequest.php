@@ -469,7 +469,7 @@ class ManageRequest extends Model
             ? $rescheduledBy->first_name . ' ' . $rescheduledBy->last_name
             : 'Admin';
 
-        $message = "Your request has been rescheduled from {$oldDate} at {$oldTime} to {$newDate} at {$newTime}.";
+        $message = $this->notificationRequestPhrase(false) . " has been rescheduled from {$oldDate} at {$oldTime} to {$newDate} at {$newTime}.";
 
         if ($reason) {
             $message .= " Reason: {$reason}";
@@ -643,6 +643,34 @@ class ManageRequest extends Model
 
     // ============ NOTIFICATION METHODS ============
 
+    public function notificationServiceLabel(): string
+    {
+        $this->loadMissing('service');
+        $name = trim((string) ($this->service?->service_type ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+        $label = $this->form_type_label;
+        return $label !== 'Unknown' ? $label : 'church service';
+    }
+
+    public function notificationScheduleLabel(): ?string
+    {
+        if (!$this->preferred_date) {
+            return null;
+        }
+        $date = \Carbon\Carbon::parse($this->preferred_date)->format('M d, Y');
+        $time = self::normalizeTime($this->preferred_time);
+        return $time !== '' ? $date . ' at ' . date('g:i A', strtotime($time)) : $date;
+    }
+
+    private function notificationRequestPhrase(bool $withSchedule = true): string
+    {
+        $phrase = 'Your ' . $this->notificationServiceLabel() . ' request';
+        $schedule = $withSchedule ? $this->notificationScheduleLabel() : null;
+        return $schedule ? $phrase . ' for ' . $schedule : $phrase;
+    }
+
     /**
      * Create notification for new request
      */
@@ -653,7 +681,7 @@ class ManageRequest extends Model
             'request_id' => $this->request_id,
             'type' => 'request_pending',
             'title' => 'New Request Submitted',
-            'message' => 'Your ' . $this->form_type_label . ' request has been submitted and is pending review.'
+            'message' => $this->notificationRequestPhrase() . ' has been submitted and is pending review.'
         ]);
     }
 
@@ -666,33 +694,36 @@ class ManageRequest extends Model
             return null;
         }
 
+        $withSchedule = $this->notificationRequestPhrase();
+        $withoutSchedule = $this->notificationRequestPhrase(false);
+
         $statusConfig = [
             'pending' => [
                 'type' => 'request_pending',
                 'title' => 'Request Pending',
-                'message' => 'Your request is now pending review.'
+                'message' => $withSchedule . ' is now pending review.'
             ],
             'approved' => [
                 'type' => 'request_approved',
                 'title' => 'Request Approved',
-                'message' => 'Your request has been approved!'
+                'message' => $withSchedule . ' has been approved!'
             ],
             'done' => [
                 'type' => 'request_completed',
                 'title' => 'Request Completed',
-                'message' => 'Your request has been completed.'
+                'message' => $withoutSchedule . ' has been completed.'
             ],
             'cancelled' => [
                 'type' => 'request_cancelled',
                 'title' => 'Request Cancelled',
-                'message' => 'Your request has been cancelled.'
+                'message' => $withSchedule . ' has been cancelled.'
             ]
         ];
 
         $config = $statusConfig[$this->status] ?? [
             'type' => 'status_update',
             'title' => 'Request Update',
-            'message' => 'Your request status has been updated to ' . ucfirst($this->status) . '.'
+            'message' => $withoutSchedule . ' status has been updated to ' . ucfirst($this->status) . '.'
         ];
 
         // Add cancellation reason if applicable

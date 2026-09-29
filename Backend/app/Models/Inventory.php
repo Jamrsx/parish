@@ -109,7 +109,16 @@ class Inventory extends Model
                 continue;
             }
 
-            self::create(array_merge($row, ['is_builtin' => true]));
+            $newItem = self::create(array_merge($row, ['is_builtin' => true]));
+            InventoryHistory::record($newItem, InventoryHistory::ACTION_CREATED, (int) $newItem->quantity, 0, (int) $newItem->quantity, [
+                'performed_by' => null,
+                'details' => [
+                    'category' => $newItem->category,
+                    'type' => $newItem->type,
+                    'is_borrowable' => (bool) $newItem->is_borrowable,
+                ],
+                'notes' => 'Added automatically from the parish catalog.',
+            ]);
             $created++;
         }
 

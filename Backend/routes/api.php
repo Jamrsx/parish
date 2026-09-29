@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('users')->group(function () {
             Route::get('/', [AuthController::class, 'listUsers']);
             Route::get('/{id}', [AuthController::class, 'getUser']);
+            Route::put('/{id}', [AuthController::class, 'updateStaffAccount']);
             Route::post('/{id}/disable', [AuthController::class, 'disableUser']);
             Route::post('/{id}/enable', [AuthController::class, 'enableUser']);
             Route::delete('/{id}', [AuthController::class, 'deleteUser']);
@@ -180,6 +181,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/available', [InventoryController::class, 'getAvailable']);
             Route::get('/statistics', [InventoryController::class, 'getStatistics']);
             Route::get('/search', [InventoryController::class, 'search']);
+            Route::get('/history', [InventoryController::class, 'history']);
             
             // GENERIC ROUTES AFTER
             Route::get('/', [InventoryController::class, 'index']);
@@ -263,6 +265,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/general-report', [CashierController::class, 'generalReport']);
         Route::get('/inventory', [InventoryController::class, 'index']);
         Route::get('/inventory/categories', [InventoryController::class, 'getCategories']);
+        Route::get('/inventory/history', [InventoryController::class, 'history']);
         Route::get('/inventory/{id}', [InventoryController::class, 'show']);
 
         Route::prefix('notifications')->group(function () {

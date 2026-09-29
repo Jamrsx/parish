@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, ChevronLeft, Plus, Pencil, Trash2, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, ChevronLeft, Info, Plus, Pencil, Trash2, X } from "lucide-react";
 import PageHeader from "./components/PageHeader";
+import ModalCloseButton from "./components/ModalCloseButton";
 import { churchServiceAPI, formatFee, type ChurchService } from "../../../../library/church_service";
-import { manageRequestAPI } from "../../../../library/manage-request";
+import { manageRequestAPI, getUserFullName } from "../../../../library/manage-request";
+import { usersAPI } from "../../../../library/api";
+import type { User } from "../../../../library/AuthStorage";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import AlertModal from "./Inventory/Modals/AlertModal";
 
@@ -116,6 +119,10 @@ const WalkInBooking: React.FC = () => {
   const [gpRows, setGpRows] = useState<GodparentNameRow[]>([emptyGodparentRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [priestModalOpen, setPriestModalOpen] = useState(false);
+  const [priests, setPriests] = useState<User[]>([]);
+  const [priestsLoading, setPriestsLoading] = useState(false);
+  const [selectedPriestId, setSelectedPriestId] = useState<number | null>(null);
 
   const { bookedSlots, loading: slotsLoading } = useBookedTimeSlots(form.preferred_date);
   const isCertificate = selected?.form_type === "certificate" || selected?.is_certificate;
@@ -208,12 +215,54 @@ const WalkInBooking: React.FC = () => {
     return null;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const loadPriests = useCallback(async () => {
+    setPriestsLoading(true);
+    try {
+      const res = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
+      const payload = res.data?.data as unknown;
+      const list: User[] = Array.isArray(payload)
+        ? (payload as User[])
+        : payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
+          ? ((payload as { data: User[] }).data)
+          : [];
+      console.log("[WalkIn] Priests loaded:", list.length);
+      setPriests(list);
+      setSelectedPriestId((current) => (current && list.some((p) => p.user_id === current) ? current : null));
+    } catch (err) {
+      console.error("[WalkIn] Priests load error:", err);
+      setPriests([]);
+    } finally {
+      setPriestsLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
     const error = validateClient();
     if (error) {
       setAlert({ type: "error", message: error });
+      return;
+    }
+
+    console.log("[WalkIn] Form valid, opening priest assignment", {
+      service_id: selected.service_id,
+      priestOptional: !!isCertificate,
+    });
+    setPriestModalOpen(true);
+    loadPriests();
+  };
+
+  const closePriestModal = () => {
+    if (submitting) return;
+    console.log("[WalkIn] Priest assignment cancelled, back to form");
+    setPriestModalOpen(false);
+  };
+
+  const saveBooking = async (priestId: number | null) => {
+    if (!selected) return;
+    if (!priestId && !isCertificate) {
+      setAlert({ type: "error", message: "Please assign a priest before saving this booking." });
       return;
     }
 
@@ -275,11 +324,15 @@ const WalkInBooking: React.FC = () => {
             }
           : {}),
         ...(formType === "special_intention" ? { intention_text: form.intention_text.trim() } : {}),
+        assigned_priest: priestId,
       };
 
+      console.log("[WalkIn] Saving booking with priest:", priestId);
       const res = await manageRequestAPI.createWalkInBooking(payload);
       console.log("Walk-in booking response:", res.data);
       if (res.data.success) {
+        setPriestModalOpen(false);
+        setSelectedPriestId(null);
         setAlert({
           type: "success",
           message: res.data.message || "Walk-in booking saved.",
@@ -307,6 +360,20 @@ const WalkInBooking: React.FC = () => {
     if (isCertificate) return TIME_OPTIONS;
     return TIME_OPTIONS.filter((opt) => !bookedSlots.includes(opt.value) && !bookedSlots.includes(`${opt.value}:00`));
   }, [bookedSlots, isCertificate]);
+
+  const summaryClientName = isCoupleBooking
+    ? `${form.husband_name.trim()} & ${form.wife_name.trim()}`
+    : [form.first_name, form.middle_name, form.last_name].map((p) => p.trim()).filter(Boolean).join(" ");
+  const summaryDate = form.preferred_date
+    ? new Date(`${form.preferred_date}T00:00:00`).toLocaleDateString("en-PH", {
+        weekday: "short",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+  const summaryTime = TIME_OPTIONS.find((opt) => opt.value === form.preferred_time)?.label || form.preferred_time || "—";
+  const selectedPriest = priests.find((p) => p.user_id === selectedPriestId) || null;
 
   const godfathers = godparents.filter((gp) => gp.relationship === "godfather");
   const godmothers = godparents.filter((gp) => gp.relationship === "godmother");
@@ -711,23 +778,171 @@ const WalkInBooking: React.FC = () => {
             )}
           </section>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {submitting ? "Saving…" : "Save walk-in booking"}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin/secretary/manage-requests")}
-              className="px-4 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Open Manage Requests
-            </button>
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? "Saving…" : "Save walk-in booking"}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/admin/secretary/manage-requests")}
+                className="px-4 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Open Manage Requests
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+              <Info size={14} className="shrink-0" />
+              {isCertificate
+                ? "You can assign a priest (optional) before the booking is saved."
+                : "You will assign a priest before the booking is saved."}
+            </p>
           </div>
         </form>
+      )}
+
+      {priestModalOpen && selected && (
+        <div className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="walkin-priest-title"
+            className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 id="walkin-priest-title" className="text-lg font-semibold text-slate-900">
+                  Assign Priest &amp; Save
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isCertificate
+                    ? "Priest is optional for certificate requests."
+                    : "A priest is required before this booking can be saved."}
+                </p>
+              </div>
+              <ModalCloseButton onClick={closePriestModal} />
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Booking summary</p>
+                <dl className="bg-slate-50 rounded-lg p-3 text-sm grid grid-cols-[auto,1fr] gap-x-3 gap-y-1.5">
+                  <dt className="text-slate-500">{isCoupleBooking ? "Couple" : "Client"}</dt>
+                  <dd className="font-medium text-slate-900 break-words">{summaryClientName || "—"}</dd>
+                  <dt className="text-slate-500">Service</dt>
+                  <dd className="font-medium text-slate-900">{selected.service_name || selected.service_type}</dd>
+                  <dt className="text-slate-500">Date</dt>
+                  <dd className="font-medium text-slate-900">{summaryDate}</dd>
+                  <dt className="text-slate-500">Time</dt>
+                  <dd className="font-medium text-slate-900">{summaryTime}</dd>
+                  <dt className="text-slate-500">Fee</dt>
+                  <dd className="font-medium text-slate-900">{formatFee(selected.fee)}</dd>
+                </dl>
+              </div>
+
+              <div>
+                <label htmlFor="walkin-priest" className="block text-sm font-medium text-slate-700 mb-1">
+                  Select priest {isCertificate ? <span className="text-slate-400 font-normal">(optional)</span> : <span className="text-red-500">*</span>}
+                </label>
+                {priestsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                    <span className="ml-2 text-sm text-slate-500">Loading priests…</span>
+                  </div>
+                ) : priests.length === 0 ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+                    <p className="text-sm text-amber-700">
+                      No available priests right now.
+                      {isCertificate ? " You can still save this certificate without a priest." : " A priest must be available to save this booking."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={loadPriests}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Refresh list
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      id="walkin-priest"
+                      value={selectedPriestId ?? ""}
+                      onChange={(e) => {
+                        const id = e.target.value ? Number(e.target.value) : null;
+                        console.log("[WalkIn] Priest selected:", id);
+                        setSelectedPriestId(id);
+                      }}
+                      disabled={submitting}
+                      className={`${inputClass} bg-white`}
+                    >
+                      <option value="">Select a priest…</option>
+                      {priests.map((priest) => (
+                        <option key={priest.user_id} value={priest.user_id}>
+                          {getUserFullName(priest)}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Showing {priests.length} available priest{priests.length > 1 ? "s" : ""}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {selectedPriest && (
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-700 flex items-center gap-2">
+                    <CheckCircle2 size={16} className="shrink-0" />
+                    <span>
+                      {getUserFullName(selectedPriest)} will be assigned and notified. The booking is saved as approved and unpaid.
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-3 px-5 py-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closePriestModal}
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              {isCertificate && (
+                <button
+                  type="button"
+                  onClick={() => saveBooking(null)}
+                  disabled={submitting || priestsLoading}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 hover:bg-slate-50 rounded-lg disabled:opacity-50"
+                >
+                  Save without priest
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => saveBooking(selectedPriestId)}
+                disabled={submitting || priestsLoading || !selectedPriestId}
+                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Saving…
+                  </>
+                ) : (
+                  "Assign & Save"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <AlertModal

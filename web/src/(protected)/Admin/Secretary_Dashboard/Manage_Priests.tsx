@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { UserPlus, Users, Mail, Lock, User as UserIcon, CheckCircle2, AlertTriangle, UserX, UserCheck, Phone } from 'lucide-react';
+import { UserPlus, Users, Mail, Lock, User as UserIcon, CheckCircle2, AlertTriangle, UserX, UserCheck, Phone, Pencil, Save } from 'lucide-react';
 import { usersAPI } from '../../../../library/api';
 import type { User } from '../../../../library/api';
 import PageHeader from './components/PageHeader';
@@ -40,20 +40,35 @@ const getPriestDisplayName = (priest: User): string => {
 
 const isPriestActive = (priest: User): boolean => priest.is_active !== false;
 
+const emptyPriestForm = (): PriestFormData => ({
+  first_name: '',
+  middle_name: '',
+  last_name: '',
+  contact_number: '',
+  email: '',
+  password: '',
+  password_confirmation: '',
+  is_resident: true,
+});
+
+const priestToForm = (priest: User): PriestFormData => ({
+  first_name: priest.first_name || '',
+  middle_name: priest.middle_name || '',
+  last_name: priest.last_name || '',
+  contact_number: priest.contact_number || '',
+  email: priest.email || '',
+  password: '',
+  password_confirmation: '',
+  is_resident: priest.is_resident !== false,
+});
+
 const ManagePriests: React.FC = () => {
   const [priests, setPriests] = useState<User[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState<PriestFormData>({
-    first_name: '',
-    middle_name: '',
-    last_name: '',
-    contact_number: '',
-    email: '',
-    password: '',
-    password_confirmation: '',
-    is_resident: true,
-  });
+  const [formData, setFormData] = useState<PriestFormData>(emptyPriestForm());
+  const [editingPriest, setEditingPriest] = useState<User | null>(null);
+  const formCardRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [alertModal, setAlertModal] = useState<{
     isOpen: boolean;
@@ -123,18 +138,111 @@ const ManagePriests: React.FC = () => {
       newErrors.email = 'Enter a valid email address.';
     }
 
+    const passwordRequired = !editingPriest;
     if (!formData.password) {
-      newErrors.password = 'Password is required.';
+      if (passwordRequired) newErrors.password = 'Password is required.';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters.';
     }
 
-    if (formData.password !== formData.password_confirmation) {
+    if ((formData.password || passwordRequired) && formData.password !== formData.password_confirmation) {
       newErrors.password_confirmation = 'Passwords do not match.';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const hasEditChanges = (() => {
+    if (!editingPriest) return true;
+    const original = priestToForm(editingPriest);
+    return (
+      formData.first_name.trim() !== original.first_name.trim() ||
+      formData.middle_name.trim() !== original.middle_name.trim() ||
+      formData.last_name.trim() !== original.last_name.trim() ||
+      formData.contact_number.trim() !== original.contact_number.trim() ||
+      formData.email.trim() !== original.email.trim() ||
+      formData.is_resident !== original.is_resident ||
+      formData.password !== ''
+    );
+  })();
+
+  const startEdit = (priest: User) => {
+    console.log('[ManagePriests] Start edit:', priest.user_id);
+    setEditingPriest(priest);
+    setFormData(priestToForm(priest));
+    setErrors({});
+    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const cancelEdit = () => {
+    console.log('[ManagePriests] Cancel edit');
+    setEditingPriest(null);
+    setFormData(emptyPriestForm());
+    setErrors({});
+  };
+
+  const applyApiErrors = (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.data?.errors) {
+      const apiErrors = error.response.data.errors as Record<string, string[]>;
+      setErrors({
+        first_name: apiErrors.first_name?.[0],
+        middle_name: apiErrors.middle_name?.[0],
+        last_name: apiErrors.last_name?.[0],
+        contact_number: apiErrors.contact_number?.[0],
+        email: apiErrors.email?.[0],
+        password: apiErrors.password?.[0],
+      });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingPriest) return;
+    const payload = {
+      first_name: formData.first_name.trim(),
+      middle_name: formData.middle_name.trim() || null,
+      last_name: formData.last_name.trim(),
+      contact_number: formData.contact_number.trim() || null,
+      email: formData.email.trim(),
+      is_resident: formData.is_resident ? 1 : 0,
+    };
+    console.log('[ManagePriests] Update payload:', editingPriest.user_id, {
+      ...payload,
+      password_changed: !!formData.password,
+    });
+
+    setSubmitting(true);
+    try {
+      const response = await usersAPI.updatePriest(editingPriest.user_id, {
+        ...payload,
+        ...(formData.password
+          ? { password: formData.password, password_confirmation: formData.password_confirmation }
+          : {}),
+      });
+      console.log('[ManagePriests] Update response:', response.data);
+      if (response.data?.success) {
+        setAlertModal({
+          isOpen: true,
+          message: response.data.message || 'Priest account updated successfully.',
+          variant: 'success',
+        });
+        setEditingPriest(null);
+        setFormData(emptyPriestForm());
+        await fetchPriests();
+      }
+    } catch (error) {
+      console.error('[ManagePriests] Update error:', error);
+      applyApiErrors(error);
+      setAlertModal({
+        isOpen: true,
+        message: axios.isAxiosError(error)
+          ? error.response?.data?.message || 'Failed to update priest account.'
+          : 'Failed to update priest account.',
+        variant: 'error',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleChange = (field: keyof FormErrors, value: string) => {
@@ -153,6 +261,11 @@ const ManagePriests: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+
+    if (editingPriest) {
+      await handleUpdate();
+      return;
+    }
 
     setSubmitting(true);
 
@@ -175,32 +288,12 @@ const ManagePriests: React.FC = () => {
           message: 'Priest account created successfully. They can now be assigned to service requests.',
           variant: 'success',
         });
-        setFormData({
-          first_name: '',
-          middle_name: '',
-          last_name: '',
-          contact_number: '',
-          email: '',
-          password: '',
-          password_confirmation: '',
-          is_resident: true,
-        });
+        setFormData(emptyPriestForm());
         await fetchPriests();
       }
     } catch (error) {
       console.error('Create priest error:', error);
-
-      if (axios.isAxiosError(error) && error.response?.data?.errors) {
-        const apiErrors = error.response.data.errors as Record<string, string[]>;
-        setErrors({
-          first_name: apiErrors.first_name?.[0],
-          middle_name: apiErrors.middle_name?.[0],
-          last_name: apiErrors.last_name?.[0],
-          contact_number: apiErrors.contact_number?.[0],
-          email: apiErrors.email?.[0],
-          password: apiErrors.password?.[0],
-        });
-      }
+      applyApiErrors(error);
 
       setAlertModal({
         isOpen: true,
@@ -301,11 +394,30 @@ const ManagePriests: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Add Priest Form */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-1">Add New Priest</h2>
-            <p className="text-sm text-slate-500 mb-6">
-              The priest will use this email and password to log in to the web portal.
+          <div
+            ref={formCardRef}
+            className={`bg-white rounded-xl border shadow-sm p-6 scroll-mt-4 ${
+              editingPriest ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'
+            }`}
+          >
+            <h2 className="text-lg font-semibold text-slate-800 mb-1">
+              {editingPriest ? 'Edit Priest' : 'Add New Priest'}
+            </h2>
+            <p className="text-sm text-slate-500 mb-4">
+              {editingPriest
+                ? 'Update the details below. Leave the password blank to keep the current one.'
+                : 'The priest will use this email and password to log in to the web portal.'}
             </p>
+            {editingPriest ? (
+              <div className="mb-5 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                <Pencil size={14} className="shrink-0" />
+                <span className="truncate">
+                  Editing: <strong>{getPriestDisplayName(editingPriest)}</strong>
+                </span>
+              </div>
+            ) : (
+              <div className="mb-2" />
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -463,7 +575,11 @@ const ManagePriests: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Password *
+                  {editingPriest ? (
+                    <>New Password <span className="font-normal text-slate-400">(optional)</span></>
+                  ) : (
+                    'Password *'
+                  )}
                 </label>
                 <div className="relative">
                   <Lock
@@ -474,7 +590,8 @@ const ManagePriests: React.FC = () => {
                     type="password"
                     value={formData.password}
                     onChange={(e) => handleChange('password', e.target.value)}
-                    placeholder="Minimum 8 characters"
+                    placeholder={editingPriest ? 'Leave blank to keep current password' : 'Minimum 8 characters'}
+                    autoComplete="new-password"
                     className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.password ? 'border-red-300' : 'border-slate-200'
                     }`}
@@ -487,7 +604,7 @@ const ManagePriests: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Confirm Password *
+                  {editingPriest ? 'Confirm New Password' : 'Confirm Password *'}
                 </label>
                 <div className="relative">
                   <Lock
@@ -499,6 +616,8 @@ const ManagePriests: React.FC = () => {
                     value={formData.password_confirmation}
                     onChange={(e) => handleChange('password_confirmation', e.target.value)}
                     placeholder="Re-enter password"
+                    autoComplete="new-password"
+                    disabled={!!editingPriest && !formData.password}
                     className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.password_confirmation ? 'border-red-300' : 'border-slate-200'
                     }`}
@@ -509,23 +628,41 @@ const ManagePriests: React.FC = () => {
                 )}
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus size={16} />
-                    Add Priest
-                  </>
+              <div className={editingPriest ? 'grid grid-cols-2 gap-3' : ''}>
+                {editingPriest && (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={submitting}
+                    className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+                  >
+                    Cancel edit
+                  </button>
                 )}
-              </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !hasEditChanges}
+                  title={!hasEditChanges ? 'No changes to save yet' : undefined}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      {editingPriest ? 'Saving...' : 'Creating...'}
+                    </>
+                  ) : editingPriest ? (
+                    <>
+                      <Save size={16} />
+                      Save changes
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} />
+                      Add Priest
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -554,11 +691,16 @@ const ManagePriests: React.FC = () => {
               <div className={`divide-y divide-slate-100 ${loadingList ? 'opacity-80' : ''}`}>
                 {priests.map((priest) => {
                   const active = isPriestActive(priest);
+                  const isEditing = editingPriest?.user_id === priest.user_id;
                   return (
                   <div
                     key={priest.user_id}
-                    className={`px-6 py-4 flex items-center gap-4 transition-colors ${
-                      active ? 'hover:bg-blue-50/50' : 'bg-slate-50/80 opacity-75'
+                    className={`px-6 py-4 flex flex-wrap sm:flex-nowrap items-center gap-4 transition-colors ${
+                      isEditing
+                        ? 'bg-blue-50 border-l-4 border-blue-500'
+                        : active
+                          ? 'hover:bg-blue-50/50'
+                          : 'bg-slate-50/80 opacity-75'
                     }`}
                   >
                     <div
@@ -597,6 +739,16 @@ const ManagePriests: React.FC = () => {
                     >
                       {active ? 'Active' : 'Disabled'}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(priest)}
+                      disabled={isEditing}
+                      aria-label={`Edit ${getPriestDisplayName(priest)}`}
+                      className="shrink-0 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 flex items-center gap-1"
+                    >
+                      <Pencil size={14} />
+                      {isEditing ? 'Editing' : 'Edit'}
+                    </button>
                     {active ? (
                       <button
                         type="button"

@@ -9,6 +9,30 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
+    private const REQUEST_RELATIONS = ['request.service:service_id,service_type'];
+
+    private function withRequestSummary(Notification $notification): Notification
+    {
+        $request = $notification->request;
+        $summary = null;
+
+        if ($request) {
+            $date = $request->preferred_date
+                ? \Carbon\Carbon::parse($request->preferred_date)->format('M d, Y')
+                : null;
+            $time = ManageRequest::normalizeTime($request->preferred_time);
+
+            $summary = [
+                'service_name' => $request->notificationServiceLabel(),
+                'date_label' => $date,
+                'time_label' => $time !== '' ? date('g:i A', strtotime($time)) : null,
+            ];
+        }
+
+        $notification->setAttribute('request_summary', $summary);
+        return $notification;
+    }
+
     protected function canAccessNotifications(User $user): bool
     {
         return $user->isParishioner() || $user->isPriest();
@@ -52,9 +76,10 @@ class NotificationController extends Controller
 
         $perPage = $request->input('per_page', 20);
         $notifications = Notification::where('user_id', $user->user_id)
-            ->with('request')
+            ->with(self::REQUEST_RELATIONS)
             ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->through(fn (Notification $n) => $this->withRequestSummary($n));
 
         return response()->json([
             'success' => true,
@@ -131,10 +156,11 @@ class NotificationController extends Controller
         $limit = $request->input('limit', 10);
         $notifications = Notification::where('user_id', $user->user_id)
             ->where('status', 'unread')
-            ->with('request')
+            ->with(self::REQUEST_RELATIONS)
             ->orderBy('created_at', 'desc')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->map(fn (Notification $n) => $this->withRequestSummary($n));
 
         return response()->json([
             'success' => true,
@@ -242,9 +268,10 @@ class NotificationController extends Controller
         $perPage = $request->input('per_page', 20);
         $notifications = Notification::onlyTrashed()
             ->where('user_id', $user->user_id)
-            ->with('request')
+            ->with(self::REQUEST_RELATIONS)
             ->orderBy('deleted_at', 'desc')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->through(fn (Notification $n) => $this->withRequestSummary($n));
 
         return response()->json([
             'success' => true,

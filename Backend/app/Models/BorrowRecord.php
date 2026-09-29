@@ -84,9 +84,11 @@ class BorrowRecord extends Model
             'damage_notes' => $damaged > 0 ? $damageNotes : null,
         ]);
 
+        $stockBefore = (int) $inventory->quantity;
+
         // Only good (undamaged) units go back into available stock
         if ($good > 0) {
-            $before = (int) $inventory->quantity;
+            $before = $stockBefore;
             $inventory->quantity = $before + $good;
             $inventory->save();
 
@@ -106,6 +108,23 @@ class BorrowRecord extends Model
                 'stock_on_hand' => (int) $inventory->quantity,
             ]);
         }
+
+        InventoryHistory::record(
+            $inventory,
+            $damaged > 0 ? InventoryHistory::ACTION_RETURNED_DAMAGED : InventoryHistory::ACTION_RETURNED,
+            $good,
+            $stockBefore,
+            (int) $inventory->quantity,
+            [
+                'borrow_record_id' => $this->borrow_record_id,
+                'details' => [
+                    'borrower_name' => $this->borrower_name,
+                    'quantity_borrowed' => $borrowed,
+                    'quantity_damaged' => $damaged,
+                    'damage_notes' => $damaged > 0 ? $damageNotes : null,
+                ],
+            ]
+        );
     }
 
     public function isOverdue()

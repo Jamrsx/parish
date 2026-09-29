@@ -57,6 +57,9 @@ class WalkInBookingController extends Controller
             'godparents' => 'nullable|array',
             'godparents.*.godparent_name' => 'required_with:godparents|string|max:100',
             'godparents.*.relationship' => 'required_with:godparents|in:godfather,godmother',
+            'assigned_priest' => 'nullable|integer|exists:users,user_id',
+        ], [
+            'assigned_priest.exists' => 'The selected priest could not be found.',
         ]);
 
         if ($validator->fails()) {
@@ -77,6 +80,34 @@ class WalkInBookingController extends Controller
 
         $formType = $churchService->form_type;
         $isCertificate = $churchService->isCertificate();
+
+        $priest = null;
+        if ($request->filled('assigned_priest')) {
+            $priest = User::find($request->assigned_priest);
+            if (!$priest || !$priest->isPriest()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected user is not a priest.',
+                ], 422);
+            }
+            if (!$priest->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected priest account is disabled.',
+                ], 422);
+            }
+            if (!$priest->isAvailableForAssignment()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected priest is currently unavailable for new assignments.',
+                ], 422);
+            }
+        } elseif (!$isCertificate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please assign a priest before saving this booking.',
+            ], 422);
+        }
 
         if ($formType === 'baptism') {
             $baptismCheck = Validator::make($request->all(), [
@@ -244,6 +275,7 @@ class WalkInBookingController extends Controller
                 'user_id' => $client->user_id,
                 'service_id' => $churchService->service_id,
                 'processed_by' => $secretary->user_id,
+                'assigned_priest' => $priest?->user_id,
                 'preferred_date' => $preferredDate,
                 'preferred_time' => $preferredTime,
                 'baptism_form_id' => $baptismId,
@@ -278,7 +310,17 @@ class WalkInBookingController extends Controller
                 Log::error('Walk-in notification failed: ' . $e->getMessage());
             }
 
+            if ($priest) {
+                try {
+                    $manageRequest->createPriestAssignmentNotification($priest);
+                } catch (\Exception $e) {
+                    Log::error('Walk-in priest assignment notification failed: ' . $e->getMessage());
+                }
+            }
+
             DB::commit();
+
+            $priestName = $priest ? trim($priest->first_name . ' ' . $priest->last_name) : null;
 
             Log::info('Walk-in booking created', [
                 'request_id' => $manageRequest->request_id,
@@ -286,11 +328,14 @@ class WalkInBookingController extends Controller
                 'client_user_id' => $client->user_id,
                 'secretary_id' => $secretary->user_id,
                 'is_resident' => $isResident,
+                'assigned_priest' => $priest?->user_id,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Walk-in booking saved. It is approved and unpaid until the cashier records payment.',
+                'message' => $priestName
+                    ? "Walk-in booking saved and assigned to {$priestName}. It is approved and unpaid until the cashier records payment."
+                    : 'Walk-in booking saved without a priest. It is approved and unpaid until the cashier records payment.',
                 'data' => [
                     'request_id' => $manageRequest->request_id,
                     'service_type' => $churchService->service_type,
@@ -300,6 +345,8 @@ class WalkInBookingController extends Controller
                     'is_resident' => $manageRequest->is_resident,
                     'status' => $manageRequest->status,
                     'payment_status' => $manageRequest->payment_status,
+                    'assigned_priest' => $manageRequest->assigned_priest,
+                    'priest_name' => $priestName,
                 ],
             ], 201);
         } catch (\Exception $e) {

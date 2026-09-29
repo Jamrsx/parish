@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   UserPlus,
@@ -12,6 +12,8 @@ import {
   UserCheck,
   Phone,
   AtSign,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import { usersAPI } from '../../../../library/api';
 import type { User } from '../../../../library/api';
@@ -64,11 +66,24 @@ const getCashierDisplayName = (cashier: User): string => {
 
 const isCashierActive = (cashier: User): boolean => cashier.is_active !== false;
 
+const cashierToForm = (cashier: User): CashierFormData => ({
+  first_name: cashier.first_name || '',
+  middle_name: cashier.middle_name || '',
+  last_name: cashier.last_name || '',
+  contact_number: cashier.contact_number || '',
+  username: cashier.username || '',
+  email: cashier.email || '',
+  password: '',
+  password_confirmation: '',
+});
+
 const ManageCashiers: React.FC = () => {
   const [cashiers, setCashiers] = useState<User[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<CashierFormData>(emptyForm());
+  const [editingCashier, setEditingCashier] = useState<User | null>(null);
+  const formCardRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [alertModal, setAlertModal] = useState<{
     isOpen: boolean;
@@ -144,18 +159,112 @@ const ManageCashiers: React.FC = () => {
       }
     }
 
+    const passwordRequired = !editingCashier;
     if (!formData.password) {
-      newErrors.password = 'Password is required.';
+      if (passwordRequired) newErrors.password = 'Password is required.';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters.';
     }
 
-    if (formData.password !== formData.password_confirmation) {
+    if ((formData.password || passwordRequired) && formData.password !== formData.password_confirmation) {
       newErrors.password_confirmation = 'Passwords do not match.';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const hasEditChanges = (() => {
+    if (!editingCashier) return true;
+    const original = cashierToForm(editingCashier);
+    return (
+      formData.first_name.trim() !== original.first_name.trim() ||
+      formData.middle_name.trim() !== original.middle_name.trim() ||
+      formData.last_name.trim() !== original.last_name.trim() ||
+      formData.contact_number.trim() !== original.contact_number.trim() ||
+      formData.username.trim() !== original.username.trim() ||
+      formData.email.trim() !== original.email.trim() ||
+      formData.password !== ''
+    );
+  })();
+
+  const startEdit = (cashier: User) => {
+    console.log('[ManageCashiers] Start edit:', cashier.user_id);
+    setEditingCashier(cashier);
+    setFormData(cashierToForm(cashier));
+    setErrors({});
+    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const cancelEdit = () => {
+    console.log('[ManageCashiers] Cancel edit');
+    setEditingCashier(null);
+    setFormData(emptyForm());
+    setErrors({});
+  };
+
+  const applyApiErrors = (error: unknown) => {
+    if (axios.isAxiosError(error) && error.response?.data?.errors) {
+      const apiErrors = error.response.data.errors as Record<string, string[]>;
+      setErrors({
+        first_name: apiErrors.first_name?.[0],
+        middle_name: apiErrors.middle_name?.[0],
+        last_name: apiErrors.last_name?.[0],
+        contact_number: apiErrors.contact_number?.[0],
+        username: apiErrors.username?.[0],
+        email: apiErrors.email?.[0],
+        password: apiErrors.password?.[0],
+      });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingCashier) return;
+    const payload = {
+      first_name: formData.first_name.trim(),
+      middle_name: formData.middle_name.trim() || null,
+      last_name: formData.last_name.trim(),
+      username: formData.username.trim(),
+      email: formData.email.trim() || null,
+      contact_number: formData.contact_number.trim() || null,
+    };
+    console.log('[ManageCashiers] Update payload:', editingCashier.user_id, {
+      ...payload,
+      password_changed: !!formData.password,
+    });
+
+    setSubmitting(true);
+    try {
+      const response = await usersAPI.updateCashier(editingCashier.user_id, {
+        ...payload,
+        ...(formData.password
+          ? { password: formData.password, password_confirmation: formData.password_confirmation }
+          : {}),
+      });
+      console.log('[ManageCashiers] Update response:', response.data);
+      if (response.data?.success) {
+        setAlertModal({
+          isOpen: true,
+          message: response.data.message || 'Cashier account updated successfully.',
+          variant: 'success',
+        });
+        setEditingCashier(null);
+        setFormData(emptyForm());
+        await fetchCashiers();
+      }
+    } catch (error) {
+      console.error('[ManageCashiers] Update error:', error);
+      applyApiErrors(error);
+      setAlertModal({
+        isOpen: true,
+        message: axios.isAxiosError(error)
+          ? error.response?.data?.message || 'Failed to update cashier account.'
+          : 'Failed to update cashier account.',
+        variant: 'error',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleChange = (field: keyof CashierFormData, value: string) => {
@@ -174,6 +283,11 @@ const ManageCashiers: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+
+    if (editingCashier) {
+      await handleUpdate();
+      return;
+    }
 
     setSubmitting(true);
 
@@ -201,19 +315,7 @@ const ManageCashiers: React.FC = () => {
       }
     } catch (error) {
       console.error('Create cashier error:', error);
-
-      if (axios.isAxiosError(error) && error.response?.data?.errors) {
-        const apiErrors = error.response.data.errors as Record<string, string[]>;
-        setErrors({
-          first_name: apiErrors.first_name?.[0],
-          middle_name: apiErrors.middle_name?.[0],
-          last_name: apiErrors.last_name?.[0],
-          contact_number: apiErrors.contact_number?.[0],
-          username: apiErrors.username?.[0],
-          email: apiErrors.email?.[0],
-          password: apiErrors.password?.[0],
-        });
-      }
+      applyApiErrors(error);
 
       setAlertModal({
         isOpen: true,
@@ -310,11 +412,31 @@ const ManageCashiers: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-1">Add New Cashier</h2>
-            <p className="text-sm text-slate-500 mb-6">
-              Cashiers log in with username and password on the web portal.
+          <div
+            ref={formCardRef}
+            className={`bg-white rounded-xl border shadow-sm p-6 scroll-mt-4 ${
+              editingCashier ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'
+            }`}
+          >
+            <h2 className="text-lg font-semibold text-slate-800 mb-1">
+              {editingCashier ? 'Edit Cashier' : 'Add New Cashier'}
+            </h2>
+            <p className="text-sm text-slate-500 mb-4">
+              {editingCashier
+                ? 'Update the details below. Leave the password blank to keep the current one.'
+                : 'Cashiers log in with username and password on the web portal.'}
             </p>
+            {editingCashier ? (
+              <div className="mb-5 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                <Pencil size={14} className="shrink-0" />
+                <span className="truncate">
+                  Editing: <strong>{getCashierDisplayName(editingCashier)}</strong>
+                  {editingCashier.username ? ` (@${editingCashier.username})` : ''}
+                </span>
+              </div>
+            ) : (
+              <div className="mb-2" />
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -419,14 +541,21 @@ const ManageCashiers: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Password *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  {editingCashier ? (
+                    <>New Password <span className="font-normal text-slate-400">(optional)</span></>
+                  ) : (
+                    'Password *'
+                  )}
+                </label>
                 <div className="relative">
                   <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => handleChange('password', e.target.value)}
-                    placeholder="Minimum 8 characters"
+                    placeholder={editingCashier ? 'Leave blank to keep current password' : 'Minimum 8 characters'}
+                    autoComplete="new-password"
                     className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.password ? 'border-red-300' : 'border-slate-200'
                     }`}
@@ -436,7 +565,9 @@ const ManageCashiers: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  {editingCashier ? 'Confirm New Password' : 'Confirm Password *'}
+                </label>
                 <div className="relative">
                   <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -444,6 +575,8 @@ const ManageCashiers: React.FC = () => {
                     value={formData.password_confirmation}
                     onChange={(e) => handleChange('password_confirmation', e.target.value)}
                     placeholder="Re-enter password"
+                    autoComplete="new-password"
+                    disabled={!!editingCashier && !formData.password}
                     className={`w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       errors.password_confirmation ? 'border-red-300' : 'border-slate-200'
                     }`}
@@ -454,23 +587,41 @@ const ManageCashiers: React.FC = () => {
                 )}
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus size={16} />
-                    Add Cashier
-                  </>
+              <div className={editingCashier ? 'grid grid-cols-2 gap-3' : ''}>
+                {editingCashier && (
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={submitting}
+                    className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+                  >
+                    Cancel edit
+                  </button>
                 )}
-              </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !hasEditChanges}
+                  title={!hasEditChanges ? 'No changes to save yet' : undefined}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      {editingCashier ? 'Saving...' : 'Creating...'}
+                    </>
+                  ) : editingCashier ? (
+                    <>
+                      <Save size={16} />
+                      Save changes
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} />
+                      Add Cashier
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -498,11 +649,16 @@ const ManageCashiers: React.FC = () => {
               <div className={`divide-y divide-slate-100 ${loadingList ? 'opacity-80' : ''}`}>
                 {cashiers.map((cashier) => {
                   const active = isCashierActive(cashier);
+                  const isEditing = editingCashier?.user_id === cashier.user_id;
                   return (
                     <div
                       key={cashier.user_id}
-                      className={`px-6 py-4 flex items-center gap-4 transition-colors ${
-                        active ? 'hover:bg-blue-50/50' : 'bg-slate-50/80 opacity-75'
+                      className={`px-6 py-4 flex flex-wrap sm:flex-nowrap items-center gap-4 transition-colors ${
+                        isEditing
+                          ? 'bg-blue-50 border-l-4 border-blue-500'
+                          : active
+                            ? 'hover:bg-blue-50/50'
+                            : 'bg-slate-50/80 opacity-75'
                       }`}
                     >
                       <div
@@ -535,6 +691,16 @@ const ManageCashiers: React.FC = () => {
                       >
                         {active ? 'Active' : 'Disabled'}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(cashier)}
+                        disabled={isEditing}
+                        aria-label={`Edit ${getCashierDisplayName(cashier)}`}
+                        className="shrink-0 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 flex items-center gap-1"
+                      >
+                        <Pencil size={14} />
+                        {isEditing ? 'Editing' : 'Edit'}
+                      </button>
                       {active ? (
                         <button
                           type="button"

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // BASE URL
-const API_BASE_URL = 'http://192.168.1.7:8000/api';
+const API_BASE_URL = 'http://10.91.139.74:8000/api';
 
 // TYPES
 export interface User {
@@ -119,6 +119,11 @@ export interface Notification {
   created_at: string;
   deleted_at?: string | null;
   request?: Request;
+  request_summary?: {
+    service_name: string | null;
+    date_label: string | null;
+    time_label: string | null;
+  } | null;
 }
 
 export interface ApiResponse<T = any> {

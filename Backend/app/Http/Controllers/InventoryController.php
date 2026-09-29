@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Inventory;
 use App\Models\BorrowRecord;
+use App\Models\InventoryHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -78,6 +79,7 @@ class InventoryController extends Controller
             'type' => 'required|in:item,consumable',
             'category' => 'nullable|string|max:255',
             'is_borrowable' => 'boolean',
+            'history_note' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
@@ -94,6 +96,15 @@ class InventoryController extends Controller
             'category' => $request->category,
             'is_borrowable' => $request->is_borrowable ?? false,
             'is_builtin' => false,
+        ]);
+
+        InventoryHistory::record($item, InventoryHistory::ACTION_CREATED, (int) $item->quantity, 0, (int) $item->quantity, [
+            'details' => [
+                'category' => $item->category,
+                'type' => $item->type,
+                'is_borrowable' => (bool) $item->is_borrowable,
+            ],
+            'notes' => $request->input('history_note'),
         ]);
 
         return response()->json([
@@ -147,6 +158,7 @@ class InventoryController extends Controller
             'type' => 'sometimes|required|in:item,consumable',
             'category' => 'nullable|string|max:255',
             'is_borrowable' => 'boolean',
+            'history_note' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
@@ -156,7 +168,18 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        $item->update($request->all());
+        $trackedFields = ['name', 'type', 'category', 'is_borrowable'];
+        $original = [
+            'quantity' => (int) $item->quantity,
+            'name' => $item->name,
+            'type' => $item->type,
+            'category' => $item->category,
+            'is_borrowable' => (bool) $item->is_borrowable,
+        ];
+
+        $item->update($request->except(['history_note']));
+
+        $this->recordUpdateHistory($item, $original, $trackedFields, $request->input('history_note'));
 
         return response()->json([
             'success' => true,
@@ -197,6 +220,14 @@ class InventoryController extends Controller
                 'message' => 'Cannot delete item that is currently borrowed'
             ], 400);
         }
+
+        InventoryHistory::record($item, InventoryHistory::ACTION_DELETED, 0, (int) $item->quantity, null, [
+            'details' => [
+                'deleted_inventory_id' => $item->inventory_id,
+                'category' => $item->category,
+                'type' => $item->type,
+            ],
+        ]);
 
         $item->delete();
 
@@ -285,6 +316,23 @@ class InventoryController extends Controller
             $before = (int) $lockedItem->quantity;
             $lockedItem->quantity = $before - (int) $request->quantity;
             $lockedItem->save();
+
+            InventoryHistory::record(
+                $lockedItem,
+                InventoryHistory::ACTION_BORROWED,
+                -((int) $request->quantity),
+                $before,
+                (int) $lockedItem->quantity,
+                [
+                    'borrow_record_id' => $borrowRecord->borrow_record_id,
+                    'details' => [
+                        'borrower_name' => $request->borrower_name,
+                        'borrower_phone' => $request->borrower_phone,
+                        'location' => $request->location,
+                        'expected_return_date' => $request->expected_return_date,
+                    ],
+                ]
+            );
             \Log::info('Inventory ran_out_at after borrow', [
                 'inventory_id' => $lockedItem->inventory_id,
                 'quantity' => (int) $lockedItem->quantity,
@@ -600,5 +648,155 @@ public function getAllBorrowRecords(Request $request)
             'success' => true,
             'data' => $history
         ]);
+    }
+
+    /**
+     * Overall inventory movement history (stock in/out, new items, borrows, edits).
+     */
+    public function history(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'group' => 'nullable|in:all,' . implode(',', array_keys(InventoryHistory::GROUPS)),
+            'inventory_id' => 'nullable|integer',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'search' => 'nullable|string|max:100',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ], [
+            'date_to.after_or_equal' => 'The end date must be on or after the start date.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $base = InventoryHistory::query();
+
+        if ($request->filled('inventory_id')) {
+            $base->where('inventory_id', (int) $request->inventory_id);
+        }
+        if ($request->filled('date_from')) {
+            $base->where('occurred_at', '>=', \Carbon\Carbon::parse($request->date_from)->startOfDay());
+        }
+        if ($request->filled('date_to')) {
+            $base->where('occurred_at', '<=', \Carbon\Carbon::parse($request->date_to)->endOfDay());
+        }
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $base->where(function ($q) use ($search) {
+                $q->where('item_name', 'LIKE', "%{$search}%")
+                    ->orWhere('notes', 'LIKE', "%{$search}%")
+                    ->orWhere('details', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $summaryRows = (clone $base)
+            ->selectRaw('action, COUNT(*) as total_rows, COALESCE(SUM(quantity_change), 0) as total_change')
+            ->groupBy('action')
+            ->get()
+            ->keyBy('action');
+
+        $count = fn (string $action) => (int) ($summaryRows[$action]->total_rows ?? 0);
+        $sum = fn (string $action) => (int) ($summaryRows[$action]->total_change ?? 0);
+
+        $summary = [
+            'stock_in_qty' => $sum(InventoryHistory::ACTION_STOCK_IN),
+            'stock_in_count' => $count(InventoryHistory::ACTION_STOCK_IN),
+            'stock_out_qty' => abs($sum(InventoryHistory::ACTION_STOCK_OUT)),
+            'stock_out_count' => $count(InventoryHistory::ACTION_STOCK_OUT),
+            'new_items' => $count(InventoryHistory::ACTION_CREATED),
+            'borrowed' => $count(InventoryHistory::ACTION_BORROWED),
+            'returned' => $count(InventoryHistory::ACTION_RETURNED) + $count(InventoryHistory::ACTION_RETURNED_DAMAGED),
+            'edits' => $count(InventoryHistory::ACTION_EDITED) + $count(InventoryHistory::ACTION_DELETED),
+            'total' => (int) $summaryRows->sum('total_rows'),
+        ];
+
+        $group = $request->input('group', 'all');
+        $query = clone $base;
+        if ($group !== 'all' && isset(InventoryHistory::GROUPS[$group])) {
+            $query->whereIn('action', InventoryHistory::GROUPS[$group]);
+        }
+
+        $perPage = (int) $request->input('per_page', 10);
+        $rows = $query->with('performedBy:user_id,first_name,last_name,role')
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('history_id')
+            ->paginate($perPage);
+
+        $rows->getCollection()->transform(fn (InventoryHistory $h) => [
+            'history_id' => $h->history_id,
+            'inventory_id' => $h->inventory_id,
+            'item_name' => $h->item_name,
+            'action' => $h->action,
+            'action_label' => $h->action_label,
+            'quantity_change' => $h->quantity_change,
+            'quantity_before' => $h->quantity_before,
+            'quantity_after' => $h->quantity_after,
+            'borrow_record_id' => $h->borrow_record_id,
+            'details' => $h->details,
+            'notes' => $h->notes,
+            'performed_by' => $h->performedBy
+                ? trim($h->performedBy->first_name . ' ' . $h->performedBy->last_name)
+                : null,
+            'performed_by_role' => $h->performedBy?->role,
+            'occurred_at' => $h->occurred_at?->toIso8601String(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows,
+            'summary' => $summary,
+        ]);
+    }
+
+    private function recordUpdateHistory(Inventory $item, array $original, array $trackedFields, ?string $note): void
+    {
+        $item->refresh();
+        $newQty = (int) $item->quantity;
+        $oldQty = (int) $original['quantity'];
+
+        if ($newQty !== $oldQty) {
+            $diff = $newQty - $oldQty;
+            InventoryHistory::record(
+                $item,
+                $diff > 0 ? InventoryHistory::ACTION_STOCK_IN : InventoryHistory::ACTION_STOCK_OUT,
+                $diff,
+                $oldQty,
+                $newQty,
+                ['notes' => $note]
+            );
+        }
+
+        $labels = [
+            'name' => 'Name',
+            'type' => 'Type',
+            'category' => 'Category',
+            'is_borrowable' => 'Borrowable',
+        ];
+
+        $changes = [];
+        foreach ($trackedFields as $field) {
+            $before = $original[$field];
+            $after = $field === 'is_borrowable' ? (bool) $item->is_borrowable : $item->{$field};
+            if ((string) ($before ?? '') !== (string) ($after ?? '')) {
+                $changes[] = [
+                    'field' => $field,
+                    'label' => $labels[$field] ?? $field,
+                    'from' => $field === 'is_borrowable' ? ($before ? 'Yes' : 'No') : $before,
+                    'to' => $field === 'is_borrowable' ? ($after ? 'Yes' : 'No') : $after,
+                ];
+            }
+        }
+
+        if (!empty($changes)) {
+            InventoryHistory::record($item, InventoryHistory::ACTION_EDITED, 0, $newQty, $newQty, [
+                'details' => ['changes' => $changes],
+                'notes' => $newQty === $oldQty ? $note : null,
+            ]);
+        }
     }
 }

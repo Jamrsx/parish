@@ -36,8 +36,39 @@ interface NotificationItem {
     request_id: number;
     status: string;
     created_at?: string;
-  };
+  } | null;
+  request_summary?: {
+    service_name: string | null;
+    date_label: string | null;
+    time_label: string | null;
+  } | null;
 }
+
+const getRequestDetailLine = (notification: NotificationItem): string | null => {
+  const summary = notification.request_summary;
+  if (!summary) return null;
+  const parts = [summary.service_name, summary.date_label, summary.time_label]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
+};
+
+const RequestDetailLine: React.FC<{ notification: NotificationItem }> = ({ notification }) => {
+  const line = getRequestDetailLine(notification);
+  if (!line) return null;
+  return (
+    <View className="flex-row items-center mt-1.5 self-start max-w-full px-2.5 py-1 rounded-lg bg-slate-100">
+      <Ionicons name="document-text-outline" size={13} color="#475569" />
+      <Text
+        className="text-xs font-semibold text-slate-700 ml-1.5 flex-shrink"
+        numberOfLines={2}
+        accessibilityLabel={`Request details: ${line}`}
+      >
+        {line}
+      </Text>
+    </View>
+  );
+};
 
 const SWIPE_THRESHOLD = 80;
 const REQUEST_EXPIRY_MS = 60 * 60 * 1000;
@@ -196,6 +227,8 @@ export default function NotificationScreen() {
       const response = await api.getNotifications();
       if (response.success && isMounted.current) {
         const data = response.data.data || [];
+        const withService = (data as NotificationItem[]).filter((n) => !!n.request_summary?.service_name).length;
+        console.log('[Notifications] loaded:', data.length, 'with service info:', withService);
         setNotifications(data as NotificationItem[]);
         const animations: { [key: number]: Animated.Value } = {};
         data.forEach((n: NotificationItem) => {
@@ -725,6 +758,7 @@ export default function NotificationScreen() {
                       <Text className="font-semibold text-gray-700 text-base">
                         {notification.title}
                       </Text>
+                      <RequestDetailLine notification={notification} />
                       <Text className="text-gray-500 text-sm mt-1 leading-5">
                         {notification.message}
                       </Text>
@@ -816,6 +850,7 @@ export default function NotificationScreen() {
                           <Text className="font-semibold text-gray-800 text-base">
                             {notification.title}
                           </Text>
+                          <RequestDetailLine notification={notification} />
                           <Text className="text-gray-600 text-sm mt-1 leading-5">
                             {notification.message}
                           </Text>

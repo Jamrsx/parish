@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { InventoryItem } from "../../../../../../library/inventory";
 
 export type StockAdjustMode = "add" | "deduct";
@@ -9,11 +9,19 @@ interface AdjustStockModalProps {
   item: InventoryItem | null;
   submitting?: boolean;
   onClose: () => void;
-  onConfirm: (amount: number) => void;
+  onConfirm: (amount: number, note?: string) => void;
 }
 
-const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
-  isOpen,
+const NOTE_MAX = 500;
+
+const AdjustStockModal: React.FC<AdjustStockModalProps> = ({ isOpen, item, mode, ...rest }) => {
+  if (!isOpen || !item) return null;
+  return <AdjustStockForm key={`${mode}-${item.inventory_id}`} item={item} mode={mode} {...rest} />;
+};
+
+type AdjustStockFormProps = Omit<AdjustStockModalProps, "isOpen" | "item"> & { item: InventoryItem };
+
+const AdjustStockForm: React.FC<AdjustStockFormProps> = ({
   mode,
   item,
   submitting = false,
@@ -21,16 +29,10 @@ const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
   onConfirm,
 }) => {
   const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      setAmount("");
-      setError(null);
-    }
-  }, [isOpen, mode, item?.inventory_id]);
-
-  const currentQty = item?.quantity ?? 0;
+  const currentQty = item.quantity ?? 0;
   const parsedAmount = Number(amount);
   const isValidAmount = Number.isInteger(parsedAmount) && parsedAmount > 0;
 
@@ -38,8 +40,6 @@ const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
     if (!isValidAmount) return null;
     return mode === "add" ? currentQty + parsedAmount : currentQty - parsedAmount;
   }, [isValidAmount, mode, currentQty, parsedAmount]);
-
-  if (!isOpen || !item) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,8 +57,9 @@ const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
       currentQty,
       amount: parsedAmount,
       nextQty,
+      note: note.trim() || null,
     });
-    onConfirm(parsedAmount);
+    onConfirm(parsedAmount, note.trim() || undefined);
   };
 
   const isAdd = mode === "add";
@@ -105,6 +106,22 @@ const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
               autoFocus
             />
             {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Note <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+              rows={2}
+              placeholder={isAdd ? "e.g. Purchased from supplier, donated by parish council" : "e.g. Used for Sunday mass, expired"}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Saved in Inventory History · {note.length}/{NOTE_MAX}
+            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

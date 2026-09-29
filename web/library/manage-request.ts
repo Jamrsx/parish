@@ -625,6 +625,8 @@ export const manageRequestAPI = {
             preferred_time: string;
             status: string;
             payment_status: string;
+            assigned_priest?: number | null;
+            priest_name?: string | null;
         }>>('/admin/walk-in-booking', data);
     },
 };
@@ -655,4 +657,5 @@ export interface WalkInBookingPayload {
     marriage_date?: string;
     intention_text?: string;
     godparents?: { godparent_name: string; relationship: 'godfather' | 'godmother' }[];
+    assigned_priest?: number | null;
 }

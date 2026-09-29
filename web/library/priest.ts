@@ -1,7 +1,7 @@
 import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
 import type { DailyReportData } from './cashier';
-import type { InventoryItem } from './inventory';
+import type { InventoryItem, InventoryHistoryParams, InventoryHistoryResponse } from './inventory';
 import type { ExpenseRow, GeneralReportData, GeneralReportParams } from './expenses';
 
 export interface PriestServiceOption {
@@ -84,6 +84,11 @@ export const priestAPI = {
 
   getInventoryItem: (id: number) =>
     api.get<ApiResponse<InventoryItem>>(`/priest/inventory/${id}`),
+
+  getInventoryHistory: (params?: InventoryHistoryParams) => {
+    console.log('[InventoryHistory] Fetch (priest):', params);
+    return api.get<InventoryHistoryResponse>('/priest/inventory/history', { params });
+  },
 
   getExpenses: (params: {
     status?: 'verified' | 'forwarded';
