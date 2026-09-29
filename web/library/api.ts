@@ -38,7 +38,7 @@ export interface PaginationLink {
 }
 
 // ============ API CONFIGURATION ============
-const API_BASE_URL = 'https://https://back.parishcapstone.site//api';
+const API_BASE_URL = 'https://back.parishcapstone.site//api';
 console.log('[API Config]', { baseUrl: API_BASE_URL });
 
 export const api: AxiosInstance = axios.create({
