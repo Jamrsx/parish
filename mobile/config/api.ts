@@ -5,7 +5,7 @@ export type ApiEnvironment = 'local' | 'production';
 
 // Change this to force a server while testing in Expo Go. Leave null to use the automatic choice:
 // EAS builds use EXPO_PUBLIC_API_ENV from eas.json, `npx expo start` uses local.
-const FORCE_API_ENV: ApiEnvironment | null = null;
+const FORCE_API_ENV: ApiEnvironment | null = 'production';
 
 const envFromBuild = process.env.EXPO_PUBLIC_API_ENV;
 
