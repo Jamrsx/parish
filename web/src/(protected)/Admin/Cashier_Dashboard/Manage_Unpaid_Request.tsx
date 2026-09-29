@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { cashierAPI, type UnpaidRequestRow } from "../../../../library/cashier";
 import { CashierTableSkeleton } from "./CashierSkeletons";
+import PesoInput from "../../../components/PesoInput";
+import { toPesoInputValue } from "../../../../library/pesoInput";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -45,7 +47,7 @@ const ManageUnpaidRequest: React.FC = () => {
 
   const openPay = (row: UnpaidRequestRow) => {
     setSelected(row);
-    setAmount(String(row.remaining_balance || ""));
+    setAmount(toPesoInputValue(row.remaining_balance || null));
     setOrNumber("");
     setNotes("");
   };
@@ -214,15 +216,12 @@ const ManageUnpaidRequest: React.FC = () => {
                 <span className="font-semibold text-amber-700">{formatPeso(selected.remaining_balance)}</span>
               </div>
             </div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Cash amount *</label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg mb-3"
-            />
+            <label htmlFor="pay-amount" className="block text-sm font-medium text-slate-700 mb-1">
+              Cash amount *
+            </label>
+            <div className="mb-3">
+              <PesoInput id="pay-amount" value={amount} onChange={setAmount} />
+            </div>
             <label className="block text-sm font-medium text-slate-700 mb-1">OR / Receipt no. (optional)</label>
             <input
               value={orNumber}

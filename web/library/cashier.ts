@@ -7,6 +7,7 @@ export interface CashierDashboardData {
   pending_donations: number;
   pending_mass_collections?: number;
   pending_special_intentions?: number;
+  pending_expenses?: number;
   service_payments_today: number;
   service_payments_today_count: number;
   mass_collections_today: number;

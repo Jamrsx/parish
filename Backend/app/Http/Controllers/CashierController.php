@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ChurchExpense;
 use App\Models\Donation;
 use App\Models\ManageRequest;
 use App\Models\MassCollection;
@@ -36,6 +37,7 @@ class CashierController extends Controller
         $pendingDonations = Donation::pending()->count();
         $pendingMass = MassCollection::pending()->count();
         $pendingIntentions = SpecialIntention::awaitingCashier()->count();
+        $pendingExpenses = ChurchExpense::forwarded()->count();
         $donationsReceivedToday = Donation::received()
             ->whereDate('received_at', $today)
             ->sum('amount');
@@ -67,6 +69,7 @@ class CashierController extends Controller
                 'pending_donations' => $pendingDonations,
                 'pending_mass_collections' => $pendingMass,
                 'pending_special_intentions' => $pendingIntentions,
+                'pending_expenses' => $pendingExpenses,
                 'service_payments_today' => (float) $servicePaymentsToday,
                 'service_payments_today_count' => $servicePaymentsTodayCount,
                 'mass_collections_today' => (float) $massCollectionsToday,
@@ -245,6 +248,153 @@ class CashierController extends Controller
                 'income_for_date' => $serviceTotal + $massTotal + $donationTotal + $intentionTotal,
             ],
         ]);
+    }
+
+    /**
+     * General report (income vs. verified church expenses) for a month or a 7-day week.
+     */
+    public function generalReport(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'period' => 'required|in:monthly,weekly',
+            'year' => 'required_if:period,monthly|nullable|integer|min:2000|max:2100',
+            'month' => 'required_if:period,monthly|nullable|integer|min:1|max:12',
+            'week_start' => 'required_if:period,weekly|nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => 'Choose a month for the monthly report or a start date for the weekly report.',
+            ], 422);
+        }
+
+        if ($request->period === 'monthly') {
+            $start = Carbon::create((int) $request->year, (int) $request->month, 1)->startOfDay();
+            $end = $start->copy()->endOfMonth();
+            $label = $start->format('F Y');
+        } else {
+            $start = Carbon::parse($request->week_start)->startOfDay();
+            $end = $start->copy()->addDays(6)->endOfDay();
+            $label = $start->format('M j') . ' – ' . $end->format('M j, Y');
+        }
+
+        $income = $this->incomeBetween($start, $end);
+
+        $verified = ChurchExpense::with(['recordedBy', 'reviewedBy'])
+            ->verified()
+            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('expense_date')
+            ->get();
+
+        $expenseTotal = round((float) $verified->sum('amount'), 2);
+
+        $byCategory = collect(ChurchExpense::CATEGORIES)->map(function ($catLabel, $key) use ($verified, $expenseTotal) {
+            $rows = $verified->where('category', $key);
+            $amount = round((float) $rows->sum('amount'), 2);
+
+            return [
+                'category' => $key,
+                'label' => $catLabel,
+                'amount' => $amount,
+                'count' => $rows->count(),
+                'percentage' => $expenseTotal > 0 ? round(($amount / $expenseTotal) * 100, 1) : 0,
+            ];
+        })->values();
+
+        $pending = ChurchExpense::forwarded()
+            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()]);
+
+        $weeklyBreakdown = [];
+        if ($request->period === 'monthly') {
+            $cursor = $start->copy();
+            $weekNo = 1;
+            while ($cursor->lte($end)) {
+                $weekEnd = $cursor->copy()->addDays(6)->endOfDay();
+                if ($weekEnd->gt($end)) {
+                    $weekEnd = $end->copy();
+                }
+
+                $weekIncome = $this->incomeBetween($cursor, $weekEnd)['total'];
+                $weekExpenses = round((float) $verified
+                    ->filter(fn ($e) => $e->expense_date->between($cursor->copy()->startOfDay(), $weekEnd))
+                    ->sum('amount'), 2);
+
+                $weeklyBreakdown[] = [
+                    'label' => "Week {$weekNo}",
+                    'start_date' => $cursor->toDateString(),
+                    'end_date' => $weekEnd->toDateString(),
+                    'income' => $weekIncome,
+                    'expenses' => $weekExpenses,
+                    'net' => round($weekIncome - $weekExpenses, 2),
+                ];
+
+                $cursor = $weekEnd->copy()->addDay()->startOfDay();
+                $weekNo++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'period' => $request->period,
+                'label' => $label,
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'income' => $income,
+                'expenses' => [
+                    'total' => $expenseTotal,
+                    'count' => $verified->count(),
+                    'by_category' => $byCategory,
+                    'items' => $verified->map(fn ($e) => [
+                        'expense_id' => $e->expense_id,
+                        'category' => $e->category,
+                        'category_label' => $e->category_label,
+                        'description' => $e->description,
+                        'payee_name' => $e->payee_name,
+                        'amount' => (float) $e->amount,
+                        'line_items' => $e->line_items ?: [],
+                        'expense_date' => $e->expense_date?->format('Y-m-d'),
+                        'billing_period' => $e->billing_period,
+                        'reference_no' => $e->reference_no,
+                        'recorded_by' => $e->recordedBy?->full_name,
+                        'reviewed_by' => $e->reviewedBy?->full_name,
+                    ])->values(),
+                ],
+                'pending_verification' => [
+                    'count' => (clone $pending)->count(),
+                    'amount' => round((float) (clone $pending)->sum('amount'), 2),
+                ],
+                'net' => round($income['total'] - $expenseTotal, 2),
+                'weekly_breakdown' => $weeklyBreakdown,
+                'generated_at' => now()->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Same income sources as the daily report, summed over a date range.
+     *
+     * @return array{service_fees: float, mass_collections: float, donations: float, special_intentions: float, total: float}
+     */
+    private function incomeBetween(Carbon $start, Carbon $end): array
+    {
+        $from = $start->copy()->startOfDay();
+        $to = $end->copy()->endOfDay();
+
+        $serviceFees = (float) PaymentTransaction::whereBetween('created_at', [$from, $to])->sum('amount');
+        $mass = (float) MassCollection::received()->whereBetween('received_at', [$from, $to])->sum('amount');
+        $donations = (float) Donation::received()->whereBetween('received_at', [$from, $to])->sum('amount');
+        $intentions = (float) SpecialIntention::received()->whereBetween('received_at', [$from, $to])->sum('amount');
+
+        return [
+            'service_fees' => round($serviceFees, 2),
+            'mass_collections' => round($mass, 2),
+            'donations' => round($donations, 2),
+            'special_intentions' => round($intentions, 2),
+            'total' => round($serviceFees + $mass + $donations + $intentions, 2),
+        ];
     }
 
     private function transformPayment(PaymentTransaction $p): array

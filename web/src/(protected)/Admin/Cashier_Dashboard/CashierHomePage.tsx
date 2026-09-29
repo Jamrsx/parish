@@ -12,6 +12,8 @@ import {
   LogOut,
   PieChart,
   CalendarRange,
+  ClipboardCheck,
+  FileBarChart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../../../../context/AuthContext";
@@ -23,6 +25,8 @@ import TransactionHistory from "./Transaction_History";
 import DailyReport from "./Daily_Report";
 import DonationHandover from "./Donation_Handover";
 import SpecialIntentionHandover from "./Special_Intention_Handover";
+import ExpenseReview from "./Expense_Review";
+import GeneralReport from "./General_Report";
 import { CashierListSkeleton, CashierStatSkeleton } from "./CashierSkeletons";
 import { DonutChart, HorizontalBarChart } from "../components/MonthlyCharts";
 
@@ -33,7 +37,9 @@ type TabId =
   | "daily-report"
   | "mass"
   | "donations"
-  | "intentions";
+  | "intentions"
+  | "expense-review"
+  | "general-report";
 
 const VALID_TABS: TabId[] = [
   "dashboard",
@@ -43,6 +49,8 @@ const VALID_TABS: TabId[] = [
   "mass",
   "donations",
   "intentions",
+  "expense-review",
+  "general-report",
 ];
 
 const isValidTab = (value: string | null): value is TabId =>
@@ -74,6 +82,14 @@ const navGroups: {
       { id: "mass", label: "Mass Collections", icon: Church },
       { id: "donations", label: "Donations", icon: HandCoins },
       { id: "intentions", label: "Special Intentions", icon: BookOpen },
+    ],
+  },
+  {
+    id: "expenses",
+    label: "Expenses",
+    items: [
+      { id: "expense-review", label: "Expense Review", icon: ClipboardCheck },
+      { id: "general-report", label: "General Report", icon: FileBarChart },
     ],
   },
 ];
@@ -124,6 +140,7 @@ const CashierHomePage: React.FC = () => {
     if (tabId === "donations") return dashboard.pending_donations || 0;
     if (tabId === "mass") return dashboard.pending_mass_collections || 0;
     if (tabId === "intentions") return dashboard.pending_special_intentions || 0;
+    if (tabId === "expense-review") return dashboard.pending_expenses || 0;
     return 0;
   };
 
@@ -630,6 +647,8 @@ const CashierHomePage: React.FC = () => {
             {activeTab === "mass" && <MassCollections onChanged={fetchDashboard} />}
             {activeTab === "donations" && <DonationHandover onChanged={fetchDashboard} />}
             {activeTab === "intentions" && <SpecialIntentionHandover onChanged={fetchDashboard} />}
+            {activeTab === "expense-review" && <ExpenseReview onChanged={fetchDashboard} />}
+            {activeTab === "general-report" && <GeneralReport />}
           </div>
         </main>
       </div>

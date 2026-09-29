@@ -2,6 +2,7 @@ import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
 import type { DailyReportData } from './cashier';
 import type { InventoryItem } from './inventory';
+import type { ExpenseRow, GeneralReportData, GeneralReportParams } from './expenses';
 
 export interface PriestServiceOption {
   service_id: number;
@@ -47,7 +48,7 @@ export interface PriestMonthlyActivity {
 }
 
 /**
- * Priest read-only APIs — income and inventory viewing only.
+ * Priest read-only APIs — income, inventory and church expenses viewing only.
  */
 export const priestAPI = {
   getIncome: (date: string) => {
@@ -83,4 +84,20 @@ export const priestAPI = {
 
   getInventoryItem: (id: number) =>
     api.get<ApiResponse<InventoryItem>>(`/priest/inventory/${id}`),
+
+  getExpenses: (params: {
+    status?: 'verified' | 'forwarded';
+    category?: string;
+    date_from?: string;
+    date_to?: string;
+    per_page?: number;
+  }) => {
+    console.log('[PriestExpenses] Fetching expenses:', params);
+    return api.get<ApiResponse<PaginatedResponse<ExpenseRow>>>('/priest/expenses', { params });
+  },
+
+  getGeneralReport: (params: GeneralReportParams) => {
+    console.log('[PriestExpenses] Fetching general report:', params);
+    return api.get<ApiResponse<GeneralReportData>>('/priest/general-report', { params });
+  },
 };

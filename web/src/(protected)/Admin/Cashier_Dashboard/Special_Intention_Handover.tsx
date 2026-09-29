@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { specialIntentionAPI, type SpecialIntentionRow } from "../../../../library/cashier";
 import { formatDenomination } from "../../../../library/denominations";
 import { CashierTableSkeleton } from "./CashierSkeletons";
+import PesoInput from "../../../components/PesoInput";
+import { toPesoInputValue } from "../../../../library/pesoInput";
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -55,7 +57,7 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
     if (isAnyAmount(row) && row.source === "parishioner") {
       setAmountReceived("0");
     } else {
-      setAmountReceived(String(row.amount ?? 0));
+      setAmountReceived(toPesoInputValue(row.amount ?? 0));
     }
   };
 
@@ -294,18 +296,10 @@ const SpecialIntentionHandover: React.FC<Props> = ({ onChanged }) => {
 
             {review.status === "approved" && !rejectMode && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label htmlFor="intention-amount" className="block text-sm font-medium text-slate-700 mb-1">
                   Amount received (₱) {isAnyAmount(review) ? "— 0 allowed" : "*"}
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={amountReceived}
-                  onChange={(e) => setAmountReceived(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                  placeholder="0.00"
-                />
+                <PesoInput id="intention-amount" value={amountReceived} onChange={setAmountReceived} />
                 <p className="text-xs text-slate-500 mt-1">
                   Enter what the parishioner actually paid. Confirm even if the amount is ₱0.
                 </p>

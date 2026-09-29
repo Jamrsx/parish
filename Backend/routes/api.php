@@ -18,6 +18,7 @@ use App\Http\Controllers\SpecialIntentionController;
 use App\Http\Controllers\WalkInBookingController;
 use App\Http\Controllers\SecretaryDashboardController;
 use App\Http\Controllers\PriestDashboardController;
+use App\Http\Controllers\ChurchExpenseController;
 
 // ============ PUBLIC ROUTES ============
 
@@ -93,6 +94,18 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/unpaid-requests', [CashierController::class, 'unpaidRequests']);
             Route::get('/transactions', [CashierController::class, 'transactions']);
             Route::get('/daily-report', [CashierController::class, 'dailyReport']);
+            Route::get('/general-report', [CashierController::class, 'generalReport']);
+        });
+
+        // Church expenses (secretary compiles & forwards, cashier verifies or returns)
+        Route::prefix('expenses')->group(function () {
+            Route::get('/', [ChurchExpenseController::class, 'index']);
+            Route::post('/', [ChurchExpenseController::class, 'store']);
+            Route::post('/forward', [ChurchExpenseController::class, 'forward']);
+            Route::post('/verify', [ChurchExpenseController::class, 'verify']);
+            Route::put('/{id}', [ChurchExpenseController::class, 'update']);
+            Route::delete('/{id}', [ChurchExpenseController::class, 'destroy']);
+            Route::post('/{id}/return', [ChurchExpenseController::class, 'returnToSecretary']);
         });
 
         // Mass collections (secretary records, cashier approves)
@@ -246,6 +259,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Read-only finance & inventory (view only — no write actions)
         Route::get('/income', [CashierController::class, 'dailyReport']);
+        Route::get('/expenses', [ChurchExpenseController::class, 'priestIndex']);
+        Route::get('/general-report', [CashierController::class, 'generalReport']);
         Route::get('/inventory', [InventoryController::class, 'index']);
         Route::get('/inventory/categories', [InventoryController::class, 'getCategories']);
         Route::get('/inventory/{id}', [InventoryController::class, 'show']);

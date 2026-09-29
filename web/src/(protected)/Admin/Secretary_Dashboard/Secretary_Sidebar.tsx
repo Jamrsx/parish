@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Receipt,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -53,6 +54,13 @@ const navGroups: {
     items: [
       { path: "/admin/secretary/donations", label: "Donations", icon: HandCoins },
       { path: "/admin/secretary/mass-collections", label: "Mass Collections", icon: Church },
+    ],
+  },
+  {
+    id: "expenses",
+    label: "Expenses",
+    items: [
+      { path: "/admin/secretary/expenses", label: "Church Expenses", icon: Receipt },
     ],
   },
   {

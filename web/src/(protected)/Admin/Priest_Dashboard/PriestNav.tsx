@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Calendar, Package, Wallet } from 'lucide-react';
+import { Calendar, Package, Receipt, Wallet } from 'lucide-react';
 
 const links = [
   { to: '/priest/PriestHomePage', label: 'Schedule', icon: Calendar, end: true },
   { to: '/priest/income', label: 'Income', icon: Wallet, end: false },
   { to: '/priest/inventory', label: 'Inventory', icon: Package, end: false },
+  { to: '/priest/expenses', label: 'Expenses', icon: Receipt, end: false },
 ];
 
 const PriestNav: React.FC = () => {

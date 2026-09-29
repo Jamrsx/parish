@@ -30,6 +30,7 @@ const ManageDonations = lazyPage("ManageDonations", () => import("./(protected)/
 const ManageMassCollections = lazyPage("ManageMassCollections", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Mass_Collections"));
 const ManageSpecialIntentions = lazyPage("ManageSpecialIntentions", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Special_Intentions"));
 const ManageServices = lazyPage("ManageServices", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Services"));
+const ManageExpenses = lazyPage("ManageExpenses", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Expenses"));
 const WalkInBooking = lazyPage("WalkInBooking", () => import("./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking"));
 
 // Admin - Cashier
@@ -38,6 +39,7 @@ const CashierDashboard = lazyPage("CashierDashboard", () => import("./(protected
 // Priest
 const PriestHomePage = lazyPage("PriestHomePage", () => import("./(protected)/Admin/Priest_Dashboard/PriestHomePage"));
 const PriestIncome = lazyPage("PriestIncome", () => import("./(protected)/Admin/Priest_Dashboard/PriestIncome"));
+const PriestExpenses = lazyPage("PriestExpenses", () => import("./(protected)/Admin/Priest_Dashboard/PriestExpenses"));
 const PriestInventory = lazyPage("PriestInventory", () => import("./(protected)/Admin/Priest_Dashboard/PriestInventory"));
 
 // Parishioner
@@ -105,6 +107,7 @@ function App() {
             <Route path="special-intentions" element={<ManageSpecialIntentions />} />
             <Route path="manage-services" element={<ManageServices />} />
             <Route path="walk-in-booking" element={<WalkInBooking />} />
+            <Route path="expenses" element={<ManageExpenses />} />
           </Route>
 
           {/* Cashier */}
@@ -131,6 +134,14 @@ function App() {
             element={
               <RequireAuth roles={['priest']}>
                 <PriestIncome />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/priest/expenses"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestExpenses />
               </RequireAuth>
             }
           />

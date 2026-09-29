@@ -6,6 +6,8 @@ import {
 } from "../../../../library/church_service";
 import { Layers, Plus } from "lucide-react";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
+import PesoInput from "../../../components/PesoInput";
+import { toPesoInputValue } from "../../../../library/pesoInput";
 
 const ICON_OPTIONS = [
   "Church",
@@ -74,7 +76,7 @@ const ManageServices: React.FC = () => {
       description: row.description || "",
       icon: row.icon || "Church",
       category: (row.category as "service" | "certificate") || "service",
-      fee: String(row.fee ?? ""),
+      fee: toPesoInputValue(row.fee ?? ""),
       available_slots: String(row.available_slots ?? row.daily_limit ?? 10),
       is_active: row.is_active !== false,
     });
@@ -324,15 +326,16 @@ const ManageServices: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-slate-700">Fee (₱) *</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.fee}
-                    onChange={(e) => setForm({ ...form, fee: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                  />
+                  <label htmlFor="service-fee" className="text-sm font-medium text-slate-700">
+                    Fee (₱) *
+                  </label>
+                  <div className="mt-1">
+                    <PesoInput
+                      id="service-fee"
+                      value={form.fee}
+                      onChange={(raw) => setForm((prev) => ({ ...prev, fee: raw }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-700">Daily request limit *</label>
