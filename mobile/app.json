@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "church-mobile",
-    "slug": "church-mobile",
+    "name": "San Guillermo Parish",
+    "slug": "san-guillermo-parish",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,9 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sanguillermo.parish",
+      "buildNumber": "1"
     },
     "android": {
+      "package": "com.sanguillermo.parish",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -39,11 +43,19 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f2674c40-63c5-4309-af68-8edeb3da6c79"
+      }
     }
   }
 }
