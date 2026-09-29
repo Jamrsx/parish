@@ -38,7 +38,8 @@ export interface PaginationLink {
 }
 
 // ============ API CONFIGURATION ============
-const API_BASE_URL = 'http://10.91.139.74:8000/api';
+const API_BASE_URL = 'https://parish.nexiodev.site/api';
+console.log('[API Config]', { baseUrl: API_BASE_URL });
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
