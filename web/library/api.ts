@@ -38,8 +38,11 @@ export interface PaginationLink {
 }
 
 // ============ API CONFIGURATION ============
-const API_BASE_URL = 'https://back.parishcapstone.site/api';
-console.log('[API Config]', { baseUrl: API_BASE_URL });
+// `npm run dev` uses the Laragon backend; `npm run build` (Hostinger upload) uses the live backend.
+const LOCAL_API_URL = 'http://10.91.139.74:8000/api';
+const PRODUCTION_API_URL = 'https://back.parishcapstone.site/api';
+const API_BASE_URL = import.meta.env.DEV ? LOCAL_API_URL : PRODUCTION_API_URL;
+console.log('[API Config]', { mode: import.meta.env.MODE, baseUrl: API_BASE_URL });
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
