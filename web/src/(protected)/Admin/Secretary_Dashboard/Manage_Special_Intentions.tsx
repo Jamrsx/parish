@@ -215,7 +215,7 @@ const ManageSpecialIntentions: React.FC = () => {
             <BookOpen size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Special Intentions</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Special Intention</h1>
             <p className="text-sm text-slate-500 mt-1">
               Approve mobile app requests, or record walk-in intentions for the cashier
             </p>
