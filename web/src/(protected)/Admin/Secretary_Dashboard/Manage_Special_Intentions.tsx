@@ -376,7 +376,7 @@ const ManageSpecialIntentions: React.FC = () => {
                 <input
                   value={form.parishioner_name}
                   onChange={(e) => setForm({ ...form, parishioner_name: e.target.value })}
-                  placeholder="e.g. Althian James"
+                  placeholder="e.g. Geildan Lozada"
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                 />
               </div>
