@@ -53,6 +53,9 @@ class WalkInBookingController extends Controller
             'birth_date' => 'nullable|date',
             'baptism_date' => 'nullable|date',
             'marriage_date' => 'nullable|date',
+            'father_name' => 'nullable|string|max:150',
+            'mother_name' => 'nullable|string|max:150',
+            'birth_place' => 'nullable|string|max:150',
             'intention_text' => 'nullable|string|min:5|max:1000',
             'godparents' => 'nullable|array',
             'godparents.*.godparent_name' => 'required_with:godparents|string|max:100',
@@ -150,6 +153,19 @@ class WalkInBookingController extends Controller
                         'success' => false,
                         'message' => 'Baptism date is required for a baptismal certificate.',
                     ], 422);
+                }
+                foreach ([
+                    'father_name' => "Father's full name is required for a baptismal certificate.",
+                    'mother_name' => "Mother's full name is required for a baptismal certificate.",
+                    'birth_place' => 'Place of birth is required for a baptismal certificate.',
+                ] as $field => $message) {
+                    if (!filled(trim((string) $request->input($field)))) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => $message,
+                            'errors' => [$field => [$message]],
+                        ], 422);
+                    }
                 }
             }
         }
@@ -250,7 +266,10 @@ class WalkInBookingController extends Controller
                 $certificate = CertificateForm::create([
                     'service_id' => $churchService->service_id,
                     'full_name' => $clientName,
+                    'father_name' => $request->filled('father_name') ? trim($request->father_name) : null,
+                    'mother_name' => $request->filled('mother_name') ? trim($request->mother_name) : null,
                     'birth_date' => $request->birth_date,
+                    'birth_place' => $request->filled('birth_place') ? trim($request->birth_place) : null,
                     'baptism_date' => $request->baptism_date,
                     'marriage_date' => $request->marriage_date,
                     'address' => $formAddress,

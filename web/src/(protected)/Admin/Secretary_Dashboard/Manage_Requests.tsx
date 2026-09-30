@@ -1054,30 +1054,50 @@ const ManageRequests: React.FC = () => {
 
     if (formType === 'certificate' && request.certificateForm) {
       const form = request.certificateForm;
+      const certificateTypeName =
+        request.service?.service_type || form.service_name || form.certificate_type_label || form.certificate_type || '';
+      const isMarriageCertificate = certificateTypeName.toLowerCase().includes('marriage');
       return (
         <div className="space-y-3">
           <h4 className="font-semibold text-gray-700 border-b pb-2">Certificate Details</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-gray-500">Certificate Type:</span>
-              <p className="font-medium">{form.certificate_type_label || form.certificate_type || 'N/A'}</p>
+              <p className="font-medium">{certificateTypeName || 'N/A'}</p>
             </div>
             <div>
               <span className="text-gray-500">Full Name:</span>
               <p className="font-medium">{form.full_name}</p>
             </div>
-            <div>
-              <span className="text-gray-500">Birth Date:</span>
-              <p className="font-medium">{form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Baptism Date:</span>
-              <p className="font-medium">{form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}</p>
-            </div>
-            <div>
-              <span className="text-gray-500">Marriage Date:</span>
-              <p className="font-medium">{form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}</p>
-            </div>
+            {isMarriageCertificate ? (
+              <div>
+                <span className="text-gray-500">Marriage Date:</span>
+                <p className="font-medium">{form.marriage_date ? formatDateOnly(form.marriage_date) : 'N/A'}</p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-gray-500">Father&apos;s Name:</span>
+                  <p className="font-medium">{form.father_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Mother&apos;s Name:</span>
+                  <p className="font-medium">{form.mother_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Birth Date:</span>
+                  <p className="font-medium">{form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Place of Birth:</span>
+                  <p className="font-medium">{form.birth_place || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Baptism Date:</span>
+                  <p className="font-medium">{form.baptism_date ? formatDateOnly(form.baptism_date) : 'N/A'}</p>
+                </div>
+              </>
+            )}
             <div className="col-span-2">
               <span className="text-gray-500">Contact:</span>
               <p className="font-medium">{formatPhilippinePhone(form.contact_number)}</p>

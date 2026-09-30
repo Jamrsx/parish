@@ -79,9 +79,12 @@ const emptyForm = () => ({
   father_first_name: "",
   father_middle_name: "",
   father_last_name: "",
-    birth_date: "",
+  birth_date: "",
   baptism_date: "",
   marriage_date: "",
+  cert_father_name: "",
+  cert_mother_name: "",
+  cert_birth_place: "",
   intention_text: "",
 });
 
@@ -201,11 +204,23 @@ const WalkInBooking: React.FC = () => {
         return "Marriage date is required.";
       }
       if (!type.includes("marriage")) {
+        if (!form.cert_father_name.trim()) {
+          return "Father's full name is required.";
+        }
+        if (!form.cert_mother_name.trim()) {
+          return "Mother's full name is required.";
+        }
         if (!form.birth_date) {
           return "Birth date is required.";
         }
+        if (!form.cert_birth_place.trim()) {
+          return "Place of birth is required.";
+        }
         if (!form.baptism_date) {
           return "Baptism date is required.";
+        }
+        if (form.baptism_date < form.birth_date) {
+          return "Baptism date cannot be before the birth date.";
         }
       }
     }
@@ -321,6 +336,9 @@ const WalkInBooking: React.FC = () => {
               birth_date: form.birth_date || undefined,
               baptism_date: form.baptism_date || undefined,
               marriage_date: form.marriage_date || undefined,
+              father_name: form.cert_father_name.trim() || undefined,
+              mother_name: form.cert_mother_name.trim() || undefined,
+              birth_place: form.cert_birth_place.trim() || undefined,
             }
           : {}),
         ...(formType === "special_intention" ? { intention_text: form.intention_text.trim() } : {}),
@@ -721,9 +739,42 @@ const WalkInBooking: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <p className="sm:col-span-2 text-xs text-slate-500">
+                    Enter the details exactly as they should appear on the certificate.
+                  </p>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Father&apos;s full name *</label>
+                    <input
+                      className={inputClass}
+                      maxLength={150}
+                      placeholder="e.g. John Meynard B. Wabe"
+                      value={form.cert_father_name}
+                      onChange={(e) => setField("cert_father_name", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Mother&apos;s full name *</label>
+                    <input
+                      className={inputClass}
+                      maxLength={150}
+                      placeholder="e.g. Clarisse Ann Lagumbay"
+                      value={form.cert_mother_name}
+                      onChange={(e) => setField("cert_mother_name", e.target.value)}
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Birth date *</label>
                     <input className={inputClass} type="date" value={form.birth_date} onChange={(e) => setField("birth_date", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Place of birth *</label>
+                    <input
+                      className={inputClass}
+                      maxLength={150}
+                      placeholder="e.g. Maria Reyna-Xavier University"
+                      value={form.cert_birth_place}
+                      onChange={(e) => setField("cert_birth_place", e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Baptism date *</label>

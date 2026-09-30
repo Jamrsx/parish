@@ -47,7 +47,11 @@ const emptyForm = (serviceId = 0): CreateCertificateFormData => ({
   address: '',
   contact_number: '',
   birth_date: null,
+  baptism_date: null,
   marriage_date: null,
+  father_name: null,
+  mother_name: null,
+  birth_place: null,
   preferred_date: '',
   preferred_time: '',
 });
@@ -122,7 +126,11 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           address: data.address,
           contact_number: data.contact_number,
           birth_date: data.birth_date || null,
+          baptism_date: data.baptism_date || null,
           marriage_date: data.marriage_date || null,
+          father_name: data.father_name || null,
+          mother_name: data.mother_name || null,
+          birth_place: data.birth_place || null,
           preferred_date: data.preferred_date || '',
           preferred_time: data.preferred_time || '',
         });
@@ -212,8 +220,24 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
       newErrors.preferred_time = 'Preferred time is required';
     }
 
-    if (selectedType === 'baptismal' && !formData.birth_date) {
-      newErrors.birth_date = 'Birth date is required for baptismal certificate';
+    if (selectedType === 'baptismal') {
+      if (!formData.birth_date) {
+        newErrors.birth_date = 'Birth date is required for baptismal certificate';
+      }
+      if (!formData.baptism_date) {
+        newErrors.baptism_date = 'Baptism date is required for baptismal certificate';
+      } else if (formData.birth_date && formData.baptism_date < formData.birth_date) {
+        newErrors.baptism_date = 'Baptism date cannot be before birth date';
+      }
+      if (!formData.father_name?.trim()) {
+        newErrors.father_name = "Father's full name is required";
+      }
+      if (!formData.mother_name?.trim()) {
+        newErrors.mother_name = "Mother's full name is required";
+      }
+      if (!formData.birth_place?.trim()) {
+        newErrors.birth_place = 'Place of birth is required';
+      }
     }
     if (selectedType === 'marriage' && !formData.marriage_date) {
       newErrors.marriage_date = 'Marriage date is required for marriage certificate';
@@ -250,7 +274,11 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
           address: formData.address,
           contact_number: formData.contact_number,
           birth_date: formData.birth_date,
+          baptism_date: formData.baptism_date,
           marriage_date: formData.marriage_date,
+          father_name: formData.father_name,
+          mother_name: formData.mother_name,
+          birth_place: formData.birth_place,
           preferred_date: formData.preferred_date,
           preferred_time: formData.preferred_time,
         };
@@ -416,6 +444,50 @@ const CertificateForm: React.FC<CertificateFormProps> = ({
             </div>
           </div>
         </div>
+
+        {selectedType === 'baptismal' && (
+          <div className="border-b border-gray-200 pb-4">
+            <h3 className="text-lg font-semibold text-gray-700 mb-1">Baptism Details</h3>
+            <p className="text-xs text-gray-500 mb-4">Enter the details exactly as they should appear on the certificate.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {([
+                { name: 'father_name', label: "Father's Full Name *", placeholder: 'e.g. John Meynard B. Wabe' },
+                { name: 'mother_name', label: "Mother's Full Name *", placeholder: 'e.g. Clarisse Ann Lagumbay' },
+                { name: 'birth_place', label: 'Place of Birth *', placeholder: 'e.g. Maria Reyna-Xavier University' },
+              ] as const).map((field) => (
+                <div key={field.name}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+                  <input
+                    type="text"
+                    name={field.name}
+                    maxLength={150}
+                    value={formData[field.name] || ''}
+                    onChange={handleChange}
+                    placeholder={field.placeholder}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors[field.name] ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors[field.name] && <p className="mt-1 text-sm text-red-600">{errors[field.name]}</p>}
+                </div>
+              ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Baptism Date *</label>
+                <input
+                  type="date"
+                  name="baptism_date"
+                  value={formData.baptism_date || ''}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.baptism_date ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                {errors.baptism_date && <p className="mt-1 text-sm text-red-600">{errors.baptism_date}</p>}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="border-b border-gray-200 pb-4">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Preferred Schedule</h3>

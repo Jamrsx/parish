@@ -10,7 +10,11 @@ export interface CertificateForm {
     certificate_id: number;
     service_id: number;  // ✅ Changed from certificate_type to service_id
     full_name: string;
+    father_name?: string | null;
+    mother_name?: string | null;
     birth_date?: string | null;
+    birth_place?: string | null;
+    baptism_date?: string | null;
     marriage_date?: string | null;
     address: string;
     contact_number: string;
@@ -37,7 +41,11 @@ export interface CreateCertificateFormData {
     address: string;
     contact_number: string;
     birth_date?: string | null;
+    baptism_date?: string | null;
     marriage_date?: string | null;
+    father_name?: string | null;
+    mother_name?: string | null;
+    birth_place?: string | null;
     preferred_date: string;
     preferred_time: string;
 }

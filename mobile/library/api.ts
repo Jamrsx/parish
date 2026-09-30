@@ -324,7 +324,10 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
   async createCertificateForm(data: {
     service_id: number;
     full_name: string;
+    father_name?: string;
+    mother_name?: string;
     birth_date?: string;
+    birth_place?: string;
     baptism_date?: string;
     marriage_date?: string;
     address: string;

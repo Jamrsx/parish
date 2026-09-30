@@ -22,6 +22,7 @@ import {
   ChevronUp,
   AlertTriangle,
   Receipt,
+  Award,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -45,6 +46,7 @@ const navGroups: {
       { path: "/admin/secretary/walk-in-booking", label: "Walk-in Booking", icon: CalendarPlus },
       { path: "/admin/secretary/manage-requests", label: "Manage Requests", icon: ClipboardList },
       { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
+      { path: "/admin/secretary/certificates", label: "Certificates", icon: Award },
       { path: "/admin/secretary/special-intentions", label: "Special Intentions", icon: BookOpen },
     ],
   },
@@ -76,6 +78,9 @@ const navGroups: {
 ];
 
 const PENDING_POLL_INTERVAL_MS = 30000;
+
+// Pages that need the whole screen (side-by-side editor + preview) instead of the 1280px content column.
+const FULL_WIDTH_PATHS = ["/admin/secretary/certificates"];
 
 const SecretarySidebar: React.FC = () => {
   const navigate = useNavigate();
@@ -364,7 +369,11 @@ const SecretarySidebar: React.FC = () => {
         </aside>
 
         <main className="flex-1 overflow-y-auto bg-slate-50">
-          <div className="p-6 max-w-7xl mx-auto w-full">
+          <div
+            className={`p-6 mx-auto w-full ${
+              FULL_WIDTH_PATHS.includes(location.pathname) ? "max-w-none" : "max-w-7xl"
+            }`}
+          >
             <Suspense fallback={<PageLoader fullScreen={false} />}>
               <Outlet />
             </Suspense>

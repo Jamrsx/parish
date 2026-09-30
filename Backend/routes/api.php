@@ -6,6 +6,7 @@ use App\Http\Controllers\ManageRequestController;
 use App\Http\Controllers\BaptismFormController;
 use App\Http\Controllers\ServiceFormController;
 use App\Http\Controllers\CertificateFormController;
+use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\ChurchServiceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AvailabilityController;
@@ -86,6 +87,14 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::post('/walk-in-booking', [WalkInBookingController::class, 'store']);
+
+        // Certificate generation (secretary only)
+        Route::middleware('role:secretary')->prefix('certificates')->group(function () {
+            Route::get('/baptism-records', [CertificateController::class, 'baptismRecords']);
+            Route::get('/requests', [CertificateController::class, 'certificateRequests']);
+            Route::get('/issued', [CertificateController::class, 'issued']);
+            Route::post('/issue', [CertificateController::class, 'issue']);
+        });
         Route::get('/secretary/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
         Route::get('/cashier/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
 

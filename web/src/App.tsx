@@ -32,6 +32,7 @@ const ManageSpecialIntentions = lazyPage("ManageSpecialIntentions", () => import
 const ManageServices = lazyPage("ManageServices", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Services"));
 const ManageExpenses = lazyPage("ManageExpenses", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Expenses"));
 const WalkInBooking = lazyPage("WalkInBooking", () => import("./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking"));
+const Certificates = lazyPage("Certificates", () => import("./(protected)/Admin/Secretary_Dashboard/Certificates/Certificates"));
 
 // Admin - Cashier
 const CashierDashboard = lazyPage("CashierDashboard", () => import("./(protected)/Admin/Cashier_Dashboard/CashierHomePage"));
@@ -108,6 +109,7 @@ function App() {
             <Route path="manage-services" element={<ManageServices />} />
             <Route path="walk-in-booking" element={<WalkInBooking />} />
             <Route path="expenses" element={<ManageExpenses />} />
+            <Route path="certificates" element={<Certificates />} />
           </Route>
 
           {/* Cashier */}

@@ -69,6 +69,9 @@ class CertificateFormController extends Controller
             // ✅ Use service_id instead of certificate_type
             'service_id' => 'required|exists:church_services,service_id',
             'full_name' => 'required|string|max:100',
+            'father_name' => 'nullable|string|max:150',
+            'mother_name' => 'nullable|string|max:150',
+            'birth_place' => 'nullable|string|max:150',
             'address' => 'required|string',
             'contact_number' => 'required|string|max:20',
             'birth_date' => 'nullable|date|before_or_equal:today',
@@ -103,6 +106,22 @@ class CertificateFormController extends Controller
             ], 422);
         }
 
+        if ($churchService->service_type === 'Baptismal Certificate') {
+            foreach ([
+                'father_name' => "Father's full name is required for baptismal certificate.",
+                'mother_name' => "Mother's full name is required for baptismal certificate.",
+                'birth_place' => 'Place of birth is required for baptismal certificate.',
+            ] as $field => $message) {
+                if (!filled(trim((string) ($validated[$field] ?? '')))) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $message,
+                        'errors' => [$field => [$message]],
+                    ], 422);
+                }
+            }
+        }
+
         if ($churchService->service_type === 'Marriage Certificate' && empty($validated['marriage_date'])) {
             return response()->json([
                 'success' => false,
@@ -129,6 +148,9 @@ class CertificateFormController extends Controller
         $certificate = CertificateForm::create([
             'service_id' => $validated['service_id'],
             'full_name' => $validated['full_name'],
+            'father_name' => isset($validated['father_name']) ? trim($validated['father_name']) : null,
+            'mother_name' => isset($validated['mother_name']) ? trim($validated['mother_name']) : null,
+            'birth_place' => isset($validated['birth_place']) ? trim($validated['birth_place']) : null,
             'address' => $validated['address'],
             'contact_number' => $validated['contact_number'],
             'birth_date' => $validated['birth_date'] ?? null,
@@ -182,6 +204,9 @@ class CertificateFormController extends Controller
 
             $validated = $request->validate([
                 'full_name' => 'sometimes|required|string|max:100',
+                'father_name' => 'nullable|string|max:150',
+                'mother_name' => 'nullable|string|max:150',
+                'birth_place' => 'nullable|string|max:150',
                 'address' => 'sometimes|required|string',
                 'contact_number' => 'sometimes|required|string|max:20',
                 'birth_date' => 'nullable|date|before_or_equal:today',

@@ -24,7 +24,10 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 
 interface BaptismalCertificateData {
   full_name: string;
+  father_name: string;
+  mother_name: string;
   birth_date: string;
+  birth_place: string;
   baptism_date: string;
   address: string;
   contact_number: string;
@@ -205,7 +208,10 @@ export default function BaptismalCertificate() {
 
   const [formData, setFormData] = useState<BaptismalCertificateData>({
     full_name: '',
+    father_name: '',
+    mother_name: '',
     birth_date: '',
+    birth_place: '',
     baptism_date: '',
     address: '',
     contact_number: '',
@@ -293,8 +299,20 @@ export default function BaptismalCertificate() {
       newErrors.full_name = 'Full name is required';
       isValid = false;
     }
+    if (!formData.father_name.trim()) {
+      newErrors.father_name = "Father's name is required";
+      isValid = false;
+    }
+    if (!formData.mother_name.trim()) {
+      newErrors.mother_name = "Mother's name is required";
+      isValid = false;
+    }
     if (!formData.birth_date) {
       newErrors.birth_date = 'Birth date is required';
+      isValid = false;
+    }
+    if (!formData.birth_place.trim()) {
+      newErrors.birth_place = 'Place of birth is required';
       isValid = false;
     }
     if (!formData.baptism_date) {
@@ -377,11 +395,19 @@ export default function BaptismalCertificate() {
       }
 
       // ✅ STEP 2: Create certificate form with service_id
-      console.log('[BaptismalCertificate] Submitting with baptism_date:', formData.baptism_date);
+      console.log('[BaptismalCertificate] Submitting', {
+        baptism_date: formData.baptism_date,
+        father_name: formData.father_name,
+        mother_name: formData.mother_name,
+        birth_place: formData.birth_place,
+      });
       const certificateResponse = await api.createCertificateForm({
         service_id: certificateService.service_id,
-        full_name: formData.full_name,
+        full_name: formData.full_name.trim(),
+        father_name: formData.father_name.trim(),
+        mother_name: formData.mother_name.trim(),
         birth_date: formData.birth_date,
+        birth_place: formData.birth_place.trim(),
         baptism_date: formData.baptism_date,
         address: formData.address,
         contact_number: formData.contact_number,
@@ -410,7 +436,7 @@ export default function BaptismalCertificate() {
 
       showCustomAlert(
         'Request Submitted!',
-        `Your Baptismal Certificate request has been submitted successfully!\n\nName: ${formData.full_name}\nBirth Date: ${formData.birth_date}\nBaptism Date: ${formData.baptism_date}\nRequest Date: ${formData.preferred_date}\nTime: ${getDisplayTime(formData.preferred_time)}`,
+        `Your Baptismal Certificate request has been submitted successfully!\n\nName: ${formData.full_name}\nFather: ${formData.father_name}\nMother: ${formData.mother_name}\nBirth Date: ${formData.birth_date}\nPlace of Birth: ${formData.birth_place}\nBaptism Date: ${formData.baptism_date}\nRequest Date: ${formData.preferred_date}\nTime: ${getDisplayTime(formData.preferred_time)}`,
         [
           { 
             text: 'OK', 
@@ -490,8 +516,44 @@ export default function BaptismalCertificate() {
             placeholderTextColor="#9CA3AF"
             value={formData.full_name}
             onChangeText={text => handleChange('full_name', text)}
+            maxLength={150}
           />
           <ErrorMessage message={errors.full_name} />
+          <Text className="text-xs text-gray-400 mt-1">
+            Enter the details exactly as they should appear on the certificate.
+          </Text>
+        </View>
+
+        <View className="mb-3">
+          <Text className="text-sm text-gray-600 font-medium mb-1">Father&apos;s Name *</Text>
+          <TextInput
+            className={`border rounded-xl px-4 py-3 text-gray-800 bg-gray-50 ${
+              errors.father_name ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="e.g. Pedro Dela Cruz"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="words"
+            maxLength={150}
+            value={formData.father_name}
+            onChangeText={text => handleChange('father_name', text)}
+          />
+          <ErrorMessage message={errors.father_name} />
+        </View>
+
+        <View className="mb-3">
+          <Text className="text-sm text-gray-600 font-medium mb-1">Mother&apos;s Name *</Text>
+          <TextInput
+            className={`border rounded-xl px-4 py-3 text-gray-800 bg-gray-50 ${
+              errors.mother_name ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="e.g. Maria Santos"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="words"
+            maxLength={150}
+            value={formData.mother_name}
+            onChangeText={text => handleChange('mother_name', text)}
+          />
+          <ErrorMessage message={errors.mother_name} />
         </View>
 
         <View className="mb-3">
@@ -511,6 +573,22 @@ export default function BaptismalCertificate() {
             </Text>
           </TouchableOpacity>
           <ErrorMessage message={errors.birth_date} />
+        </View>
+
+        <View className="mb-3">
+          <Text className="text-sm text-gray-600 font-medium mb-1">Place of Birth *</Text>
+          <TextInput
+            className={`border rounded-xl px-4 py-3 text-gray-800 bg-gray-50 ${
+              errors.birth_place ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="e.g. Cagayan de Oro City"
+            placeholderTextColor="#9CA3AF"
+            autoCapitalize="words"
+            maxLength={150}
+            value={formData.birth_place}
+            onChangeText={text => handleChange('birth_place', text)}
+          />
+          <ErrorMessage message={errors.birth_place} />
         </View>
 
         <View className="mb-3">

@@ -11,7 +11,10 @@ class CertificateForm extends Model
     protected $fillable = [
         'service_id',      
         'full_name',
+        'father_name',
+        'mother_name',
         'birth_date',
+        'birth_place',
         'baptism_date',
         'marriage_date',
         'address',

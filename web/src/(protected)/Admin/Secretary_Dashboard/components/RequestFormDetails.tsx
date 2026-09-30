@@ -242,6 +242,8 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
 
   if (formType === 'certificate' && request.certificateForm) {
     const form = request.certificateForm;
+    const certificateTypeName =
+      request.service?.service_type || form.service_name || form.certificate_type_label || form.certificate_type || '';
     const marriageCert = isMarriageRelated(request.service) ||
       `${form.certificate_type || ''} ${form.certificate_type_label || ''} ${form.service_name || ''}`
         .toLowerCase()
@@ -253,9 +255,7 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div>
             <span className="text-slate-500">Certificate Type</span>
-            <p className="font-medium text-slate-800">
-              {form.certificate_type_label || form.certificate_type || 'N/A'}
-            </p>
+            <p className="font-medium text-slate-800">{certificateTypeName || 'N/A'}</p>
           </div>
           {marriageCert ? (
             <CoupleNamesBlock fullName={form.full_name} />
@@ -275,10 +275,22 @@ const RequestFormDetails: React.FC<RequestFormDetailsProps> = ({ request, format
           ) : (
             <>
               <div>
+                <span className="text-slate-500">Father&apos;s Name</span>
+                <p className="font-medium text-slate-800">{form.father_name || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="text-slate-500">Mother&apos;s Name</span>
+                <p className="font-medium text-slate-800">{form.mother_name || 'N/A'}</p>
+              </div>
+              <div>
                 <span className="text-slate-500">Birth Date</span>
                 <p className="font-medium text-slate-800">
                   {form.birth_date ? formatDateOnly(form.birth_date) : 'N/A'}
                 </p>
+              </div>
+              <div>
+                <span className="text-slate-500">Place of Birth</span>
+                <p className="font-medium text-slate-800">{form.birth_place || 'N/A'}</p>
               </div>
               <div>
                 <span className="text-slate-500">Baptism Date</span>

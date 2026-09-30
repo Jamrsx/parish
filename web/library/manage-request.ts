@@ -89,7 +89,10 @@ export interface ServiceForm {
 export interface CertificateForm {
     certificate_id: number;
     full_name: string;
+    father_name?: string | null;
+    mother_name?: string | null;
     birth_date?: string | null;
+    birth_place?: string | null;
     baptism_date?: string | null;
     marriage_date?: string | null;
     address: string;
@@ -655,6 +658,9 @@ export interface WalkInBookingPayload {
     birth_date?: string;
     baptism_date?: string;
     marriage_date?: string;
+    father_name?: string;
+    mother_name?: string;
+    birth_place?: string;
     intention_text?: string;
     godparents?: { godparent_name: string; relationship: 'godfather' | 'godmother' }[];
     assigned_priest?: number | null;
