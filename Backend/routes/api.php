@@ -19,6 +19,7 @@ use App\Http\Controllers\SpecialIntentionController;
 use App\Http\Controllers\WalkInBookingController;
 use App\Http\Controllers\SecretaryDashboardController;
 use App\Http\Controllers\PriestDashboardController;
+use App\Http\Controllers\PriestScheduleController;
 use App\Http\Controllers\ChurchExpenseController;
 
 // ============ PUBLIC ROUTES ============
@@ -88,6 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::post('/walk-in-booking', [WalkInBookingController::class, 'store']);
+
+        // Priest schedules (secretary checks who is free before assigning)
+        Route::middleware('role:secretary')->prefix('priests')->group(function () {
+            Route::get('/schedule-summary', [PriestScheduleController::class, 'summary']);
+            Route::get('/{id}/schedule', [PriestScheduleController::class, 'show']);
+        });
 
         // Certificate generation (secretary only)
         Route::middleware('role:secretary')->prefix('certificates')->group(function () {

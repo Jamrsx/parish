@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { UserPlus, Users, Mail, Lock, User as UserIcon, CheckCircle2, AlertTriangle, UserX, UserCheck, Phone, Pencil, Save } from 'lucide-react';
+import { UserPlus, Users, Mail, Lock, User as UserIcon, CheckCircle2, AlertTriangle, UserX, UserCheck, Phone, Pencil, Save, CalendarDays } from 'lucide-react';
 import { usersAPI } from '../../../../library/api';
 import type { User } from '../../../../library/api';
+import { priestScheduleAPI } from '../../../../library/priestSchedule';
+import type { PriestScheduleSummaryRow } from '../../../../library/priestSchedule';
 import PageHeader from './components/PageHeader';
 import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
+import PriestScheduleModal from './components/PriestScheduleModal';
 import { SecretaryPersonListSkeleton } from './components/SecretarySkeletons';
 
 interface PriestFormData {
@@ -39,6 +42,14 @@ const getPriestDisplayName = (priest: User): string => {
 };
 
 const isPriestActive = (priest: User): boolean => priest.is_active !== false;
+
+const formatNextAssignment = (date: string, time: string): string => {
+  const [y, m, d] = date.split('-').map(Number);
+  const day = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  if (!time) return day;
+  const [h, min] = time.split(':').map(Number);
+  return `${day} · ${h % 12 || 12}:${String(min || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
 
 const emptyPriestForm = (): PriestFormData => ({
   first_name: '',
@@ -82,9 +93,28 @@ const ManagePriests: React.FC = () => {
   }>({ isOpen: false, priest: null, confirmText: '' });
   const [disablingId, setDisablingId] = useState<number | null>(null);
   const [enablingId, setEnablingId] = useState<number | null>(null);
+  const [scheduleSummary, setScheduleSummary] = useState<Record<number, PriestScheduleSummaryRow>>({});
+  const [schedulePriest, setSchedulePriest] = useState<User | null>(null);
+
+  const fetchScheduleSummary = useCallback(async () => {
+    try {
+      const response = await priestScheduleAPI.getSummary();
+      console.log('[ManagePriests] Schedule summary:', response.data);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        const map: Record<number, PriestScheduleSummaryRow> = {};
+        response.data.data.forEach((row) => {
+          map[row.priest_id] = row;
+        });
+        setScheduleSummary(map);
+      }
+    } catch (error) {
+      console.error('[ManagePriests] Failed to load schedule summary:', error);
+    }
+  }, []);
 
   const fetchPriests = useCallback(async () => {
     setLoadingList(true);
+    fetchScheduleSummary();
     try {
       const response = await usersAPI.listPriests();
       console.log('Priests list response:', response.data);
@@ -107,7 +137,7 @@ const ManagePriests: React.FC = () => {
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [fetchScheduleSummary]);
 
   useEffect(() => {
     fetchPriests();
@@ -720,15 +750,52 @@ const ManagePriests: React.FC = () => {
                       {priest.contact_number && (
                         <p className="text-xs text-slate-400 truncate">{priest.contact_number}</p>
                       )}
-                      <span
-                        className={`inline-flex mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          priest.is_resident === false
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {priest.is_resident === false ? 'Non-resident' : 'Resident'}
-                      </span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            priest.is_resident === false
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {priest.is_resident === false ? 'Non-resident' : 'Resident'}
+                        </span>
+                        {active && (
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              priest.is_available === false
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                            title={
+                              priest.is_available === false
+                                ? 'The priest turned off availability from his dashboard'
+                                : 'Can be assigned to new requests'
+                            }
+                          >
+                            {priest.is_available === false ? 'Unavailable (set by priest)' : 'Available'}
+                          </span>
+                        )}
+                      </div>
+                      {(() => {
+                        const info = scheduleSummary[priest.user_id];
+                        if (!info) return null;
+                        return (
+                          <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                            <CalendarDays size={12} className="shrink-0 text-slate-400" />
+                            {info.upcoming_count === 0 || !info.next_assignment ? (
+                              'No upcoming assignments'
+                            ) : (
+                              <span className="truncate">
+                                {info.upcoming_count} upcoming · Next:{' '}
+                                <span className="font-medium text-slate-700">
+                                  {formatNextAssignment(info.next_assignment.date, info.next_assignment.time)}
+                                </span>
+                              </span>
+                            )}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <span
                       className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold border ${
@@ -739,6 +806,18 @@ const ManagePriests: React.FC = () => {
                     >
                       {active ? 'Active' : 'Disabled'}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('[ManagePriests] Open schedule:', priest.user_id);
+                        setSchedulePriest(priest);
+                      }}
+                      aria-label={`View schedule of ${getPriestDisplayName(priest)}`}
+                      className="shrink-0 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                    >
+                      <CalendarDays size={14} />
+                      Schedule
+                    </button>
                     <button
                       type="button"
                       onClick={() => startEdit(priest)}
@@ -778,11 +857,20 @@ const ManagePriests: React.FC = () => {
           </div>
 
           <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
-            Only <strong>active</strong> priests appear when assigning a priest in Manage Requests or
-            Service Records. Disabled priests cannot log in.
+            Only <strong>active</strong> and <strong>available</strong> priests appear when assigning a priest in
+            Manage Requests, Scheduled Services, or Walk-in Booking. Disabled priests cannot log in. Use <strong>Schedule</strong> to see
+            when a priest is free before assigning.
           </div>
         </div>
       </div>
+
+      {schedulePriest && (
+        <PriestScheduleModal
+          priestId={schedulePriest.user_id}
+          priestName={getPriestDisplayName(schedulePriest)}
+          onClose={() => setSchedulePriest(null)}
+        />
+      )}
 
       {/* Disable Confirmation Modal */}
       {disableModal.isOpen && disableModal.priest && (
