@@ -39,7 +39,7 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children, roles }) => 
   return <>{children}</>;
 };
 
-/** Login/signup only — logged-in users must logout before seeing these pages. */
+/** Login page only — logged-in users must logout before seeing these pages. */
 export const GuestOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
 

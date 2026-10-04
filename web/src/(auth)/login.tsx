@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { authStorage } from '../../library/AuthStorage';
 
 const resolveLoginErrorMessage = (err: unknown): string => {
   if (err && typeof err === 'object') {
@@ -47,11 +48,7 @@ const Login: React.FC = () => {
   // ✅ Redirect if already authenticated
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
-      const redirectPath = user.role === 'secretary' ? '/admin/secretary/dashboard' :
-                          user.role === 'cashier' ? '/admin/cashier/dashboard' :
-                          user.role === 'priest' ? '/priest/PriestHomePage' :
-                          '/parishioner/ParishionerHomePage';
-      navigate(redirectPath, { replace: true });
+      navigate(authStorage.getRedirectPath(user.role), { replace: true });
     }
   }, [isLoading, isAuthenticated, user, navigate]);
 

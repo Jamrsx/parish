@@ -132,8 +132,6 @@ class AuthStorage {
         return '/admin/cashier/dashboard';
       case 'priest':
         return '/priest/PriestHomePage';
-      case 'parishioner':
-        return '/parishioner/ParishionerHomePage';
       default:
         return '/login';
     }

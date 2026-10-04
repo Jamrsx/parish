@@ -108,7 +108,7 @@ interface RequestDetailsModalState {
   loading: boolean;
 }
 
-// Type for godparent from baptism-form.ts
+// Type for a baptism godparent
 interface BaptismFormGodparent {
   godparent_name: string;
   relationship: 'godfather' | 'godmother';

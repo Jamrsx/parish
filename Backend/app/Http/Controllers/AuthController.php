@@ -99,10 +99,19 @@ class AuthController extends Controller
                 'message' => 'This account has been disabled. Please contact the parish office.'
             ], 403);
         }
-        
+
+        if ($user->role === 'parishioner') {
+            Log::info('Web login refused for parishioner account', ['user_id' => $user->user_id]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Parishioner accounts use the San Guillermo Parish mobile app. Please sign in there.',
+            ], 403);
+        }
+
         $user->update(['last_login' => now()]);
-        
-        
+
+
         $token = $user->createToken('auth_token', [$user->role])->plainTextToken;
 
         return response()->json([

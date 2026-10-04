@@ -30,7 +30,7 @@ use App\Http\Controllers\HistoryController;
 
 // Authentication
 Route::prefix('auth')->group(function () {
-    // Web Login - Accepts all roles
+    // Web Login - Staff only (secretary, cashier, priest); parishioners use the mobile app
     Route::post('/web-login', [AuthController::class, 'webLogin']);
 
     // Mobile Login - Only parishioners

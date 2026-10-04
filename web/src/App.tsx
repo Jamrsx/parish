@@ -8,7 +8,6 @@ import PageLoader from "./components/PageLoader";
 
 // Auth Pages
 import Login from "./(auth)/login";
-import Signup from "./(auth)/signup";
 
 // Admin - Secretary (layout shell stays eager so the sidebar never flickers)
 import SecretarySidebar from './(protected)/Admin/Secretary_Dashboard/Secretary_Sidebar';
@@ -45,12 +44,6 @@ const PriestIncome = lazyPage("PriestIncome", () => import("./(protected)/Admin/
 const PriestExpenses = lazyPage("PriestExpenses", () => import("./(protected)/Admin/Priest_Dashboard/PriestExpenses"));
 const PriestInventory = lazyPage("PriestInventory", () => import("./(protected)/Admin/Priest_Dashboard/PriestInventory"));
 const PriestHistory = lazyPage("PriestHistory", () => import("./(protected)/Admin/Priest_Dashboard/PriestHistory"));
-
-// Parishioner
-const ParishionerHome = lazyPage("ParishionerHome", () => import("./(protected)/Parishioner_Dashboard/ParishionerHomePage"));
-const ParishionerChurchService = lazyPage("ParishionerChurchService", () => import("./(protected)/Parishioner_Dashboard/Church_service"));
-const ParishionerProfile = lazyPage("ParishionerProfile", () => import("./(protected)/Parishioner_Dashboard/Profile"));
-
 function HomeRedirect() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -77,14 +70,6 @@ function App() {
             element={
               <GuestOnly>
                 <Login />
-              </GuestOnly>
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <GuestOnly>
-                <Signup />
               </GuestOnly>
             }
           />
@@ -175,33 +160,6 @@ function App() {
               </RequireAuth>
             }
           />
-
-          {/* Parishioner (web legacy) */}
-          <Route
-            path="/parishioner/ParishionerHomePage"
-            element={
-              <RequireAuth roles={['parishioner']}>
-                <ParishionerHome />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/parishioner/church-service"
-            element={
-              <RequireAuth roles={['parishioner']}>
-                <ParishionerChurchService />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/parishioner/profile"
-            element={
-              <RequireAuth roles={['parishioner']}>
-                <ParishionerProfile />
-              </RequireAuth>
-            }
-          />
-
           <Route path="*" element={<HomeRedirect />} />
         </Routes>
         </Suspense>

@@ -18,6 +18,9 @@ interface AuthContextType {
   checkAuthStatus: () => Promise<void>;
 }
 
+const PARISHIONER_WEB_MESSAGE =
+  'Parishioner accounts use the San Guillermo Parish mobile app. Please sign in there.';
+
 // ============ CONTEXT ============
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -59,7 +62,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (response.data.success) {
         const storedUser = authStorage.getUser();
-        if (storedUser) {
+        if (storedUser?.role === 'parishioner') {
+          console.log('Auth check: parishioner session found on web, signing out (mobile app only)');
+          clearAll();
+          setUser(null);
+        } else if (storedUser) {
           setUser(storedUser);
         }
         setAuthError(null);
@@ -116,6 +123,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const { user, token, role } = response.data.data;
+
+      if (role === 'parishioner') {
+        console.warn('Web login refused: parishioner accounts use the mobile app');
+        throw new Error(PARISHIONER_WEB_MESSAGE);
+      }
 
       saveAuth({ token, user, role });
       setUser(user);
