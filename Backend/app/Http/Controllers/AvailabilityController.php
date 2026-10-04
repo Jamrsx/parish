@@ -145,6 +145,56 @@ class AvailabilityController extends Controller
     }
 
     /**
+     * Dates in a range where every service time slot is already booked (parish-wide).
+     */
+    public function getFullyBookedDates(Request $request)
+    {
+        $validator = validator($request->all(), [
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $from = Carbon::parse($request->from)->startOfDay();
+        $to = Carbon::parse($request->to)->startOfDay();
+
+        if ($from->diffInDays($to) > 92) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please request at most 3 months at a time.',
+            ], 422);
+        }
+
+        try {
+            $dates = ManageRequest::getFullyBookedDates($from->format('Y-m-d'), $to->format('Y-m-d'));
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'from' => $from->format('Y-m-d'),
+                    'to' => $to->format('Y-m-d'),
+                    'time_slots' => ManageRequest::SERVICE_TIME_SLOTS,
+                    'fully_booked_dates' => $dates,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getFullyBookedDates: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch fully booked dates.',
+            ], 500);
+        }
+    }
+
+    /**
      * Get availability for a specific service
      */
     public function getServiceAvailability($serviceType, Request $request)

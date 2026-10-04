@@ -136,6 +136,10 @@ class ChurchService extends Model
      */
     public function validateSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
     {
+        if (ManageRequest::isPastSlot($date, $time)) {
+            return 'That time has already passed. Please choose a later time.';
+        }
+
         if ($this->isTimeSlotTaken($date, $time, $excludeRequestId)) {
             return 'The selected time slot is already booked. Please choose another time.';
         }

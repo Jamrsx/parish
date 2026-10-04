@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { serviceFormAPI } from '../../../../../library/service-form';
 import type { CreateServiceFormData, UpdateServiceFormData } from '../../../../../library/service-form';
+import ServiceDatePicker from '../../../../components/booking/ServiceDatePicker';
+import { buildTimeOptions, normalizeHm, timeProblem } from '../../../../components/booking/serviceSlots';
+import { useBookedTimeSlots } from '../../../Admin/Secretary_Dashboard/hooks/useBookedTimeSlots';
 
 interface ServiceFormProps {
   initialData?: Partial<CreateServiceFormData>;
@@ -47,20 +50,21 @@ const ServiceForm: React.FC<ServiceFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // The schedule this form already holds (edit mode) is not a conflict with itself.
+  const [originalSchedule, setOriginalSchedule] = useState<{ date: string; time: string } | null>(null);
 
+  const { bookedSlots, loading: slotsLoading } = useBookedTimeSlots(formData.preferred_date || '');
+  const bookedForDate =
+    originalSchedule && originalSchedule.date === formData.preferred_date
+      ? bookedSlots.filter((t) => normalizeHm(t) !== originalSchedule.time)
+      : bookedSlots;
+  const timeChoices = buildTimeOptions(formData.preferred_date || '', bookedForDate);
 
-  const preferredTimeOptions = [
-    { label: '8:00 AM', value: '08:00' },
-    { label: '9:00 AM', value: '09:00' },
-    { label: '10:00 AM', value: '10:00' },
-    { label: '11:00 AM', value: '11:00' },
-    { label: '12:00 PM', value: '12:00' },
-    { label: '1:00 PM', value: '13:00' },
-    { label: '2:00 PM', value: '14:00' },
-    { label: '3:00 PM', value: '15:00' },
-    { label: '4:00 PM', value: '16:00' },
-    { label: '5:00 PM', value: '17:00' },
-  ];
+  const handleDateChange = (date: string) => {
+    console.log('[ServiceForm] Preferred date changed', date);
+    setFormData((prev) => ({ ...prev, preferred_date: date, preferred_time: '' }));
+    setErrors((prev) => ({ ...prev, preferred_date: '', preferred_time: '' }));
+  };
 
   // Update form data when preselectedService changes
   useEffect(() => {
@@ -91,8 +95,11 @@ const ServiceForm: React.FC<ServiceFormProps> = ({
           address: data.address,
           contact_number: data.contact_number,
           preferred_date: data.preferred_date || '',
-          preferred_time: data.preferred_time || '',
+          preferred_time: normalizeHm(data.preferred_time || ''),
         });
+        if (data.preferred_date && data.preferred_time) {
+          setOriginalSchedule({ date: data.preferred_date, time: normalizeHm(data.preferred_time) });
+        }
       }
     } catch (error) {
       console.error('Error loading service data:', error);
@@ -166,6 +173,9 @@ const ServiceForm: React.FC<ServiceFormProps> = ({
     }
     if (!formData.preferred_time) {
       newErrors.preferred_time = 'Preferred time is required';
+    } else if (formData.preferred_date) {
+      const problem = timeProblem(formData.preferred_date, formData.preferred_time, bookedForDate);
+      if (problem) newErrors.preferred_time = problem;
     }
 
     setErrors(newErrors);
@@ -317,16 +327,12 @@ const ServiceForm: React.FC<ServiceFormProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Preferred Date *
               </label>
-              <input
-                type="date"
-                name="preferred_date"
+              <ServiceDatePicker
+                ariaLabel="Preferred date"
                 value={formData.preferred_date || ''}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.preferred_date ? 'border-red-500' : 'border-gray-300'
-                }`}
-                min={new Date().toISOString().split('T')[0]}
+                onChange={handleDateChange}
+                invalid={!!errors.preferred_date}
+                placeholder="Select preferred date"
               />
               {errors.preferred_date && (
                 <p className="mt-1 text-sm text-red-600">{errors.preferred_date}</p>
@@ -339,22 +345,32 @@ const ServiceForm: React.FC<ServiceFormProps> = ({
               </label>
               <select
                 name="preferred_time"
+                aria-label="Preferred time"
                 value={formData.preferred_time || ''}
+                disabled={!formData.preferred_date || slotsLoading}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.preferred_time ? 'border-red-500' : 'border-gray-300'
                 }`}
               >
-                <option value="">Select preferred time</option>
-                {preferredTimeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                <option value="">
+                  {!formData.preferred_date ? 'Pick a date first' : slotsLoading ? 'Loading times…' : 'Select preferred time'}
+                </option>
+                {timeChoices.map((option) => (
+                  <option key={option.value} value={option.value} disabled={option.disabled}>
+                    {option.display}
                   </option>
                 ))}
               </select>
-              {errors.preferred_time && (
+              {errors.preferred_time ? (
                 <p className="mt-1 text-sm text-red-600">{errors.preferred_time}</p>
+              ) : (
+                formData.preferred_date &&
+                !slotsLoading &&
+                timeChoices.every((o) => o.disabled) && (
+                  <p className="mt-1 text-sm text-amber-700">No open times left on this date. Please pick another date.</p>
+                )
               )}
             </div>
           </div>

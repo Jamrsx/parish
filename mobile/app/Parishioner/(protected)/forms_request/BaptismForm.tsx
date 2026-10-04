@@ -23,7 +23,8 @@ import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdown
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useFormDraft } from '../../../../hooks/useFormDraft';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
-import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
+import { getDisplayTimeLabel, getServiceTimeProblem } from '../../../../constants/serviceTimeOptions';
+import { useFullyBookedDates } from '../../../../hooks/useFullyBookedDates';
 
 // TYPE
 interface BaptismFormData {
@@ -365,6 +366,8 @@ export default function BaptismForm() {
   // Time dropdown state
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const { bookedSlots } = useBookedTimeSlots(formData.preferred_date);
+  const isPickingServiceDate = showDatePicker && activeDateField === 'preferred_date';
+  const { fullyBookedDates, loading: fullyBookedLoading } = useFullyBookedDates(selectedMonth, isPickingServiceDate);
 
   const { draftRestored, clearDraft } = useFormDraft<BaptismFormData>({
     formKey: 'baptism',
@@ -494,8 +497,10 @@ export default function BaptismForm() {
       }
     }
 
-    if (formData.preferred_time && bookedSlots.includes(formData.preferred_time)) {
-      newErrors.preferred_time = 'This time is already booked. Please choose another time.';
+    const timeIssue = getServiceTimeProblem(formData.preferred_date, formData.preferred_time, bookedSlots);
+    if (timeIssue) {
+      console.warn('Baptism form time rejected:', { date: formData.preferred_date, time: formData.preferred_time, timeIssue });
+      newErrors.preferred_time = timeIssue;
       isValid = false;
     }
 
@@ -1092,6 +1097,8 @@ export default function BaptismForm() {
                 onYearChange={handleYearChange}
                 onDateSelect={handleDateSelect}
                 isDateDisabled={isDateDisabled}
+                fullyBookedDates={isPickingServiceDate ? fullyBookedDates : undefined}
+                availabilityLoading={isPickingServiceDate && fullyBookedLoading}
                 enableYearPicker={activeDateField === 'child_birth_date'}
                 minYear={new Date().getFullYear() - 100}
                 maxYear={new Date().getFullYear()}
@@ -1112,6 +1119,7 @@ export default function BaptismForm() {
         visible={showTimeDropdown}
         selectedValue={formData.preferred_time}
         bookedSlots={bookedSlots}
+        selectedDate={formData.preferred_date}
         onSelect={(value) => handleChange('preferred_time', value)}
         onClose={() => setShowTimeDropdown(false)}
       />

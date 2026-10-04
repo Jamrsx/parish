@@ -13,24 +13,12 @@ import StatusBadge from './components/StatusBadge';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
 import { getFormattedRequestContactNumber, formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress, isParishResident } from './components/requestHelpers';
 import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
+import ServiceDatePicker from '../../../components/booking/ServiceDatePicker';
+import { buildTimeOptions, timeProblem } from '../../../components/booking/serviceSlots';
 import { SecretaryTableSkeleton } from './components/SecretarySkeletons';
 
 // TYPE DEFINITIONS
 type ServiceFilterType = 'all' | 'baptism' | 'service' | 'certificate';
-
-// Time options for dropdown
-const timeOptions = [
-  { label: '8:00 AM', value: '08:00' },
-  { label: '9:00 AM', value: '09:00' },
-  { label: '10:00 AM', value: '10:00' },
-  { label: '11:00 AM', value: '11:00' },
-  { label: '12:00 PM', value: '12:00' },
-  { label: '1:00 PM', value: '13:00' },
-  { label: '2:00 PM', value: '14:00' },
-  { label: '3:00 PM', value: '15:00' },
-  { label: '4:00 PM', value: '16:00' },
-  { label: '5:00 PM', value: '17:00' },
-];
 
 // Format time to 12-hour format 
 const formatTimeDisplay12Hour = (time: string): string => {
@@ -157,6 +145,7 @@ const ManageRequests: React.FC = () => {
     showRescheduleModal ? rescheduleData.preferred_date : '',
     selectedRequest?.request_id
   );
+  const rescheduleIsCertificate = !!selectedRequest?.certificate_form_id;
 
   // Priest Assignment Modal State
   const [priestModal, setPriestModal] = useState<PriestAssignmentModalState>({
@@ -697,6 +686,18 @@ const ManageRequests: React.FC = () => {
         message: 'Please select a date and time.',
         variant: 'warning',
       });
+      return;
+    }
+
+    const slotIssue = timeProblem(
+      rescheduleData.preferred_date,
+      rescheduleData.preferred_time,
+      bookedSlots,
+      !rescheduleIsCertificate
+    );
+    if (slotIssue) {
+      console.warn('[ManageRequests] Reschedule slot rejected', { ...rescheduleData, slotIssue });
+      setAlertModal({ isOpen: true, message: slotIssue, variant: 'warning' });
       return;
     }
 
@@ -1607,12 +1608,11 @@ const ManageRequests: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   New Preferred Date *
                 </label>
-                <input
-                  type="date"
+                <ServiceDatePicker
+                  ariaLabel="New preferred date"
                   value={rescheduleData.preferred_date}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_date: e.target.value, preferred_time: '' })}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(date) => setRescheduleData({ ...rescheduleData, preferred_date: date, preferred_time: '' })}
+                  blockFullyBooked={!rescheduleIsCertificate}
                 />
               </div>
 
@@ -1625,15 +1625,12 @@ const ManageRequests: React.FC = () => {
                   onChange={(e) => setRescheduleData({ ...rescheduleData, preferred_time: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="">Select time</option>
-                  {timeOptions.map((option) => {
-                    const isBooked = bookedSlots.includes(option.value);
-                    return (
-                      <option key={option.value} value={option.value} disabled={isBooked}>
-                        {option.label}{isBooked ? ' (Booked)' : ''}
-                      </option>
-                    );
-                  })}
+                  <option value="">{rescheduleData.preferred_date ? 'Select time' : 'Pick a date first'}</option>
+                  {buildTimeOptions(rescheduleData.preferred_date, bookedSlots, !rescheduleIsCertificate).map((option) => (
+                    <option key={option.value} value={option.value} disabled={option.disabled}>
+                      {option.display}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -4,7 +4,9 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ManageRequest extends Model
@@ -379,11 +381,82 @@ class ManageRequest extends Model
 
     public static function validateGlobalSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
     {
+        if (self::isPastSlot($date, $time)) {
+            return 'That time has already passed. Please choose a later time.';
+        }
+
         if (self::isTimeSlotTakenGlobally($date, $time, $excludeRequestId)) {
             return 'The selected time slot is already booked. Please choose another time.';
         }
 
         return null;
+    }
+
+    /** Hourly service slots offered by the parish (must match the web and mobile time lists). */
+    public const SERVICE_TIME_SLOTS = [
+        '08:00', '09:00', '10:00', '11:00', '12:00',
+        '13:00', '14:00', '15:00', '16:00', '17:00',
+    ];
+
+    public static function isPastSlot(string $date, string $time): bool
+    {
+        $normalizedTime = self::normalizeTime($time);
+        if ($normalizedTime === '') {
+            return false;
+        }
+
+        try {
+            return Carbon::parse("{$date} {$normalizedTime}")->lessThanOrEqualTo(Carbon::now());
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Dates between $from and $to (inclusive) where every service time slot is already booked.
+     *
+     * @return string[] Y-m-d dates
+     */
+    public static function getFullyBookedDates(string $from, string $to): array
+    {
+        $slotCount = count(self::SERVICE_TIME_SLOTS);
+
+        return static::query()
+            ->whereDate('preferred_date', '>=', $from)
+            ->whereDate('preferred_date', '<=', $to)
+            ->blockingSchedule()
+            ->get(['request_id', 'preferred_date', 'preferred_time'])
+            ->groupBy(fn (self $request) => Carbon::parse($request->preferred_date)->format('Y-m-d'))
+            ->filter(function ($requests) use ($slotCount) {
+                $taken = $requests
+                    ->map(fn (self $request) => self::normalizeTime($request->preferred_time))
+                    ->filter(fn ($time) => in_array($time, self::SERVICE_TIME_SLOTS, true))
+                    ->unique()
+                    ->count();
+
+                return $taken >= $slotCount;
+            })
+            ->keys()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Runs $callback while holding a lock on one date + time, so two people cannot
+     * pass the "slot is free" check at the same moment and both save.
+     * Returns null when the lock could not be obtained in time.
+     */
+    public static function withScheduleLock(string $date, string $time, callable $callback)
+    {
+        $key = 'schedule-slot:' . $date . ':' . self::normalizeTime($time);
+
+        try {
+            return Cache::lock($key, 15)->block(5, $callback);
+        } catch (LockTimeoutException $e) {
+            Log::warning('Schedule lock timeout', ['date' => $date, 'time' => $time]);
+            return null;
+        }
     }
 
     // ============ HELPER METHODS ============

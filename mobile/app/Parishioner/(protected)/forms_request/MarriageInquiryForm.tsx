@@ -22,7 +22,8 @@ import DatePickerCalendar from '../../../../components/DatePickerCalendar';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
-import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
+import { getDisplayTimeLabel, getServiceTimeProblem } from '../../../../constants/serviceTimeOptions';
+import { useFullyBookedDates } from '../../../../hooks/useFullyBookedDates';
 
 interface MarriageInquiryFormData {
   husband_name: string;
@@ -158,6 +159,7 @@ export default function MarriageInquiryForm() {
 
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const { bookedSlots } = useBookedTimeSlots(formData.preferred_date);
+  const { fullyBookedDates, loading: fullyBookedLoading } = useFullyBookedDates(selectedMonth, showDatePicker);
 
   const goToChurchService = () => {
     router.replace('/Parishioner/(protected)/(tabs)/church_service');
@@ -235,9 +237,13 @@ export default function MarriageInquiryForm() {
     if (!formData.preferred_time) {
       newErrors.preferred_time = 'Time is required';
       isValid = false;
-    } else if (bookedSlots.includes(formData.preferred_time)) {
-      newErrors.preferred_time = 'This time is already booked. Please choose another time.';
-      isValid = false;
+    } else {
+      const timeIssue = getServiceTimeProblem(formData.preferred_date, formData.preferred_time, bookedSlots);
+      if (timeIssue) {
+        console.warn('MarriageInquiryForm time rejected:', { date: formData.preferred_date, time: formData.preferred_time, timeIssue });
+        newErrors.preferred_time = timeIssue;
+        isValid = false;
+      }
     }
     if (!formData.contact_number.trim()) {
       newErrors.contact_number = 'Contact number is required';
@@ -580,6 +586,8 @@ export default function MarriageInquiryForm() {
               onMonthChange={changeMonth}
               onDateSelect={handleDateSelect}
               isDateDisabled={isDateDisabled}
+              fullyBookedDates={fullyBookedDates}
+              availabilityLoading={fullyBookedLoading}
             />
             <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-600 py-3 rounded-xl mx-2">
               <Text className="text-white text-center font-semibold">Close</Text>
@@ -592,6 +600,7 @@ export default function MarriageInquiryForm() {
         visible={showTimeDropdown}
         selectedValue={formData.preferred_time}
         bookedSlots={bookedSlots}
+        selectedDate={formData.preferred_date}
         onSelect={(value) => handleChange('preferred_time', value)}
         onClose={() => setShowTimeDropdown(false)}
       />

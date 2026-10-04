@@ -193,14 +193,6 @@ class WalkInBookingController extends Controller
                     ],
                 ], 422);
             }
-
-            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
-            if ($scheduleError) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $scheduleError,
-                ], 422);
-            }
         }
 
         $rawResident = $request->input('is_resident');
@@ -215,6 +207,46 @@ class WalkInBookingController extends Controller
         $formAddress = $isResident ? 'Parish resident' : trim((string) $request->address);
         $clientName = trim($request->first_name . ' ' . ($request->middle_name ? $request->middle_name . ' ' : '') . $request->last_name);
 
+        $save = function () use ($request, $isResident, $formAddress, $formType, $churchService, $clientName, $preferredDate, $preferredTime, $secretary, $priest) {
+            return $this->saveWalkInBooking($request, $isResident, $formAddress, $formType, $churchService, $clientName, $preferredDate, $preferredTime, $secretary, $priest);
+        };
+
+        if ($isCertificate) {
+            return $save();
+        }
+
+        // Services compete for parish time slots: check and save under one lock so two
+        // bookings for the same date and time cannot both get through.
+        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($preferredDate, $preferredTime, $save) {
+            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
+            if ($scheduleError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $scheduleError,
+                ], 422);
+            }
+
+            return $save();
+        });
+
+        return $response ?? response()->json([
+            'success' => false,
+            'message' => 'This time is being booked by someone else right now. Please try again or choose another time.',
+        ], 409);
+    }
+
+    private function saveWalkInBooking(
+        Request $request,
+        bool $isResident,
+        string $formAddress,
+        ?string $formType,
+        ChurchService $churchService,
+        string $clientName,
+        $preferredDate,
+        $preferredTime,
+        User $secretary,
+        ?User $priest
+    ) {
         DB::beginTransaction();
         try {
             $client = $this->resolveWalkInClient($request, $isResident, $formAddress);

@@ -509,6 +509,14 @@ async login(login: string, password: string): Promise<ApiResponse<{ user: User; 
     }
     return this.request(`/availability/booked-slots?${params.toString()}`);
   }
+
+  async getFullyBookedDates(
+    from: string,
+    to: string
+  ): Promise<ApiResponse<{ from: string; to: string; time_slots: string[]; fully_booked_dates: string[] }>> {
+    const params = new URLSearchParams({ from, to });
+    return this.request(`/availability/fully-booked-dates?${params.toString()}`);
+  }
 }
 
 export const api = new API();

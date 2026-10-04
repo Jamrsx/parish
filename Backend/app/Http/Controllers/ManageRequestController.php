@@ -268,9 +268,19 @@ class ManageRequestController extends Controller
             }
         }
 
-        // Time-slot conflicts apply to church services only.
-        // Certificates keep preferred_time for when the parishioner will visit/pick up.
-        if (!$isCertificateRequest) {
+        if ($isCertificateRequest) {
+            Log::info('Skipping service time-slot conflict check for certificate request', [
+                'service_id' => $request->service_id,
+                'preferred_date' => $preferredDate,
+                'preferred_time' => $preferredTime,
+            ]);
+
+            return $this->createRequestRecord($request, $preferredDate, $preferredTime);
+        }
+
+        // Time-slot conflicts apply to church services only; the lock stops two
+        // simultaneous submissions from both passing the "slot is free" check.
+        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($request, $preferredDate, $preferredTime) {
             $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
             if ($scheduleError) {
                 return response()->json([
@@ -278,14 +288,18 @@ class ManageRequestController extends Controller
                     'message' => $scheduleError,
                 ], 422);
             }
-        } else {
-            Log::info('Skipping service time-slot conflict check for certificate request', [
-                'service_id' => $request->service_id,
-                'preferred_date' => $preferredDate,
-                'preferred_time' => $preferredTime,
-            ]);
-        }
 
+            return $this->createRequestRecord($request, $preferredDate, $preferredTime);
+        });
+
+        return $response ?? response()->json([
+            'success' => false,
+            'message' => 'This time is being booked by someone else right now. Please try again or choose another time.',
+        ], 409);
+    }
+
+    private function createRequestRecord(Request $request, $preferredDate, $preferredTime)
+    {
         DB::beginTransaction();
 
         try {
@@ -937,27 +951,46 @@ class ManageRequestController extends Controller
                     || str_contains(strtolower((string) $service->service_type), 'certificate')
                 ));
 
-            // Certificates keep preferred visit times and do not compete with service bookings.
-            if ($service && !$isCertificateRequest) {
-                $scheduleError = $service->validateSchedule(
-                    $request->preferred_date,
-                    $request->preferred_time,
-                    $manageRequest->request_id
-                );
-
-                if ($scheduleError) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $scheduleError,
-                    ], 422);
-                }
-            }
-
-            $success = $manageRequest->reschedule([
+            $doReschedule = fn () => $manageRequest->reschedule([
                 'preferred_date' => $request->preferred_date,
                 'preferred_time' => $request->preferred_time,
                 'reschedule_reason' => $request->reschedule_reason,
             ], $isAdmin ? $user : null);
+
+            // Certificates keep preferred visit times and do not compete with service bookings.
+            if ($service && !$isCertificateRequest) {
+                $outcome = ManageRequest::withScheduleLock(
+                    $request->preferred_date,
+                    $request->preferred_time,
+                    function () use ($service, $request, $manageRequest, $doReschedule) {
+                        $scheduleError = $service->validateSchedule(
+                            $request->preferred_date,
+                            $request->preferred_time,
+                            $manageRequest->request_id
+                        );
+
+                        return $scheduleError ? ['error' => $scheduleError] : ['success' => $doReschedule()];
+                    }
+                );
+
+                if ($outcome === null) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This time is being booked by someone else right now. Please try again or choose another time.',
+                    ], 409);
+                }
+
+                if (isset($outcome['error'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $outcome['error'],
+                    ], 422);
+                }
+
+                $success = $outcome['success'];
+            } else {
+                $success = $doReschedule();
+            }
 
             if (!$success) {
                 return response()->json([

@@ -21,7 +21,8 @@ import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
-import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
+import { getDisplayTimeLabel, getServiceTimeProblem } from '../../../../constants/serviceTimeOptions';
+import { useFullyBookedDates } from '../../../../hooks/useFullyBookedDates';
 
 interface FormData {
   full_name: string;
@@ -117,6 +118,7 @@ export default function GenericServiceForm() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const { bookedSlots } = useBookedTimeSlots(formData.preferred_date);
+  const { fullyBookedDates, loading: fullyBookedLoading } = useFullyBookedDates(selectedMonth, showDatePicker);
 
   const showCustomAlert = (title: string, message: string, buttons: CustomAlertButton[]) => {
     setAlertConfig({ title, message, buttons });
@@ -146,8 +148,12 @@ export default function GenericServiceForm() {
     }
     if (!formData.preferred_date) next.preferred_date = 'Date is required';
     if (!formData.preferred_time) next.preferred_time = 'Time is required';
-    else if (bookedSlots.includes(formData.preferred_time)) {
-      next.preferred_time = 'This time is already booked';
+    else {
+      const timeIssue = getServiceTimeProblem(formData.preferred_date, formData.preferred_time, bookedSlots);
+      if (timeIssue) {
+        console.warn('Service form time rejected:', { date: formData.preferred_date, time: formData.preferred_time, timeIssue });
+        next.preferred_time = timeIssue;
+      }
     }
     if (!/^09\d{9}$/.test(formData.contact_number)) {
       next.contact_number = 'Enter 11-digit PH number (e.g., 09123456789)';
@@ -365,6 +371,8 @@ export default function GenericServiceForm() {
                 }
               }}
               isDateDisabled={isDateDisabled}
+              fullyBookedDates={fullyBookedDates}
+              availabilityLoading={fullyBookedLoading}
             />
           </View>
         </View>
@@ -374,6 +382,7 @@ export default function GenericServiceForm() {
         visible={showTimeDropdown}
         selectedValue={formData.preferred_time}
         bookedSlots={bookedSlots}
+        selectedDate={formData.preferred_date}
         onSelect={(value) => handleChange('preferred_time', value)}
         onClose={() => setShowTimeDropdown(false)}
       />

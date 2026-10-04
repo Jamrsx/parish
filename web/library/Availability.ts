@@ -88,6 +88,14 @@ export const availabilityAPI = {
     );
     return response.data;
   },
+
+  /** Dates in [from, to] where every service time slot is already booked. */
+  getFullyBookedDates: async (from: string, to: string) => {
+    const response = await api.get<
+      ApiResponse<{ from: string; to: string; time_slots: string[]; fully_booked_dates: string[] }>
+    >('/availability/fully-booked-dates', { params: { from, to } });
+    return response.data;
+  },
 };
 
 // For backward compatibility

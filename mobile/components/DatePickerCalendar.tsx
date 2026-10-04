@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Platform,
   ScrollView,
+  ActivityIndicator,
   useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -24,6 +25,8 @@ interface DatePickerCalendarProps {
   enableYearPicker?: boolean;
   minYear?: number;
   maxYear?: number;
+  fullyBookedDates?: string[];
+  availabilityLoading?: boolean;
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -75,7 +78,11 @@ export default function DatePickerCalendar({
   enableYearPicker = false,
   minYear,
   maxYear,
+  fullyBookedDates,
+  availabilityLoading = false,
 }: DatePickerCalendarProps) {
+  const fullSet = useMemo(() => new Set(fullyBookedDates ?? []), [fullyBookedDates]);
+  const showAvailability = fullyBookedDates !== undefined;
   const isWeb = Platform.OS === 'web';
   const { width: screenWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(0);
@@ -133,15 +140,53 @@ export default function DatePickerCalendar({
       );
     }
 
-    const disabled = isDateDisabled(year, month, day);
     const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const isSelected = selectedDate === dateString;
+    const baseDisabled = isDateDisabled(year, month, day);
+    const isFull = !baseDisabled && fullSet.has(dateString);
+    const disabled = baseDisabled || isFull || (showAvailability && availabilityLoading);
+    const isSelected = selectedDate === dateString && !isFull;
+    const circleSize = Math.min(rowHeight - 6, 40);
+
+    if (isFull) {
+      return (
+        <TouchableOpacity
+          key={key}
+          disabled
+          accessibilityLabel={`${dateString} is fully booked`}
+          accessibilityState={{ disabled: true }}
+          style={{
+            width: cellSize,
+            height: rowHeight,
+            justifyContent: 'center',
+            alignItems: 'center',
+            ...(isWeb ? ({ cursor: 'not-allowed' } as object) : {}),
+          }}
+        >
+          <View
+            style={{
+              width: circleSize,
+              height: circleSize,
+              borderRadius: 999,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: '#FEF2F2',
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '500', color: '#F87171', textDecorationLine: 'line-through', lineHeight: 15 }}>
+              {day}
+            </Text>
+            <Text style={{ fontSize: 8, fontWeight: '700', color: '#DC2626', lineHeight: 10 }}>Full</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
 
     return (
       <TouchableOpacity
         key={key}
         onPress={() => !disabled && onDateSelect(day)}
         disabled={disabled}
+        accessibilityState={{ disabled, selected: isSelected }}
         style={{
           width: cellSize,
           height: rowHeight,
@@ -153,8 +198,8 @@ export default function DatePickerCalendar({
       >
         <View
           style={{
-            width: Math.min(rowHeight - 6, 40),
-            height: Math.min(rowHeight - 6, 40),
+            width: circleSize,
+            height: circleSize,
             borderRadius: 999,
             justifyContent: 'center',
             alignItems: 'center',
@@ -277,6 +322,28 @@ export default function DatePickerCalendar({
             )}
           </View>
         ))}
+
+        {showAvailability && (
+          <View className="flex-row items-center justify-center flex-wrap mt-3 px-1" style={{ gap: 14 }}>
+            {availabilityLoading ? (
+              <View className="flex-row items-center" style={{ gap: 6 }}>
+                <ActivityIndicator size="small" color="#2563EB" />
+                <Text className="text-xs text-gray-500">Checking available dates…</Text>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center" style={{ gap: 6 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5' }} />
+                  <Text className="text-xs text-gray-600">Full — no open times</Text>
+                </View>
+                <View className="flex-row items-center" style={{ gap: 6 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#F3F4F6' }} />
+                  <Text className="text-xs text-gray-600">Unavailable</Text>
+                </View>
+              </>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );

@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, Platform } from 'react-native';
-import { SERVICE_TIME_OPTIONS } from '../constants/serviceTimeOptions';
+import { SERVICE_TIME_OPTIONS, isPastServiceTime, normalizeTimeValue } from '../constants/serviceTimeOptions';
 
 interface ServiceTimeDropdownModalProps {
   visible: boolean;
   selectedValue: string;
   bookedSlots?: string[];
+  selectedDate?: string;
   onSelect: (value: string) => void;
   onClose: () => void;
 }
@@ -14,11 +15,19 @@ const ServiceTimeDropdownModal: React.FC<ServiceTimeDropdownModalProps> = ({
   visible,
   selectedValue,
   bookedSlots = [],
+  selectedDate,
   onSelect,
   onClose,
 }) => {
   const isWeb = Platform.OS === 'web';
-  const bookedSet = new Set(bookedSlots);
+  const bookedSet = new Set(bookedSlots.map(normalizeTimeValue));
+
+  const options = SERVICE_TIME_OPTIONS.map((item) => {
+    const isBooked = bookedSet.has(item.value);
+    const isPassed = !!selectedDate && isPastServiceTime(selectedDate, item.value);
+    return { ...item, isBooked, isPassed, unavailable: isBooked || isPassed };
+  });
+  const hasOpenTime = options.some((item) => !item.unavailable);
 
   return (
     <Modal
@@ -42,23 +51,32 @@ const ServiceTimeDropdownModal: React.FC<ServiceTimeDropdownModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          {!hasOpenTime && (
+            <View className="mx-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+              <Text className="text-sm text-amber-800">
+                No open times left on this date. Please choose another date.
+              </Text>
+            </View>
+          )}
+
           <FlatList
-            data={SERVICE_TIME_OPTIONS}
+            data={options}
             keyExtractor={(item) => item.value}
             renderItem={({ item }) => {
-              const isBooked = bookedSet.has(item.value);
-              const isSelected = selectedValue === item.value;
+              const isSelected = selectedValue === item.value && !item.unavailable;
 
               return (
                 <TouchableOpacity
                   onPress={() => {
-                    if (isBooked) return;
+                    if (item.unavailable) return;
+                    console.log('ServiceTimeDropdownModal time selected:', { date: selectedDate, time: item.value });
                     onSelect(item.value);
                     onClose();
                   }}
-                  disabled={isBooked}
+                  disabled={item.unavailable}
+                  accessibilityState={{ disabled: item.unavailable, selected: isSelected }}
                   className={`py-4 px-4 rounded-xl mb-1 ${
-                    isBooked
+                    item.unavailable
                       ? 'bg-gray-100 opacity-60'
                       : isSelected
                       ? 'bg-blue-500'
@@ -67,7 +85,7 @@ const ServiceTimeDropdownModal: React.FC<ServiceTimeDropdownModalProps> = ({
                 >
                   <Text
                     className={`text-center text-base font-medium ${
-                      isBooked
+                      item.unavailable
                         ? 'text-gray-400'
                         : isSelected
                         ? 'text-white'
@@ -75,7 +93,7 @@ const ServiceTimeDropdownModal: React.FC<ServiceTimeDropdownModalProps> = ({
                     }`}
                   >
                     {item.label}
-                    {isBooked ? ' (Booked)' : ''}
+                    {item.isBooked ? ' (Booked)' : item.isPassed ? ' (Passed)' : ''}
                   </Text>
                 </TouchableOpacity>
               );

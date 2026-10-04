@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, CheckCircle2, ChevronLeft, Info, Plus, Pencil, Trash2, X } from "lucide-react";
+import { CalendarPlus, CheckCircle2, ChevronLeft, Clock, Info, Loader2, Plus, Pencil, Trash2, X } from "lucide-react";
 import PageHeader from "./components/PageHeader";
 import ModalCloseButton from "./components/ModalCloseButton";
 import { churchServiceAPI, formatFee, type ChurchService } from "../../../../library/church_service";
@@ -8,6 +8,9 @@ import { manageRequestAPI, getUserFullName } from "../../../../library/manage-re
 import { usersAPI } from "../../../../library/api";
 import type { User } from "../../../../library/AuthStorage";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
+import { availabilityAPI } from "../../../../library/Availability";
+import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
+import { buildTimeOptions } from "../../../components/booking/serviceSlots";
 import AlertModal from "./Inventory/Modals/AlertModal";
 
 type WalkInGodparent = {
@@ -58,6 +61,63 @@ const TIME_OPTIONS = [
   { label: "5:00 PM", value: "17:00" },
 ];
 
+const AUTO_SLOT_SEARCH_DAYS = 30;
+
+const toYmd = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const toHm = (d: Date): string => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+const addDaysYmd = (ymd: string, days: number): string => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return toYmd(new Date(y, m - 1, d + days));
+};
+
+/** "09:34" → "9:34 AM" */
+const formatTimeLabel = (hm: string): string => {
+  const [h, m] = hm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hm;
+  const suffix = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${suffix}`;
+};
+
+const formatShortDate = (ymd: string): string =>
+  new Date(`${ymd}T00:00:00`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
+
+/** Hourly slots that are not booked and, for today, not already past. */
+const openTimesFor = (date: string, booked: string[], skipBooked: boolean): typeof TIME_OPTIONS => {
+  const now = new Date();
+  const isToday = date === toYmd(now);
+  const nowHm = toHm(now);
+  return TIME_OPTIONS.filter((opt) => {
+    if (isToday && opt.value <= nowHm) return false;
+    if (!skipBooked) return true;
+    return !booked.includes(opt.value) && !booked.includes(`${opt.value}:00`);
+  });
+};
+
+type AddressParts = {
+  addr_street: string;
+  addr_barangay: string;
+  addr_city: string;
+  addr_province: string;
+  addr_zip: string;
+  addr_country: string;
+};
+
+/** "Purok 3, Bulua, Cagayan de Oro City, Misamis Oriental 9000, Philippines" */
+const composeAddress = (a: AddressParts): string =>
+  [
+    a.addr_street,
+    a.addr_barangay,
+    a.addr_city,
+    [a.addr_province.trim(), a.addr_zip.trim()].filter(Boolean).join(" "),
+    a.addr_country,
+  ]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+
 const emptyForm = () => ({
   first_name: "",
   middle_name: "",
@@ -65,7 +125,12 @@ const emptyForm = () => ({
   husband_name: "",
   wife_name: "",
   contact_number: "",
-  address: "",
+  addr_street: "",
+  addr_barangay: "",
+  addr_city: "",
+  addr_province: "",
+  addr_zip: "",
+  addr_country: "Philippines",
   preferred_date: "",
   preferred_time: "",
   child_first_name: "",
@@ -130,6 +195,96 @@ const WalkInBooking: React.FC = () => {
   const { bookedSlots, loading: slotsLoading } = useBookedTimeSlots(form.preferred_date);
   const isCertificate = selected?.form_type === "certificate" || selected?.is_certificate;
 
+  // Certificates: the parishioner is at the counter, so the visit time is "now" unless the secretary changes it.
+  const [certUseNow, setCertUseNow] = useState(true);
+  const [nowTick, setNowTick] = useState(() => new Date());
+  // Services: earliest open slot is picked automatically.
+  const [autoPicking, setAutoPicking] = useState(false);
+  const [scheduleNote, setScheduleNote] = useState<string | null>(null);
+  const autoPickRun = useRef(0);
+
+  const certNowActive = !!isCertificate && certUseNow;
+
+  useEffect(() => {
+    if (!certNowActive) return;
+    const timer = setInterval(() => setNowTick(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, [certNowActive]);
+
+  /** Finds the first open hourly slot from `startDate`, looking ahead `days` days. */
+  const autoPickSlot = useCallback(async (startDate: string, days: number) => {
+    const run = ++autoPickRun.current;
+    setAutoPicking(true);
+    setScheduleNote(null);
+    console.log("[WalkIn] Auto-picking earliest slot", { startDate, days });
+    try {
+      for (let i = 0; i < days; i++) {
+        const date = addDaysYmd(startDate, i);
+        const res = await availabilityAPI.getBookedTimeSlots(date);
+        if (run !== autoPickRun.current) return;
+        const booked = res.success ? res.data?.booked_times || [] : [];
+        const open = openTimesFor(date, booked, true);
+        if (open.length > 0) {
+          console.log("[WalkIn] Earliest open slot", { date, time: open[0].value });
+          setForm((prev) => ({ ...prev, preferred_date: date, preferred_time: open[0].value }));
+          setScheduleNote(
+            i === 0
+              ? "Earliest open time selected automatically. You can still change it."
+              : `${startDate === toYmd(new Date()) ? "Today" : formatShortDate(startDate)} is fully booked. Moved to ${formatShortDate(date)}, the next open day.`,
+          );
+          return;
+        }
+      }
+      setForm((prev) => ({ ...prev, preferred_date: startDate, preferred_time: "" }));
+      setScheduleNote(
+        days > 1
+          ? `No open time in the next ${days} days. Please pick a date.`
+          : "No open time slots on this date. Please pick another date.",
+      );
+    } catch (err) {
+      console.error("[WalkIn] Auto-pick slot failed", err);
+      if (run === autoPickRun.current) setScheduleNote("Could not check open times. Please pick the time manually.");
+    } finally {
+      if (run === autoPickRun.current) setAutoPicking(false);
+    }
+  }, []);
+
+  const startSchedule = (service: ChurchService) => {
+    const certificate = service.form_type === "certificate" || !!service.is_certificate;
+    const now = new Date();
+    setScheduleNote(null);
+    if (certificate) {
+      autoPickRun.current++;
+      setAutoPicking(false);
+      setCertUseNow(true);
+      setNowTick(now);
+      setForm((prev) => ({ ...prev, preferred_date: toYmd(now), preferred_time: toHm(now) }));
+      console.log("[WalkIn] Certificate visit time set to now", { date: toYmd(now), time: toHm(now) });
+    } else {
+      void autoPickSlot(toYmd(now), AUTO_SLOT_SEARCH_DAYS);
+    }
+  };
+
+  const switchCertToManual = () => {
+    console.log("[WalkIn] Certificate time: manual");
+    setCertUseNow(false);
+    setForm((prev) => ({ ...prev, preferred_date: toYmd(new Date()), preferred_time: "" }));
+  };
+
+  const switchCertToNow = () => {
+    const now = new Date();
+    console.log("[WalkIn] Certificate time: back to now");
+    setCertUseNow(true);
+    setNowTick(now);
+    setForm((prev) => ({ ...prev, preferred_date: toYmd(now), preferred_time: toHm(now) }));
+  };
+
+  const handleDateChange = (date: string) => {
+    setForm((prev) => ({ ...prev, preferred_date: date, preferred_time: "" }));
+    if (!isCertificate && date) void autoPickSlot(date, 1);
+    else setScheduleNote(null);
+  };
+
   const loadServices = useCallback(async () => {
     try {
       setLoadingServices(true);
@@ -177,11 +332,22 @@ const WalkInBooking: React.FC = () => {
     if (!/^09\d{9}$/.test(form.contact_number)) {
       return "Contact number must be 11 digits and start with 09.";
     }
-    if (!isResident && !form.address.trim()) {
-      return "Address is required for a non-resident.";
+    if (!isResident) {
+      if (!form.addr_barangay.trim()) return "Barangay is required for a non-resident.";
+      if (!form.addr_city.trim()) return "City / Municipality is required for a non-resident.";
+      if (!form.addr_province.trim()) return "Province is required for a non-resident.";
+      if (!form.addr_country.trim()) return "Country is required for a non-resident.";
+      if (form.addr_zip.trim() && !/^\d{4}$/.test(form.addr_zip.trim())) return "ZIP code must be 4 digits.";
+      if (composeAddress(form).length > 500) return "The address is too long. Please shorten it.";
     }
-    if (!form.preferred_date || !form.preferred_time) {
-      return "Preferred date and time are required.";
+    if (!certNowActive) {
+      if (autoPicking) return "Still finding the earliest open time. Please wait a moment.";
+      if (!form.preferred_date || !form.preferred_time) {
+        return "Preferred date and time are required.";
+      }
+      if (form.preferred_date === toYmd(new Date()) && form.preferred_time <= toHm(new Date())) {
+        return "That time has already passed today. Please pick a later time.";
+      }
     }
     if (formType === "baptism") {
       if (!form.child_first_name.trim() || !form.child_last_name.trim() || !form.child_birth_date) {
@@ -302,14 +468,20 @@ const WalkInBooking: React.FC = () => {
         ...couplePayload,
       });
 
+      const savedAt = new Date();
+      const schedule = certNowActive
+        ? { preferred_date: toYmd(savedAt), preferred_time: toHm(savedAt) }
+        : { preferred_date: form.preferred_date, preferred_time: form.preferred_time };
+      const address = isResident ? undefined : composeAddress(form);
+      console.log("[WalkIn] Schedule and address", { ...schedule, certNowActive, address });
+
       const payload = {
         service_id: selected.service_id,
         ...couplePayload,
         contact_number: form.contact_number,
         is_resident: isResident ? 1 : 0,
-        address: isResident ? undefined : form.address.trim(),
-        preferred_date: form.preferred_date,
-        preferred_time: form.preferred_time,
+        address,
+        ...schedule,
         ...(formType === "baptism"
           ? {
               child_first_name: form.child_first_name.trim(),
@@ -359,6 +531,8 @@ const WalkInBooking: React.FC = () => {
         setForm(emptyForm());
         setIsResident(true);
         setGodparents([]);
+        setScheduleNote(null);
+        setCertUseNow(true);
       } else {
         setAlert({ type: "error", message: res.data.message || "Could not save booking." });
       }
@@ -374,23 +548,26 @@ const WalkInBooking: React.FC = () => {
     }
   };
 
-  const availableTimes = useMemo(() => {
-    if (isCertificate) return TIME_OPTIONS;
-    return TIME_OPTIONS.filter((opt) => !bookedSlots.includes(opt.value) && !bookedSlots.includes(`${opt.value}:00`));
-  }, [bookedSlots, isCertificate]);
+  const timeChoices = useMemo(
+    () => (form.preferred_date ? buildTimeOptions(form.preferred_date, bookedSlots, !isCertificate) : []),
+    [form.preferred_date, bookedSlots, isCertificate],
+  );
+  const hasOpenTime = timeChoices.some((opt) => !opt.disabled);
 
   const summaryClientName = isCoupleBooking
     ? `${form.husband_name.trim()} & ${form.wife_name.trim()}`
     : [form.first_name, form.middle_name, form.last_name].map((p) => p.trim()).filter(Boolean).join(" ");
-  const summaryDate = form.preferred_date
-    ? new Date(`${form.preferred_date}T00:00:00`).toLocaleDateString("en-PH", {
+  const effectiveDate = certNowActive ? toYmd(nowTick) : form.preferred_date;
+  const effectiveTime = certNowActive ? toHm(nowTick) : form.preferred_time;
+  const summaryDate = effectiveDate
+    ? new Date(`${effectiveDate}T00:00:00`).toLocaleDateString("en-PH", {
         weekday: "short",
         month: "long",
         day: "numeric",
         year: "numeric",
       })
     : "—";
-  const summaryTime = TIME_OPTIONS.find((opt) => opt.value === form.preferred_time)?.label || form.preferred_time || "—";
+  const summaryTime = effectiveTime ? `${formatTimeLabel(effectiveTime)}${certNowActive ? " (now)" : ""}` : "—";
   const selectedPriest = priests.find((p) => p.user_id === selectedPriestId) || null;
 
   const godfathers = godparents.filter((gp) => gp.relationship === "godfather");
@@ -512,6 +689,7 @@ const WalkInBooking: React.FC = () => {
                     setForm(emptyForm());
                     setIsResident(true);
                     setGodparents([]);
+                    startSchedule(service);
                   }}
                   className="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition"
                 >
@@ -597,7 +775,15 @@ const WalkInBooking: React.FC = () => {
                   onClick={() => {
                     console.log("Walk-in residency: resident");
                     setIsResident(true);
-                    setField("address", "");
+                    setForm((prev) => ({
+                      ...prev,
+                      addr_street: "",
+                      addr_barangay: "",
+                      addr_city: "",
+                      addr_province: "",
+                      addr_zip: "",
+                      addr_country: "Philippines",
+                    }));
                   }}
                   className={`px-4 py-3 rounded-lg border text-sm font-medium text-left ${
                     isResident
@@ -626,12 +812,66 @@ const WalkInBooking: React.FC = () => {
               </div>
             </div>
             {!isResident && (
-              <input
-                className={`${inputClass} mt-3`}
-                placeholder="Complete address *"
-                value={form.address}
-                onChange={(e) => setField("address", e.target.value)}
-              />
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Home address</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    className={`${inputClass} bg-white sm:col-span-2`}
+                    aria-label="House number, street, or purok"
+                    placeholder="House no. / Street / Purok / Subdivision"
+                    maxLength={150}
+                    value={form.addr_street}
+                    onChange={(e) => setField("addr_street", e.target.value)}
+                  />
+                  <input
+                    className={`${inputClass} bg-white`}
+                    aria-label="Barangay"
+                    placeholder="Barangay *"
+                    maxLength={100}
+                    value={form.addr_barangay}
+                    onChange={(e) => setField("addr_barangay", e.target.value)}
+                  />
+                  <input
+                    className={`${inputClass} bg-white`}
+                    aria-label="City or municipality"
+                    placeholder="City / Municipality *"
+                    maxLength={100}
+                    value={form.addr_city}
+                    onChange={(e) => setField("addr_city", e.target.value)}
+                  />
+                  <input
+                    className={`${inputClass} bg-white`}
+                    aria-label="Province"
+                    placeholder="Province *"
+                    maxLength={100}
+                    value={form.addr_province}
+                    onChange={(e) => setField("addr_province", e.target.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      className={`${inputClass} bg-white`}
+                      aria-label="ZIP code"
+                      placeholder="ZIP code"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={form.addr_zip}
+                      onChange={(e) => setField("addr_zip", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    />
+                    <input
+                      className={`${inputClass} bg-white`}
+                      aria-label="Country"
+                      placeholder="Country *"
+                      maxLength={60}
+                      value={form.addr_country}
+                      onChange={(e) => setField("addr_country", e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Saved as:{" "}
+                  <span className="font-medium text-slate-700">{composeAddress(form) || "—"}</span>
+                </p>
+              </div>
             )}
           </section>
 
@@ -799,33 +1039,85 @@ const WalkInBooking: React.FC = () => {
 
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Schedule</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                className={inputClass}
-                type="date"
-                min={new Date().toISOString().split("T")[0]}
-                value={form.preferred_date}
-                onChange={(e) => {
-                  setField("preferred_date", e.target.value);
-                  setField("preferred_time", "");
-                }}
-              />
-              <select
-                className={inputClass}
-                value={form.preferred_time}
-                onChange={(e) => setField("preferred_time", e.target.value)}
-                disabled={!form.preferred_date || slotsLoading}
-              >
-                <option value="">{slotsLoading ? "Loading times…" : "Select time"}</option>
-                {availableTimes.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {form.preferred_date && !isCertificate && availableTimes.length === 0 && !slotsLoading && (
-              <p className="text-sm text-amber-700 mt-2">No open time slots on this date.</p>
+            {certNowActive ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <Clock size={20} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">
+                      Today · {formatTimeLabel(toHm(nowTick))} <span className="font-normal">(now)</span>
+                    </p>
+                    <p className="text-xs text-emerald-700">
+                      Set automatically to the time of the visit. The exact time is recorded when you save.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={switchCertToManual}
+                  className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+                >
+                  Change date / time
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ServiceDatePicker
+                    ariaLabel="Date"
+                    value={form.preferred_date}
+                    onChange={handleDateChange}
+                    blockFullyBooked={!isCertificate}
+                    disabled={autoPicking}
+                  />
+                  <select
+                    className={inputClass}
+                    aria-label="Time"
+                    value={form.preferred_time}
+                    onChange={(e) => {
+                      setField("preferred_time", e.target.value);
+                      if (!isCertificate) setScheduleNote(null);
+                    }}
+                    disabled={!form.preferred_date || slotsLoading || autoPicking}
+                  >
+                    <option value="">{slotsLoading || autoPicking ? "Loading times…" : "Select time"}</option>
+                    {timeChoices.map((opt) => (
+                      <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                        {opt.display}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {autoPicking ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
+                    <Loader2 size={14} className="animate-spin" aria-hidden /> Finding the earliest open time…
+                  </p>
+                ) : scheduleNote ? (
+                  <p
+                    className={`mt-2 flex items-start gap-1.5 text-sm ${
+                      form.preferred_time ? "text-emerald-700" : "text-amber-700"
+                    }`}
+                    role="status"
+                  >
+                    <Clock size={14} className="mt-0.5 shrink-0" aria-hidden /> {scheduleNote}
+                  </p>
+                ) : (
+                  form.preferred_date &&
+                  !hasOpenTime &&
+                  !slotsLoading && (
+                    <p className="text-sm text-amber-700 mt-2">No open time slots on this date.</p>
+                  )
+                )}
+                {isCertificate && (
+                  <button
+                    type="button"
+                    onClick={switchCertToNow}
+                    className="mt-2 text-sm font-medium text-blue-700 hover:underline"
+                  >
+                    Use the current time instead
+                  </button>
+                )}
+              </>
             )}
           </section>
 
