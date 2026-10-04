@@ -7,6 +7,7 @@ use App\Http\Controllers\BaptismFormController;
 use App\Http\Controllers\ServiceFormController;
 use App\Http\Controllers\CertificateFormController;
 use App\Http\Controllers\CertificateController;
+use App\Http\Controllers\CertificateReprintController;
 use App\Http\Controllers\ChurchServiceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AvailabilityController;
@@ -102,6 +103,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/requests', [CertificateController::class, 'certificateRequests']);
             Route::get('/issued', [CertificateController::class, 'issued']);
             Route::post('/issue', [CertificateController::class, 'issue']);
+
+            // Paid reprints: request → cashier marks paid → release
+            Route::get('/reprint-fee', [CertificateReprintController::class, 'getFee']);
+            Route::put('/reprint-fee', [CertificateReprintController::class, 'updateFee']);
+            Route::get('/reprints', [CertificateReprintController::class, 'index']);
+            Route::post('/issued/{issuedId}/reprint', [CertificateReprintController::class, 'store']);
+            Route::post('/reprints/{id}/release', [CertificateReprintController::class, 'release']);
+            Route::post('/reprints/{id}/cancel', [CertificateReprintController::class, 'cancel']);
         });
         Route::get('/secretary/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
         Route::get('/cashier/monthly-overview', [SecretaryDashboardController::class, 'monthlyOverview']);
@@ -113,6 +122,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/transactions', [CashierController::class, 'transactions']);
             Route::get('/daily-report', [CashierController::class, 'dailyReport']);
             Route::get('/general-report', [CashierController::class, 'generalReport']);
+
+            Route::middleware('role:cashier')->group(function () {
+                Route::get('/certificate-reprints', [CertificateReprintController::class, 'cashierIndex']);
+                Route::post('/certificate-reprints/{id}/pay', [CertificateReprintController::class, 'markPaid']);
+            });
         });
 
         // Church expenses (secretary compiles & forwards, cashier verifies or returns)

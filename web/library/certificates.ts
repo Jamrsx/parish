@@ -92,3 +92,72 @@ export const certificatesAPI = {
   completeRequest: (requestId: number) =>
     api.post<ApiResponse<unknown>>(`/admin/requests/${requestId}/complete`),
 };
+
+export type ReprintStatus = 'awaiting_payment' | 'paid' | 'released' | 'cancelled';
+
+export interface ReprintFeeSetting {
+  amount: number;
+  is_default: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface CertificateReprintRow {
+  reprint_id: number;
+  issued_certificate_id: number | null;
+  person_name: string;
+  certificate_type: string;
+  amount: number;
+  reason: string | null;
+  status: ReprintStatus;
+  requested_by: string | null;
+  requested_at: string | null;
+  paid_by: string | null;
+  paid_at: string | null;
+  or_number: string | null;
+  payment_notes: string | null;
+  released_by: string | null;
+  released_at: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  purpose: string | null;
+  details?: BaptismalCertificateDetails | null;
+}
+
+export type ReprintStatusCounts = Record<ReprintStatus, number>;
+
+export interface ReprintListResponse {
+  success: boolean;
+  message?: string;
+  data: PaginatedResponse<CertificateReprintRow>;
+  counts?: ReprintStatusCounts;
+  awaiting_count?: number;
+}
+
+export const reprintsAPI = {
+  getFee: () => api.get<ApiResponse<ReprintFeeSetting>>('/admin/certificates/reprint-fee'),
+
+  updateFee: (amount: number) =>
+    api.put<ApiResponse<ReprintFeeSetting>>('/admin/certificates/reprint-fee', { amount }),
+
+  list: (params: { status?: ReprintStatus | 'all'; search?: string; page?: number; per_page?: number }) =>
+    api.get<ReprintListResponse>('/admin/certificates/reprints', { params }),
+
+  request: (issuedCertificateId: number, reason?: string) =>
+    api.post<ApiResponse<CertificateReprintRow>>(`/admin/certificates/issued/${issuedCertificateId}/reprint`, {
+      reason: reason || undefined,
+    }),
+
+  release: (reprintId: number) =>
+    api.post<ApiResponse<CertificateReprintRow>>(`/admin/certificates/reprints/${reprintId}/release`),
+
+  cancel: (reprintId: number, reason: string) =>
+    api.post<ApiResponse<CertificateReprintRow>>(`/admin/certificates/reprints/${reprintId}/cancel`, { reason }),
+
+  cashierList: (params: { view?: 'awaiting' | 'history'; search?: string; page?: number; per_page?: number }) =>
+    api.get<ReprintListResponse>('/admin/cashier/certificate-reprints', { params }),
+
+  markPaid: (reprintId: number, data: { or_number?: string; notes?: string }) =>
+    api.post<ApiResponse<CertificateReprintRow>>(`/admin/cashier/certificate-reprints/${reprintId}/pay`, data),
+};

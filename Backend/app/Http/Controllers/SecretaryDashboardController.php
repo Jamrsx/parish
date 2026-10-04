@@ -6,6 +6,7 @@ use App\Models\Donation;
 use App\Models\ManageRequest;
 use App\Models\MassCollection;
 use App\Models\PaymentTransaction;
+use App\Models\CertificateReprint;
 use App\Models\SpecialIntention;
 use App\Models\User;
 use Carbon\Carbon;
@@ -93,7 +94,18 @@ class SecretaryDashboardController extends Controller
             $incomeByService[$label]['payment_count']++;
         }
 
-        $serviceFeesTotal = (float) $payments->sum('amount');
+        $reprintIncome = CertificateReprint::income()
+            ->whereBetween('paid_at', [$start, $end])
+            ->get(['amount']);
+        if ($reprintIncome->isNotEmpty()) {
+            $incomeByService['Certificate Reprint'] = [
+                'service_type' => 'Certificate Reprint',
+                'amount' => (float) $reprintIncome->sum('amount'),
+                'payment_count' => $reprintIncome->count(),
+            ];
+        }
+
+        $serviceFeesTotal = (float) $payments->sum('amount') + (float) $reprintIncome->sum('amount');
         $massTotal = (float) MassCollection::received()
             ->whereBetween('received_at', [$start, $end])
             ->sum('amount');

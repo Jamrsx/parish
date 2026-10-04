@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CertificateReprint;
 use App\Models\ChurchExpense;
 use App\Models\Donation;
 use App\Models\ManageRequest;
@@ -28,8 +29,12 @@ class CashierController extends Controller
             })
             ->count();
 
-        $servicePaymentsToday = PaymentTransaction::whereDate('created_at', $today)->sum('amount');
-        $servicePaymentsTodayCount = PaymentTransaction::whereDate('created_at', $today)->count();
+        $reprintsToday = CertificateReprint::income()->whereDate('paid_at', $today);
+        $servicePaymentsToday = PaymentTransaction::whereDate('created_at', $today)->sum('amount')
+            + (clone $reprintsToday)->sum('amount');
+        $servicePaymentsTodayCount = PaymentTransaction::whereDate('created_at', $today)->count()
+            + (clone $reprintsToday)->count();
+        $pendingReprints = CertificateReprint::where('status', CertificateReprint::STATUS_AWAITING_PAYMENT)->count();
 
         $massCollectionsToday = MassCollection::received()
             ->whereDate('received_at', $today)
@@ -70,6 +75,7 @@ class CashierController extends Controller
                 'pending_mass_collections' => $pendingMass,
                 'pending_special_intentions' => $pendingIntentions,
                 'pending_expenses' => $pendingExpenses,
+                'pending_certificate_reprints' => $pendingReprints,
                 'service_payments_today' => (float) $servicePaymentsToday,
                 'service_payments_today_count' => $servicePaymentsTodayCount,
                 'mass_collections_today' => (float) $massCollectionsToday,
@@ -206,7 +212,17 @@ class CashierController extends Controller
             ->whereDate('created_at', $date)
             ->orderBy('created_at')
             ->get()
-            ->map(fn ($p) => $this->transformPayment($p));
+            ->map(fn ($p) => $this->transformPayment($p))
+            ->concat(
+                CertificateReprint::income()
+                    ->with('paidBy:user_id,first_name,middle_name,last_name')
+                    ->whereDate('paid_at', $date)
+                    ->orderBy('paid_at')
+                    ->get()
+                    ->map(fn (CertificateReprint $r) => $this->transformReprintPayment($r))
+            )
+            ->sortBy('created_at')
+            ->values();
 
         $massCollections = MassCollection::with(['recordedBy', 'receivedBy'])
             ->where('status', 'received')
@@ -384,7 +400,8 @@ class CashierController extends Controller
         $from = $start->copy()->startOfDay();
         $to = $end->copy()->endOfDay();
 
-        $serviceFees = (float) PaymentTransaction::whereBetween('created_at', [$from, $to])->sum('amount');
+        $serviceFees = (float) PaymentTransaction::whereBetween('created_at', [$from, $to])->sum('amount')
+            + (float) CertificateReprint::income()->whereBetween('paid_at', [$from, $to])->sum('amount');
         $mass = (float) MassCollection::received()->whereBetween('received_at', [$from, $to])->sum('amount');
         $donations = (float) Donation::received()->whereBetween('received_at', [$from, $to])->sum('amount');
         $intentions = (float) SpecialIntention::received()->whereBetween('received_at', [$from, $to])->sum('amount');
@@ -395,6 +412,22 @@ class CashierController extends Controller
             'donations' => round($donations, 2),
             'special_intentions' => round($intentions, 2),
             'total' => round($serviceFees + $mass + $donations + $intentions, 2),
+        ];
+    }
+
+    private function transformReprintPayment(CertificateReprint $r): array
+    {
+        return [
+            'payment_id' => 'reprint-' . $r->reprint_id,
+            'request_id' => null,
+            'reprint_id' => $r->reprint_id,
+            'amount' => (float) $r->amount,
+            'or_number' => $r->or_number,
+            'notes' => $r->payment_notes,
+            'created_at' => $r->paid_at?->toIso8601String(),
+            'parishioner' => $r->person_name,
+            'service_type' => 'Certificate Reprint',
+            'received_by' => $r->paidBy ? trim($r->paidBy->full_name) : null,
         ];
     }
 

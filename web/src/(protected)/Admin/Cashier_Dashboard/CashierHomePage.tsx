@@ -14,6 +14,7 @@ import {
   CalendarRange,
   ClipboardCheck,
   FileBarChart,
+  FileBadge,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../../../../context/AuthContext";
@@ -27,12 +28,14 @@ import DonationHandover from "./Donation_Handover";
 import SpecialIntentionHandover from "./Special_Intention_Handover";
 import ExpenseReview from "./Expense_Review";
 import GeneralReport from "./General_Report";
+import CertificateReprints from "./Certificate_Reprints";
 import { CashierListSkeleton, CashierStatSkeleton } from "./CashierSkeletons";
 import { DonutChart, HorizontalBarChart } from "../components/MonthlyCharts";
 
 type TabId =
   | "dashboard"
   | "payments"
+  | "reprints"
   | "transactions"
   | "daily-report"
   | "mass"
@@ -44,6 +47,7 @@ type TabId =
 const VALID_TABS: TabId[] = [
   "dashboard",
   "payments",
+  "reprints",
   "transactions",
   "daily-report",
   "mass",
@@ -71,6 +75,7 @@ const navGroups: {
     label: "Payments",
     items: [
       { id: "payments", label: "Collect Payments", icon: Wallet },
+      { id: "reprints", label: "Certificate Reprints", icon: FileBadge },
       { id: "transactions", label: "Transactions", icon: Receipt },
       { id: "daily-report", label: "Daily Report", icon: CalendarDays },
     ],
@@ -141,6 +146,7 @@ const CashierHomePage: React.FC = () => {
     if (tabId === "mass") return dashboard.pending_mass_collections || 0;
     if (tabId === "intentions") return dashboard.pending_special_intentions || 0;
     if (tabId === "expense-review") return dashboard.pending_expenses || 0;
+    if (tabId === "reprints") return dashboard.pending_certificate_reprints || 0;
     return 0;
   };
 
@@ -431,6 +437,16 @@ const CashierHomePage: React.FC = () => {
                           {dashboard?.unpaid_count ?? 0}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">Unpaid / partial requests</p>
+                        {(dashboard?.pending_certificate_reprints ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("reprints")}
+                            className="mt-2 text-xs font-semibold text-amber-700 hover:underline"
+                          >
+                            + {dashboard?.pending_certificate_reprints} certificate reprint
+                            {dashboard?.pending_certificate_reprints === 1 ? "" : "s"} to collect →
+                          </button>
+                        )}
                       </div>
                       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                         <p className="text-xs font-semibold text-blue-700 uppercase">Service Fees Today</p>
@@ -642,6 +658,7 @@ const CashierHomePage: React.FC = () => {
             )}
 
             {activeTab === "payments" && <ManageUnpaidRequest />}
+            {activeTab === "reprints" && <CertificateReprints onChanged={fetchDashboard} />}
             {activeTab === "transactions" && <TransactionHistory />}
             {activeTab === "daily-report" && <DailyReport />}
             {activeTab === "mass" && <MassCollections onChanged={fetchDashboard} />}

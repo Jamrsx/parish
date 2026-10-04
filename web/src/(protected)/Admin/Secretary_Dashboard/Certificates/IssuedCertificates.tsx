@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, Loader2, Printer, Search, X } from 'lucide-react';
 import {
   certificatesAPI,
-  type BaptismalCertificateDetails,
   type IssuedCertificateRow,
 } from '../../../../../library/certificates';
 import BaptismalCertificateSheet, { SHEET_HEIGHT_IN, SHEET_WIDTH_IN } from './BaptismalCertificateSheet';
@@ -12,7 +11,7 @@ const PER_PAGE = 10;
 const VIEW_SCALE = 0.62;
 
 interface IssuedCertificatesProps {
-  onReprint: (details: BaptismalCertificateDetails) => void;
+  onReprint: (row: IssuedCertificateRow) => void;
   refreshToken: number;
 }
 
@@ -70,7 +69,7 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
       <div className="p-4 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Issued Certificates</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Every printed certificate, newest first. Reprint uses the exact saved details.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Every printed certificate, newest first. Reprint sends a paid request to the treasurer and uses the exact saved details.</p>
         </div>
         <div className="relative sm:w-72">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden />
@@ -130,7 +129,8 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
                       </button>
                       <button
                         type="button"
-                        onClick={() => onReprint(row.details)}
+                        onClick={() => onReprint(row)}
+                        title="Request a paid reprint"
                         className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                       >
                         <Printer size={14} aria-hidden /> Reprint
@@ -189,7 +189,11 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => onReprint(viewing.details)}
+                  onClick={() => {
+                    onReprint(viewing);
+                    setViewing(null);
+                  }}
+                  title="Request a paid reprint"
                   className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
                 >
                   <Printer size={14} aria-hidden /> Reprint

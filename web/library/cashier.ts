@@ -8,6 +8,7 @@ export interface CashierDashboardData {
   pending_mass_collections?: number;
   pending_special_intentions?: number;
   pending_expenses?: number;
+  pending_certificate_reprints?: number;
   service_payments_today: number;
   service_payments_today_count: number;
   mass_collections_today: number;
@@ -33,8 +34,10 @@ export interface UnpaidRequestRow {
 }
 
 export interface PaymentTransactionRow {
-  payment_id: number;
-  request_id: number;
+  /** Certificate reprint rows in the daily report use "reprint-{id}" */
+  payment_id: number | string;
+  request_id: number | null;
+  reprint_id?: number;
   amount: number;
   or_number?: string | null;
   notes?: string | null;
