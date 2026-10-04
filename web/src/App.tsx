@@ -33,15 +33,18 @@ const ManageServices = lazyPage("ManageServices", () => import("./(protected)/Ad
 const ManageExpenses = lazyPage("ManageExpenses", () => import("./(protected)/Admin/Secretary_Dashboard/Manage_Expenses"));
 const WalkInBooking = lazyPage("WalkInBooking", () => import("./(protected)/Admin/Secretary_Dashboard/Walk_In_Booking"));
 const Certificates = lazyPage("Certificates", () => import("./(protected)/Admin/Secretary_Dashboard/Certificates/Certificates"));
+const SecretaryParishHistory = lazyPage("SecretaryParishHistory", () => import("./(protected)/Admin/Secretary_Dashboard/Parish_History"));
 
 // Admin - Cashier
 const CashierDashboard = lazyPage("CashierDashboard", () => import("./(protected)/Admin/Cashier_Dashboard/CashierHomePage"));
 
 // Priest
 const PriestHomePage = lazyPage("PriestHomePage", () => import("./(protected)/Admin/Priest_Dashboard/PriestHomePage"));
+const PriestCalendar = lazyPage("PriestCalendar", () => import("./(protected)/Admin/Priest_Dashboard/PriestCalendar"));
 const PriestIncome = lazyPage("PriestIncome", () => import("./(protected)/Admin/Priest_Dashboard/PriestIncome"));
 const PriestExpenses = lazyPage("PriestExpenses", () => import("./(protected)/Admin/Priest_Dashboard/PriestExpenses"));
 const PriestInventory = lazyPage("PriestInventory", () => import("./(protected)/Admin/Priest_Dashboard/PriestInventory"));
+const PriestHistory = lazyPage("PriestHistory", () => import("./(protected)/Admin/Priest_Dashboard/PriestHistory"));
 
 // Parishioner
 const ParishionerHome = lazyPage("ParishionerHome", () => import("./(protected)/Parishioner_Dashboard/ParishionerHomePage"));
@@ -110,6 +113,7 @@ function App() {
             <Route path="walk-in-booking" element={<WalkInBooking />} />
             <Route path="expenses" element={<ManageExpenses />} />
             <Route path="certificates" element={<Certificates />} />
+            <Route path="history" element={<SecretaryParishHistory />} />
           </Route>
 
           {/* Cashier */}
@@ -128,6 +132,14 @@ function App() {
             element={
               <RequireAuth roles={['priest']}>
                 <PriestHomePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/priest/calendar"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestCalendar />
               </RequireAuth>
             }
           />
@@ -152,6 +164,14 @@ function App() {
             element={
               <RequireAuth roles={['priest']}>
                 <PriestInventory />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/priest/history"
+            element={
+              <RequireAuth roles={['priest']}>
+                <PriestHistory />
               </RequireAuth>
             }
           />

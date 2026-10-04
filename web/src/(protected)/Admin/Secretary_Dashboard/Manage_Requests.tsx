@@ -16,6 +16,7 @@ import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
 import ServiceDatePicker from '../../../components/booking/ServiceDatePicker';
 import { buildTimeOptions, timeProblem } from '../../../components/booking/serviceSlots';
 import { SecretaryTableSkeleton } from './components/SecretarySkeletons';
+import { priestSlotFor } from '../../../../library/priestSchedule';
 
 // TYPE DEFINITIONS
 type ServiceFilterType = 'all' | 'baptism' | 'service' | 'certificate';
@@ -192,9 +193,11 @@ const ManageRequests: React.FC = () => {
   };
 
   // Fetch priests function - using the admin/users endpoint with role filter
-  const fetchPriests = useCallback(async (): Promise<User[]> => {
+  // Priests who are off at the given service date/time come back with `availability_problem` and are shown disabled
+  const fetchPriests = useCallback(async (slot: { forDate?: string; forTime?: string } = {}): Promise<User[]> => {
     try {
-      const response = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
+      console.log('Fetching priests for slot:', slot);
+      const response = await usersAPI.listPriests({ activeOnly: true, ...slot });
       
       if (response.data?.success) {
         const responseData = response.data.data;
@@ -370,7 +373,7 @@ const ManageRequests: React.FC = () => {
       mode,
     }));
 
-    const priests = await fetchPriests();
+    const priests = await fetchPriests(priestSlotForRequest(request));
     setPriestModal(prev => ({
       ...prev,
       priests,
@@ -779,6 +782,9 @@ const ManageRequests: React.FC = () => {
         return 'Unknown';
     }
   };
+
+  const priestSlotForRequest = (request: ExtendedManageRequest) =>
+    isCertificateRequest(request) ? {} : priestSlotFor(request.preferred_date, request.preferred_time);
 
   const isCertificateRequest = (request: ExtendedManageRequest): boolean => {
     if (request.form_type === 'certificate' || request.certificate_form_id || request.certificateForm) {
@@ -1722,7 +1728,7 @@ const ManageRequests: React.FC = () => {
                     <button
                       onClick={async () => {
                         setPriestModal(prev => ({ ...prev, loading: true }));
-                        const priests = await fetchPriests();
+                        const priests = await fetchPriests(priestModal.request ? priestSlotForRequest(priestModal.request) : {});
                         setPriestModal(prev => ({ ...prev, priests, loading: false }));
                       }}
                       className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
@@ -1741,17 +1747,40 @@ const ManageRequests: React.FC = () => {
                   >
                     <option value="">Select a priest...</option>
                     {priestModal.priests.map((priest) => (
-                      <option key={priest.user_id} value={priest.user_id}>
+                      <option
+                        key={priest.user_id}
+                        value={priest.user_id}
+                        disabled={!!priest.availability_problem && priest.user_id !== priestModal.request?.assigned_priest}
+                        title={priest.availability_problem || undefined}
+                      >
                         {getUserFullName(priest)}
+                        {priest.availability_problem ? ' — unavailable at this time' : ''}
                       </option>
                     ))}
                   </select>
                 )}
-                {priestModal.priests.length > 0 && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Showing {priestModal.priests.length} available priest{priestModal.priests.length > 1 ? 's' : ''}
-                  </p>
-                )}
+                {priestModal.priests.length > 0 && (() => {
+                  const unavailable = priestModal.priests.filter((p) => p.availability_problem);
+                  const selected = priestModal.priests.find((p) => p.user_id === priestModal.selectedPriestId);
+                  return (
+                    <>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {priestModal.priests.length - unavailable.length} of {priestModal.priests.length} priest
+                        {priestModal.priests.length > 1 ? 's' : ''} free at this date and time
+                      </p>
+                      {selected?.availability_problem && (
+                        <p className="mt-1 text-xs text-amber-700">{selected.availability_problem} Choose another priest.</p>
+                      )}
+                      {unavailable.length > 0 && (
+                        <ul className="mt-2 space-y-0.5 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                          {unavailable.map((p) => (
+                            <li key={p.user_id}>{p.availability_problem}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {priestModal.selectedPriestId && (
@@ -1778,7 +1807,12 @@ const ManageRequests: React.FC = () => {
               </button>
               <button
                 onClick={priestModal.mode === 'assign_only' ? handleAssignPriestOnly : handlePriestAssignment}
-                disabled={priestModal.loading || !priestModal.selectedPriestId || priestModal.priests.length === 0}
+                disabled={
+                  priestModal.loading ||
+                  !priestModal.selectedPriestId ||
+                  priestModal.priests.length === 0 ||
+                  !!priestModal.priests.find((p) => p.user_id === priestModal.selectedPriestId)?.availability_problem
+                }
                 className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {priestModal.loading ? (

@@ -22,6 +22,8 @@ import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
 import { buildTimeOptions, timeProblem } from "../../../components/booking/serviceSlots";
 import { SecretaryCalendarSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
+import { priestScheduleAPI, priestSlotFor, timeOffCovers, timeOffShortLabel } from "../../../../library/priestSchedule";
+import type { AllPriestTimeOff } from "../../../../library/priestSchedule";
 
 // Define the request details interface
 interface RequestDetails {
@@ -435,6 +437,7 @@ const ScheduledServices: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [awayData, setAwayData] = useState<AllPriestTimeOff | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedService, setSelectedService] = useState<ScheduledServices | null>(null);
@@ -476,9 +479,11 @@ const ScheduledServices: React.FC = () => {
   const [priestsLoading, setPriestsLoading] = useState(false);
   const [priestSubmitting, setPriestSubmitting] = useState(false);
 
-  const fetchPriests = useCallback(async (): Promise<User[]> => {
+  // Priests who are off at the given date/time come back with `availability_problem` and are shown disabled
+  const fetchPriests = useCallback(async (slot: { forDate?: string; forTime?: string } = {}): Promise<User[]> => {
     try {
-      const response = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
+      console.log('[ScheduledServices] Fetching priests for slot:', slot);
+      const response = await usersAPI.listPriests({ activeOnly: true, ...slot });
       if (response.data?.success) {
         const data = response.data.data;
         if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
@@ -516,6 +521,27 @@ const ScheduledServices: React.FC = () => {
   useEffect(() => {
     fetchServices();
   }, []);
+
+  const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+  useEffect(() => {
+    let cancelled = false;
+    const [y, m] = monthKey.split('-').map(Number);
+    const from = `${monthKey}-01`;
+    const to = `${monthKey}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    priestScheduleAPI
+      .getAllTimeOff(from, to)
+      .then((res) => {
+        if (cancelled) return;
+        console.log('[ScheduledServices] Priest time off for', monthKey, res.data?.data);
+        setAwayData(res.data?.data ?? null);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('[ScheduledServices] Failed to load priest time off:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [monthKey]);
 
   const fetchServices = async () => {
     try {
@@ -679,7 +705,10 @@ const ScheduledServices: React.FC = () => {
     setShowPriestModal(true);
     setPriestsLoading(true);
 
-    const priestList = await fetchPriests();
+    const isCertificate = selectedService.type.toLowerCase().includes('certificate');
+    const priestList = await fetchPriests(
+      isCertificate ? {} : priestSlotFor(selectedService.date, selectedService.time === 'TBA' ? null : selectedService.time)
+    );
     setPriests(priestList);
 
     const currentId =
@@ -687,7 +716,8 @@ const ScheduledServices: React.FC = () => {
       selectedService.assignedPriestId ??
       null;
     const currentInList =
-      currentId !== null && priestList.some((priest) => priest.user_id === currentId);
+      currentId !== null &&
+      priestList.some((priest) => priest.user_id === currentId && !priest.availability_problem);
     setSelectedPriestId(currentInList ? currentId : null);
     setPriestsLoading(false);
   };
@@ -786,6 +816,25 @@ const ScheduledServices: React.FC = () => {
     return allServices.filter(service => service.date === dateString);
   };
 
+  const getPriestsAwayOn = (dateKey: string): string[] => {
+    if (!awayData) return [];
+    const away = awayData.time_off
+      .filter((entry) => timeOffCovers(entry, dateKey))
+      .map((entry) => {
+        const label = timeOffShortLabel(entry);
+        return `Fr. ${entry.priest_name ?? 'Unknown'} ${label === 'Off' ? 'away' : label.replace('Off', 'off')}`;
+      });
+    const todayKey = formatDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    if (dateKey >= todayKey) {
+      awayData.switched_off.forEach((p) => {
+        if (!p.unavailable_until || dateKey <= p.unavailable_until.slice(0, 10)) {
+          away.push(`Fr. ${p.priest_name} unavailable`);
+        }
+      });
+    }
+    return away;
+  };
+
   const formatDateKey = (year: number, month: number, day: number) => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
@@ -865,6 +914,7 @@ const ScheduledServices: React.FC = () => {
       const isTodayDate = isToday(year, month, day);
       const hasServices = servicesOnDay.length > 0;
       const allCompleted = hasServices && servicesOnDay.every((service) => service.status === 'done');
+      const priestsAway = getPriestsAwayOn(dateKey);
 
       cells.push(
         <div
@@ -914,6 +964,15 @@ const ScheduledServices: React.FC = () => {
                   +{servicesOnDay.length - 2} more
                 </div>
               )}
+            </div>
+          )}
+
+          {priestsAway.length > 0 && (
+            <div
+              className="mt-0.5 truncate rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 opacity-100"
+              title={priestsAway.join('\n')}
+            >
+              {priestsAway.length === 1 ? priestsAway[0] : `${priestsAway.length} priests away`}
             </div>
           )}
         </div>
@@ -1387,20 +1446,35 @@ const ScheduledServices: React.FC = () => {
                     <span className="ml-2 text-sm text-slate-500">Loading priests...</span>
                   </div>
                 ) : priests.length === 0 ? (
-                  <p className="text-sm text-amber-600">No available priests right now. Priests marked unavailable are hidden from this list.</p>
+                  <p className="text-sm text-amber-600">No active priests found.</p>
                 ) : (
-                  <select
-                    value={selectedPriestId || ''}
-                    onChange={(e) => setSelectedPriestId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option value="">Select a priest...</option>
-                    {priests.map((priest) => (
-                      <option key={priest.user_id} value={priest.user_id}>
-                        {getUserFullName(priest)}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={selectedPriestId || ''}
+                      onChange={(e) => setSelectedPriestId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">Select a priest...</option>
+                      {priests.map((priest) => (
+                        <option
+                          key={priest.user_id}
+                          value={priest.user_id}
+                          disabled={!!priest.availability_problem}
+                          title={priest.availability_problem || undefined}
+                        >
+                          {getUserFullName(priest)}
+                          {priest.availability_problem ? ' — unavailable at this time' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {priests.some((p) => p.availability_problem) && (
+                      <ul className="mt-2 space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        {priests.filter((p) => p.availability_problem).map((p) => (
+                          <li key={p.user_id}>{p.availability_problem}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1414,7 +1488,13 @@ const ScheduledServices: React.FC = () => {
               </button>
               <button
                 onClick={submitChangePriest}
-                disabled={priestSubmitting || priestsLoading || !selectedPriestId || priests.length === 0}
+                disabled={
+                  priestSubmitting ||
+                  priestsLoading ||
+                  !selectedPriestId ||
+                  priests.length === 0 ||
+                  !!priests.find((p) => p.user_id === selectedPriestId)?.availability_problem
+                }
                 className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50"
               >
                 {priestSubmitting ? 'Saving...' : 'Save Priest'}

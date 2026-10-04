@@ -24,6 +24,7 @@ use App\Http\Controllers\PriestDashboardController;
 use App\Http\Controllers\PriestScheduleController;
 use App\Http\Controllers\PriestTimeOffController;
 use App\Http\Controllers\ChurchExpenseController;
+use App\Http\Controllers\HistoryController;
 
 // ============ PUBLIC ROUTES ============
 
@@ -92,6 +93,14 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::post('/walk-in-booking', [WalkInBookingController::class, 'store']);
+
+        // Parish history (read only)
+        Route::prefix('history')->group(function () {
+            Route::get('/services', [HistoryController::class, 'services']);
+            Route::get('/services/{id}', [HistoryController::class, 'serviceTimeline']);
+            Route::get('/transactions', [HistoryController::class, 'transactions']);
+            Route::get('/activity', [HistoryController::class, 'activity']);
+        });
 
         // Priest schedules (secretary checks who is free before assigning)
         Route::middleware('role:secretary')->prefix('priests')->group(function () {
@@ -311,6 +320,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/inventory/categories', [InventoryController::class, 'getCategories']);
         Route::get('/inventory/history', [InventoryController::class, 'history']);
         Route::get('/inventory/{id}', [InventoryController::class, 'show']);
+
+        Route::prefix('history')->group(function () {
+            Route::get('/services', [HistoryController::class, 'services']);
+            Route::get('/services/{id}', [HistoryController::class, 'serviceTimeline']);
+            Route::get('/transactions', [HistoryController::class, 'transactions']);
+            Route::get('/activity', [HistoryController::class, 'activity']);
+        });
 
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);

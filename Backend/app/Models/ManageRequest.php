@@ -572,10 +572,11 @@ class ManageRequest extends Model
 
         SpecialIntention::where('request_id', $this->request_id)
             ->whereIn('status', ['pending', 'approved'])
-            ->update([
+            ->get()
+            ->each(fn (SpecialIntention $row) => $row->update([
                 'status' => 'rejected',
                 'reject_reason' => 'Request cancelled: ' . $reason,
-            ]);
+            ]));
 
         return true;
     }
@@ -682,10 +683,11 @@ class ManageRequest extends Model
     {
         SpecialIntention::where('request_id', $this->request_id)
             ->where('status', 'pending')
-            ->update([
+            ->get()
+            ->each(fn (SpecialIntention $row) => $row->update([
                 'status' => 'approved',
                 'reject_reason' => null,
-            ]);
+            ]));
     }
 
     public function recordPayment(float $amount, ?User $receivedBy = null, ?string $orNumber = null, ?string $notes = null): bool

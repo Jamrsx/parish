@@ -21,6 +21,7 @@ import {
   PieChart,
 } from "lucide-react";
 import PageHeader from "./components/PageHeader";
+import AssignmentConflictsAlert from "./components/AssignmentConflictsAlert";
 import SecretaryStatCard from "./components/SecretaryStatCard";
 import StatusBadge from "./components/StatusBadge";
 import EmptyState from "./components/EmptyState";
@@ -224,6 +225,8 @@ const SecretaryHomePage: React.FC = () => {
         title="Dashboard"
         description={`Welcome back, ${user?.full_name || "Secretary"}. Here is your parish overview.`}
       />
+
+      <AssignmentConflictsAlert />
 
       {error ? (
         <div className="flex flex-col items-center justify-center min-h-[280px] p-8 bg-white rounded-xl border border-slate-200">

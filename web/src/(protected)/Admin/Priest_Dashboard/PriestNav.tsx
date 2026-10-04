@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Calendar, CalendarOff, Package, Receipt, Wallet } from 'lucide-react';
+import { Calendar, CalendarOff, History, Package, Receipt, Wallet } from 'lucide-react';
 
 const links = [
   { to: '/priest/PriestHomePage', label: 'Schedule', icon: Calendar, end: true },
@@ -8,6 +8,7 @@ const links = [
   { to: '/priest/income', label: 'Income', icon: Wallet, end: false },
   { to: '/priest/inventory', label: 'Inventory', icon: Package, end: false },
   { to: '/priest/expenses', label: 'Expenses', icon: Receipt, end: false },
+  { to: '/priest/history', label: 'History', icon: History, end: false },
 ];
 
 const PriestNav: React.FC = () => {
@@ -30,7 +31,7 @@ const PriestNav: React.FC = () => {
           {label}
         </NavLink>
       ))}
-      <span className="self-center text-xs text-slate-400 ml-1">Income, inventory and expenses are view only</span>
+      <span className="self-center text-xs text-slate-400 ml-1">Income, inventory, expenses and history are view only</span>
     </nav>
   );
 };

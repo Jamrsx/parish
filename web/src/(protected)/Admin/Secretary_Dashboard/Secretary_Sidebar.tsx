@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Receipt,
   Award,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -48,6 +49,7 @@ const navGroups: {
       { path: "/admin/secretary/service-records", label: "Service Records", icon: FileArchive },
       { path: "/admin/secretary/certificates", label: "Certificates", icon: Award },
       { path: "/admin/secretary/special-intentions", label: "Special Intentions", icon: BookOpen },
+      { path: "/admin/secretary/history", label: "Parish History", icon: History },
     ],
   },
   {

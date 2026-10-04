@@ -137,6 +137,15 @@ export const formatShortDate = (value: string): string => {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+/** Builds the forDate/forTime options for usersAPI.listPriests from a request's date and time values. */
+export const priestSlotFor = (date?: string | null, time?: string | null): { forDate?: string; forTime?: string } => {
+  const matches = time ? time.match(/\d{2}:\d{2}/g) : null;
+  return {
+    forDate: date ? date.slice(0, 10) : undefined,
+    forTime: matches && matches.length ? matches[matches.length - 1] : undefined,
+  };
+};
+
 export const TIME_OFF_END_TIMES = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
 
 /** Whether a time-off entry covers a date (and a time slot when given). */

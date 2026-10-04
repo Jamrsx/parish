@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  formatHm,
-  formatShortDate,
-  priestScheduleAPI,
-  type AssignmentConflict,
-} from '../../../../../library/priestSchedule';
+import { formatHm, formatShortDate, priestScheduleAPI, type AssignmentConflict } from '../../../../../library/priestSchedule';
 
 interface AssignmentConflictsAlertProps {
-  /** Change this value to re-check (e.g. after time off is edited) */
+  /** Change this number to refetch (e.g. after time off is added) */
   refreshKey?: number;
+  className?: string;
 }
 
-/** Upcoming services whose assigned priest is now on time off or switched off. */
-const AssignmentConflictsAlert: React.FC<AssignmentConflictsAlertProps> = ({ refreshKey = 0 }) => {
+/**
+ * Upcoming services whose assigned priest is now off at that date/time.
+ * Renders nothing when there are none.
+ */
+const AssignmentConflictsAlert: React.FC<AssignmentConflictsAlertProps> = ({ refreshKey = 0, className = '' }) => {
   const navigate = useNavigate();
   const [items, setItems] = useState<AssignmentConflict[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -38,8 +37,6 @@ const AssignmentConflictsAlert: React.FC<AssignmentConflictsAlertProps> = ({ ref
 
   if (items.length === 0) return null;
 
-  const shown = expanded ? items : items.slice(0, 3);
-
   const openRequest = (item: AssignmentConflict) => {
     console.log('[AssignmentConflicts] Open request', item.request_id, item.status);
     navigate(
@@ -50,48 +47,44 @@ const AssignmentConflictsAlert: React.FC<AssignmentConflictsAlertProps> = ({ ref
   };
 
   return (
-    <div role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
-      <div className="flex items-start gap-2">
-        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-amber-900">
-            Needs a new priest: {items.length} upcoming service{items.length === 1 ? '' : 's'}
-          </p>
-          <p className="text-xs text-amber-800">
-            The assigned priest is no longer available at these times. Open each one and assign another priest.
-          </p>
-          <ul className="mt-2 divide-y divide-amber-200 rounded-lg border border-amber-200 bg-white">
-            {shown.map((item) => (
-              <li key={item.request_id}>
-                <button
-                  type="button"
-                  onClick={() => openRequest(item)}
-                  className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-amber-50 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-slate-800">
-                      {item.service_type} · {formatShortDate(item.date)}
-                      {item.time ? ` ${formatHm(item.time)}` : ''}
-                    </span>
-                    <span className="block truncate text-xs text-slate-500">{item.problem}</span>
-                  </span>
-                  <span className="shrink-0 text-xs font-semibold text-blue-700">Reassign →</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {items.length > 3 && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
-            >
-              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              {expanded ? 'Show fewer' : `Show all ${items.length}`}
-            </button>
-          )}
-        </div>
-      </div>
+    <div role="alert" className={`rounded-xl border border-amber-300 bg-amber-50 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="flex items-start gap-2 text-sm text-amber-900">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>Needs a new priest:</strong> {items.length} upcoming service{items.length === 1 ? '' : 's'}{' '}
+            {items.length === 1 ? 'has' : 'have'} a priest who is now off at that time.
+          </span>
+        </span>
+        {expanded ? <ChevronUp size={18} className="shrink-0 text-amber-800" /> : <ChevronDown size={18} className="shrink-0 text-amber-800" />}
+      </button>
+      {expanded && (
+        <ul className="divide-y divide-amber-200 border-t border-amber-200">
+          {items.map((item) => (
+            <li key={item.request_id} className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 text-sm">
+                <p className="font-medium text-slate-800">
+                  {item.service_type} · {formatShortDate(item.date)}
+                  {item.time ? ` · ${formatHm(item.time)}` : ''}
+                </p>
+                <p className="text-xs text-amber-900">{item.problem}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openRequest(item)}
+                className="shrink-0 self-start rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+              >
+                Reassign priest
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

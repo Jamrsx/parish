@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   FileBarChart,
   FileBadge,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../../../../context/AuthContext";
@@ -23,7 +24,7 @@ import { splitIncome, type MonthlyOverviewData } from "../../../../library/secre
 import IncomeSharingCard from "../components/IncomeSharingCard";
 import ManageUnpaidRequest from "./Manage_Unpaid_Request";
 import MassCollections from "./Mass_Financial";
-import TransactionHistory from "./Transaction_History";
+import ParishHistory from "../components/history/ParishHistory";
 import DailyReport from "./Daily_Report";
 import DonationHandover from "./Donation_Handover";
 import SpecialIntentionHandover from "./Special_Intention_Handover";
@@ -37,6 +38,7 @@ type TabId =
   | "dashboard"
   | "payments"
   | "reprints"
+  | "history"
   | "transactions"
   | "daily-report"
   | "mass"
@@ -49,6 +51,7 @@ const VALID_TABS: TabId[] = [
   "dashboard",
   "payments",
   "reprints",
+  "history",
   "transactions",
   "daily-report",
   "mass",
@@ -77,7 +80,7 @@ const navGroups: {
     items: [
       { id: "payments", label: "Collect Payments", icon: Wallet },
       { id: "reprints", label: "Certificate Reprints", icon: FileBadge },
-      { id: "transactions", label: "Transactions", icon: Receipt },
+      { id: "history", label: "Parish History", icon: History },
       { id: "daily-report", label: "Daily Report", icon: CalendarDays },
     ],
   },
@@ -676,7 +679,7 @@ const CashierHomePage: React.FC = () => {
 
             {activeTab === "payments" && <ManageUnpaidRequest />}
             {activeTab === "reprints" && <CertificateReprints onChanged={fetchDashboard} />}
-            {activeTab === "transactions" && <TransactionHistory />}
+            {(activeTab === "history" || activeTab === "transactions") && <ParishHistory scope="admin" />}
             {activeTab === "daily-report" && <DailyReport />}
             {activeTab === "mass" && <MassCollections onChanged={fetchDashboard} />}
             {activeTab === "donations" && <DonationHandover onChanged={fetchDashboard} />}

@@ -1597,10 +1597,11 @@ class ManageRequestController extends Controller
 
                 SpecialIntention::where('request_id', $manageRequest->request_id)
                     ->whereIn('status', ['pending', 'approved'])
-                    ->update([
+                    ->get()
+                    ->each(fn (SpecialIntention $row) => $row->update([
                         'status' => 'rejected',
                         'reject_reason' => 'Cancelled by parishioner: ' . $reason,
-                    ]);
+                    ]));
             });
 
             try {

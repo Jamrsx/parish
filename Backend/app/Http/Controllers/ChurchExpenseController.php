@@ -6,6 +6,7 @@ use App\Models\ChurchExpense;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -246,13 +247,15 @@ class ChurchExpenseController extends Controller
             ], 422);
         }
 
-        ChurchExpense::whereIn('expense_id', $expenses->pluck('expense_id'))->update([
-            'status' => 'forwarded',
-            'forwarded_at' => now(),
-            'reviewed_by' => null,
-            'reviewed_at' => null,
-            'return_reason' => null,
-        ]);
+        DB::transaction(function () use ($expenses) {
+            $expenses->each(fn (ChurchExpense $expense) => $expense->update([
+                'status' => 'forwarded',
+                'forwarded_at' => now(),
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'return_reason' => null,
+            ]));
+        });
 
         $count = $expenses->count();
         $total = round((float) $expenses->sum('amount'), 2);
@@ -305,12 +308,14 @@ class ChurchExpenseController extends Controller
             ], 422);
         }
 
-        ChurchExpense::whereIn('expense_id', $expenses->pluck('expense_id'))->update([
-            'status' => 'verified',
-            'reviewed_by' => $user->user_id,
-            'reviewed_at' => now(),
-            'return_reason' => null,
-        ]);
+        DB::transaction(function () use ($expenses, $user) {
+            $expenses->each(fn (ChurchExpense $expense) => $expense->update([
+                'status' => 'verified',
+                'reviewed_by' => $user->user_id,
+                'reviewed_at' => now(),
+                'return_reason' => null,
+            ]));
+        });
 
         $count = $expenses->count();
 

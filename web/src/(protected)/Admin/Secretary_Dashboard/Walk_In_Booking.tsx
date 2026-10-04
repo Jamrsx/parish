@@ -7,6 +7,7 @@ import { churchServiceAPI, formatFee, type ChurchService } from "../../../../lib
 import { manageRequestAPI, getUserFullName } from "../../../../library/manage-request";
 import { usersAPI } from "../../../../library/api";
 import type { User } from "../../../../library/AuthStorage";
+import { priestSlotFor } from "../../../../library/priestSchedule";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import { availabilityAPI } from "../../../../library/Availability";
 import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
@@ -396,10 +397,12 @@ const WalkInBooking: React.FC = () => {
     return null;
   };
 
-  const loadPriests = useCallback(async () => {
+  // Priests who are off at the booking's date/time come back with `availability_problem` and are shown disabled
+  const loadPriests = useCallback(async (slot: { forDate?: string; forTime?: string } = {}) => {
     setPriestsLoading(true);
     try {
-      const res = await usersAPI.listPriests({ activeOnly: true, availableOnly: true });
+      console.log("[WalkIn] Loading priests for slot:", slot);
+      const res = await usersAPI.listPriests({ activeOnly: true, ...slot });
       const payload = res.data?.data as unknown;
       const list: User[] = Array.isArray(payload)
         ? (payload as User[])
@@ -408,7 +411,9 @@ const WalkInBooking: React.FC = () => {
           : [];
       console.log("[WalkIn] Priests loaded:", list.length);
       setPriests(list);
-      setSelectedPriestId((current) => (current && list.some((p) => p.user_id === current) ? current : null));
+      setSelectedPriestId((current) =>
+        current && list.some((p) => p.user_id === current && !p.availability_problem) ? current : null
+      );
     } catch (err) {
       console.error("[WalkIn] Priests load error:", err);
       setPriests([]);
@@ -416,6 +421,8 @@ const WalkInBooking: React.FC = () => {
       setPriestsLoading(false);
     }
   }, []);
+
+  const priestSlot = isCertificate ? {} : priestSlotFor(form.preferred_date, form.preferred_time);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,7 +438,7 @@ const WalkInBooking: React.FC = () => {
       priestOptional: !!isCertificate,
     });
     setPriestModalOpen(true);
-    loadPriests();
+    loadPriests(priestSlot);
   };
 
   const closePriestModal = () => {
@@ -1199,12 +1206,12 @@ const WalkInBooking: React.FC = () => {
                 ) : priests.length === 0 ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
                     <p className="text-sm text-amber-700">
-                      No available priests right now.
+                      No active priests found.
                       {isCertificate ? " You can still save this certificate without a priest." : " A priest must be available to save this booking."}
                     </p>
                     <button
                       type="button"
-                      onClick={loadPriests}
+                      onClick={() => loadPriests(priestSlot)}
                       className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
                     >
                       Refresh list
@@ -1225,14 +1232,28 @@ const WalkInBooking: React.FC = () => {
                     >
                       <option value="">Select a priest…</option>
                       {priests.map((priest) => (
-                        <option key={priest.user_id} value={priest.user_id}>
+                        <option
+                          key={priest.user_id}
+                          value={priest.user_id}
+                          disabled={!!priest.availability_problem}
+                          title={priest.availability_problem || undefined}
+                        >
                           {getUserFullName(priest)}
+                          {priest.availability_problem ? " — unavailable at this time" : ""}
                         </option>
                       ))}
                     </select>
                     <p className="text-xs text-slate-400 mt-1">
-                      Showing {priests.length} available priest{priests.length > 1 ? "s" : ""}
+                      {priests.filter((p) => !p.availability_problem).length} of {priests.length} priest
+                      {priests.length > 1 ? "s" : ""} free at this date and time
                     </p>
+                    {priests.some((p) => p.availability_problem) && (
+                      <ul className="mt-2 space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        {priests.filter((p) => p.availability_problem).map((p) => (
+                          <li key={p.user_id}>{p.availability_problem}</li>
+                        ))}
+                      </ul>
+                    )}
                   </>
                 )}
               </div>
@@ -1271,7 +1292,7 @@ const WalkInBooking: React.FC = () => {
               <button
                 type="button"
                 onClick={() => saveBooking(selectedPriestId)}
-                disabled={submitting || priestsLoading || !selectedPriestId}
+                disabled={submitting || priestsLoading || !selectedPriestId || !!selectedPriest?.availability_problem}
                 className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {submitting ? (

@@ -3,8 +3,9 @@ import axios from 'axios';
 import { UserPlus, Users, Mail, Lock, User as UserIcon, CheckCircle2, AlertTriangle, UserX, UserCheck, Phone, Pencil, Save, CalendarDays } from 'lucide-react';
 import { usersAPI } from '../../../../library/api';
 import type { User } from '../../../../library/api';
-import { priestScheduleAPI } from '../../../../library/priestSchedule';
+import { formatShortDate, priestScheduleAPI, timeOffShortLabel } from '../../../../library/priestSchedule';
 import type { PriestScheduleSummaryRow } from '../../../../library/priestSchedule';
+import AssignmentConflictsAlert from './components/AssignmentConflictsAlert';
 import PageHeader from './components/PageHeader';
 import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
@@ -95,6 +96,7 @@ const ManagePriests: React.FC = () => {
   const [enablingId, setEnablingId] = useState<number | null>(null);
   const [scheduleSummary, setScheduleSummary] = useState<Record<number, PriestScheduleSummaryRow>>({});
   const [schedulePriest, setSchedulePriest] = useState<User | null>(null);
+  const [conflictsNonce, setConflictsNonce] = useState(0);
 
   const fetchScheduleSummary = useCallback(async () => {
     try {
@@ -420,6 +422,8 @@ const ManagePriests: React.FC = () => {
         title="Manage Priests"
         description="Add priest accounts so they can be assigned when approving service requests."
       />
+
+      <AssignmentConflictsAlert refreshKey={conflictsNonce} className="mb-6" />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Add Priest Form */}
@@ -760,22 +764,46 @@ const ManagePriests: React.FC = () => {
                         >
                           {priest.is_resident === false ? 'Non-resident' : 'Resident'}
                         </span>
-                        {active && (
-                          <span
-                            className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              priest.is_available === false
-                                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}
-                            title={
-                              priest.is_available === false
-                                ? 'The priest turned off availability from his dashboard'
-                                : 'Can be assigned to new requests'
-                            }
-                          >
-                            {priest.is_available === false ? 'Unavailable (set by priest)' : 'Available'}
-                          </span>
-                        )}
+                        {active && (() => {
+                          const info = scheduleSummary[priest.user_id];
+                          const switchedOff = info ? !info.is_available : priest.is_available === false;
+                          const until = info?.unavailable_until ?? (priest.unavailable_until ? priest.unavailable_until.slice(0, 10) : null);
+                          const offToday = info?.off_today;
+                          const unavailableNow = switchedOff || !!offToday;
+                          const label = switchedOff
+                            ? until ? `Unavailable until ${formatShortDate(until)}` : 'Unavailable (set by priest)'
+                            : offToday
+                              ? offToday.whole_day ? 'Off today' : `Off today ${timeOffShortLabel(offToday).replace('Off ', '')}`
+                              : 'Available';
+                          return (
+                            <>
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                  unavailableNow
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
+                                title={
+                                  switchedOff
+                                    ? 'The priest turned off availability; it turns back on automatically after the date'
+                                    : offToday
+                                      ? `${offToday.label}${offToday.reason ? ` (${offToday.reason})` : ''}`
+                                      : 'Can be assigned to new requests'
+                                }
+                              >
+                                {label}
+                              </span>
+                              {info?.next_time_off && (
+                                <span
+                                  className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-slate-50 text-slate-700 border-slate-200"
+                                  title={info.next_time_off.reason || undefined}
+                                >
+                                  Next off: {info.next_time_off.label}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       {(() => {
                         const info = scheduleSummary[priest.user_id];
@@ -857,9 +885,9 @@ const ManagePriests: React.FC = () => {
           </div>
 
           <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
-            Only <strong>active</strong> and <strong>available</strong> priests appear when assigning a priest in
-            Manage Requests, Scheduled Services, or Walk-in Booking. Disabled priests cannot log in. Use <strong>Schedule</strong> to see
-            when a priest is free before assigning.
+            When assigning a priest in Manage Requests, Scheduled Services, or Walk-in Booking, priests who are off at that
+            date and time are shown greyed out with the reason. Priests mark time off in their own calendar; use{' '}
+            <strong>Schedule</strong> to see it or to add time off for them. Disabled priests cannot log in.
           </div>
         </div>
       </div>
@@ -869,6 +897,10 @@ const ManagePriests: React.FC = () => {
           priestId={schedulePriest.user_id}
           priestName={getPriestDisplayName(schedulePriest)}
           onClose={() => setSchedulePriest(null)}
+          onChanged={() => {
+            fetchScheduleSummary();
+            setConflictsNonce((n) => n + 1);
+          }}
         />
       )}
 

@@ -7,22 +7,37 @@ import {
   ChevronRight,
   Clock,
   ListChecks,
+  CalendarOff,
+  CheckCircle2,
+  Loader2,
+  Plus,
   RefreshCw,
+  Trash2,
   UserRound,
+  X,
 } from 'lucide-react';
 import ModalCloseButton from './ModalCloseButton';
 import StatusBadge from './StatusBadge';
-import { priestScheduleAPI } from '../../../../../library/priestSchedule';
+import TimeOffFormModal from '../../components/TimeOffFormModal';
+import {
+  formatShortDate,
+  priestScheduleAPI,
+  timeOffCovers,
+  timeOffShortLabel,
+} from '../../../../../library/priestSchedule';
 import type {
   OtherBooking,
   PriestAssignment,
   PriestScheduleDetails,
+  PriestTimeOff,
 } from '../../../../../library/priestSchedule';
 
 interface PriestScheduleModalProps {
   priestId: number;
   priestName: string;
   onClose: () => void;
+  /** Called after time off is added or removed so the list behind can refresh */
+  onChanged?: () => void;
 }
 
 type Tab = 'calendar' | 'upcoming';
@@ -70,9 +85,13 @@ const isPastSlot = (ymd: string, hm: string) => {
   return slot.getTime() <= Date.now();
 };
 
-const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, priestName, onClose }) => {
+const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, priestName, onClose, onChanged }) => {
   const todayYmd = toYmd(new Date());
   const [tab, setTab] = useState<Tab>('calendar');
+  const [showTimeOffForm, setShowTimeOffForm] = useState(false);
+  const [toRemove, setToRemove] = useState<PriestTimeOff | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => monthStart(new Date()));
   const [selectedDate, setSelectedDate] = useState(todayYmd);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -122,11 +141,40 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !showTimeOffForm && !toRemove) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, showTimeOffForm, toRemove]);
+
+  const timeOff = useMemo(() => data?.time_off ?? lastData?.time_off ?? [], [data, lastData]);
+  const timeOffOn = (ymd: string) => timeOff.filter((e) => timeOffCovers(e, ymd));
+
+  const afterTimeOffChange = (message: string) => {
+    setFeedback({ type: 'success', text: message });
+    setReloadNonce((n) => n + 1);
+    onChanged?.();
+  };
+
+  const confirmRemove = async () => {
+    if (!toRemove) return;
+    setRemoving(true);
+    try {
+      console.log('[PriestSchedule] Remove time off', toRemove.time_off_id);
+      const res = await priestScheduleAPI.removeTimeOffFor(priestId, toRemove.time_off_id);
+      setToRemove(null);
+      afterTimeOffChange(res.data?.message || 'Time off removed.');
+    } catch (err) {
+      console.error('[PriestSchedule] Remove failed', err);
+      setToRemove(null);
+      setFeedback({
+        type: 'error',
+        text: axios.isAxiosError(err) ? err.response?.data?.message || 'Could not remove the time off.' : 'Could not remove the time off.',
+      });
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   const assignmentsByDate = useMemo(() => {
     const map = new Map<string, PriestAssignment[]>();
@@ -189,10 +237,13 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
   const dayAssignments = assignmentsByDate.get(selectedDate) ?? [];
   const dayOthers = othersByDate.get(selectedDate) ?? [];
   const offSlotAssignments = dayAssignments.filter((a) => !timeSlots.includes(a.time));
+  const dayTimeOff = timeOffOn(selectedDate);
+  const slotOff = (slot: string) => dayTimeOff.find((e) => timeOffCovers(e, selectedDate, slot));
   const openCount = timeSlots.filter(
     (slot) =>
       !dayAssignments.some((a) => a.time === slot) &&
       !dayOthers.some((b) => b.time === slot) &&
+      !slotOff(slot) &&
       !isPastSlot(selectedDate, slot)
   ).length;
 
@@ -224,7 +275,7 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
       </span>
     ) : (
       <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-        Unavailable (set by priest)
+        {priest.unavailable_until ? `Unavailable until ${formatShortDate(priest.unavailable_until)}` : 'Unavailable (set by priest)'}
       </span>
     );
   };
@@ -300,10 +351,75 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
               <span>
                 {!priest.is_active
                   ? `${displayName}'s account is disabled, so he can't be assigned to any request.`
-                  : `${displayName} marked himself unavailable, so he can't be assigned new requests right now. Existing assignments below still stand.`}
+                  : priest.unavailable_until
+                    ? `${displayName} marked himself unavailable until ${formatShortDate(priest.unavailable_until)}. He can't be assigned services up to that date; it turns back on automatically after.`
+                    : `${displayName} marked himself unavailable, so he can't be assigned new requests right now. Existing assignments below still stand.`}
               </span>
             </div>
           )}
+
+          {feedback && (
+            <div
+              role={feedback.type === 'error' ? 'alert' : 'status'}
+              className={`mt-4 flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+                feedback.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+            >
+              <span className="flex items-start gap-2">
+                {feedback.type === 'error' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={16} className="mt-0.5 shrink-0" />}
+                {feedback.text}
+              </span>
+              <button type="button" onClick={() => setFeedback(null)} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Time off */}
+          <div className="mt-4 rounded-xl border border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                  <CalendarOff size={15} /> Time off
+                </p>
+                <p className="text-xs text-slate-500">Shown in this period. The priest manages these in his own calendar.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTimeOffForm(true)}
+                disabled={!priest?.is_active}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <Plus size={14} /> Add time off
+              </button>
+            </div>
+            {timeOff.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-slate-500">{loading && !lastData ? 'Loading…' : 'No time off in this period.'}</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {timeOff.map((entry) => (
+                  <li key={entry.time_off_id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <button type="button" onClick={() => openDay(entry.start_date < todayYmd ? todayYmd : entry.start_date)} className="min-w-0 text-left hover:underline">
+                      <p className="text-sm font-medium text-slate-800">{entry.label}</p>
+                      <p className="text-xs text-slate-500">
+                        {entry.reason || 'No reason given'} · {entry.added_by_priest ? 'added by the priest' : `added by ${entry.created_by_name || 'the parish office'}`}
+                      </p>
+                    </button>
+                    {entry.end_date >= todayYmd && (
+                      <button
+                        type="button"
+                        onClick={() => setToRemove(entry)}
+                        aria-label={`Remove time off ${entry.label}`}
+                        className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* Tabs */}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -398,17 +514,22 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
                     const isSelected = ymd === selectedDate;
                     const isToday = ymd === todayYmd;
                     const isPast = ymd < todayYmd;
+                    const off = timeOffOn(ymd);
+                    const wholeDayOff = off.some((e) => e.whole_day);
                     return (
                       <button
                         key={ymd}
                         type="button"
                         onClick={() => openDay(ymd)}
                         aria-pressed={isSelected}
-                        aria-label={`${formatDay(ymd)}: ${mine} assignment${mine === 1 ? '' : 's'}`}
+                        aria-label={`${formatDay(ymd)}: ${mine} assignment${mine === 1 ? '' : 's'}${off.length ? ', priest has time off' : ''}`}
+                        title={off.length ? off.map((e) => e.label).join('; ') : undefined}
                         className={`relative flex h-12 flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
                           isSelected
                             ? 'border-blue-600 bg-blue-600 text-white'
-                            : isFull
+                            : wholeDayOff
+                              ? 'border-slate-300 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_6px,#e2e8f0_6px,#e2e8f0_12px)] text-slate-600'
+                              : isFull
                               ? 'border-rose-100 bg-rose-50 text-rose-700 hover:border-rose-300'
                               : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
                         } ${isPast && !isSelected ? 'text-slate-400' : ''} ${
@@ -416,6 +537,9 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
                         }`}
                       >
                         <span className={isToday ? 'font-bold' : 'font-medium'}>{parseYmd(ymd).getDate()}</span>
+                        {off.length > 0 && !wholeDayOff && (
+                          <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-600'}`} aria-hidden />
+                        )}
                         {mine > 0 && (
                           <span
                             className={`mt-0.5 rounded-full px-1.5 text-[10px] font-bold leading-4 ${
@@ -438,6 +562,10 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
                   <span className="flex items-center gap-1.5">
                     <span className="h-3 w-3 rounded border border-rose-200 bg-rose-50" />
                     Parish fully booked
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded border border-slate-300 bg-[repeating-linear-gradient(45deg,#f1f5f9,#f1f5f9_3px,#cbd5e1_3px,#cbd5e1_6px)]" />
+                    Priest off (dot = some hours)
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-3 w-3 rounded ring-2 ring-blue-300" />
@@ -488,6 +616,22 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
                               </p>
                             </div>
                             <StatusBadge status={mine.status} label={mine.status === 'done' ? 'Completed' : undefined} />
+                          </li>
+                        );
+                      }
+
+                      const offEntry = slotOff(slot);
+                      if (offEntry) {
+                        return (
+                          <li
+                            key={slot}
+                            className="flex items-center gap-3 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2"
+                          >
+                            <span className="w-16 shrink-0 text-xs font-semibold text-slate-600">{formatTime(slot)}</span>
+                            <p className="min-w-0 flex-1 truncate text-sm text-slate-700">
+                              {timeOffShortLabel(offEntry) === 'Off' ? 'Time off' : 'Time off (hours)'}
+                              {offEntry.reason ? <span className="text-slate-500"> · {offEntry.reason}</span> : null}
+                            </p>
                           </li>
                         );
                       }
@@ -614,6 +758,41 @@ const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, pri
           </button>
         </div>
       </div>
+
+      {showTimeOffForm && (
+        <TimeOffFormModal
+          title="Add time off"
+          subtitle={`for ${displayName} — he will be notified`}
+          defaultDate={selectedDate}
+          onSave={(payload) => priestScheduleAPI.addTimeOffFor(priestId, payload)}
+          onSaved={(message) => {
+            setShowTimeOffForm(false);
+            afterTimeOffChange(message);
+          }}
+          onClose={() => setShowTimeOffForm(false)}
+        />
+      )}
+
+      {toRemove && (
+        <div className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="remove-time-off-title" className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <h3 id="remove-time-off-title" className="text-lg font-bold text-slate-800">Remove this time off?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {toRemove.label}
+              {toRemove.reason ? ` (${toRemove.reason})` : ''}. {displayName} will be notified and can be assigned on these dates again.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setToRemove(null)} disabled={removing} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50">
+                Keep it
+              </button>
+              <button type="button" onClick={confirmRemove} disabled={removing} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                {removing && <Loader2 size={14} className="animate-spin" />}
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
