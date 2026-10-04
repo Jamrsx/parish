@@ -191,13 +191,16 @@ export interface UpdateCashierData extends UpdateStaffBaseData {
 }
 
 export const usersAPI = {
-  listPriests: (options?: { activeOnly?: boolean; availableOnly?: boolean }) =>
+  /** Pass forDate/forTime to get `availability_problem` per priest for that service slot. */
+  listPriests: (options?: { activeOnly?: boolean; availableOnly?: boolean; forDate?: string; forTime?: string }) =>
     api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
       params: {
         role: 'priest',
         per_page: 100,
         ...(options?.activeOnly ? { active_only: 1 } : {}),
         ...(options?.availableOnly ? { available_only: 1 } : {}),
+        ...(options?.forDate ? { for_date: options.forDate } : {}),
+        ...(options?.forTime ? { for_time: options.forTime } : {}),
       },
     }),
 
@@ -233,8 +236,12 @@ export const usersAPI = {
   enableCashier: (userId: number) =>
     api.post<ApiResponse<User>>(`/admin/users/${userId}/enable`),
 
-  updateAvailability: (isAvailable: boolean) =>
-    api.put<ApiResponse<User>>('/priest/availability', { is_available: isAvailable }),
+  /** Turning off requires `unavailableUntil` (Y-m-d); the switch turns back on after that day. */
+  updateAvailability: (isAvailable: boolean, unavailableUntil?: string) =>
+    api.put<ApiResponse<User>>('/priest/availability', {
+      is_available: isAvailable,
+      ...(isAvailable ? {} : { unavailable_until: unavailableUntil }),
+    }),
 };
 
 // Export types

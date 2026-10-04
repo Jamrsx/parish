@@ -99,10 +99,14 @@ class WalkInBookingController extends Controller
                     'message' => 'The selected priest account is disabled.',
                 ], 422);
             }
-            if (!$priest->isAvailableForAssignment()) {
+            User::releaseExpiredUnavailability();
+            $availabilityProblem = $isCertificate
+                ? $priest->fresh()->availabilityProblem()
+                : $priest->fresh()->availabilityProblem($request->preferred_date, $request->preferred_time);
+            if ($availabilityProblem !== null) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The selected priest is currently unavailable for new assignments.',
+                    'message' => $availabilityProblem . ' Please choose another priest.',
                 ], 422);
             }
         } elseif (!$isCertificate) {

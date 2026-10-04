@@ -20,6 +20,10 @@ export interface User {
   role_label: string;
   is_active?: boolean;
   is_available?: boolean;
+  /** ISO date-time; set while a priest's availability switch is off */
+  unavailable_until?: string | null;
+  /** Only on priest lists requested for a service date/time */
+  availability_problem?: string | null;
   is_resident?: boolean;
   last_login?: string | null;
   created_at?: string;

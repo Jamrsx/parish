@@ -29,6 +29,7 @@ class User extends Authenticatable
         'last_login',
         'is_active',
         'is_available',
+        'unavailable_until',
     ];
 
     protected $hidden = [
@@ -40,6 +41,7 @@ class User extends Authenticatable
         'is_active' => 'boolean',
         'is_available' => 'boolean',
         'is_resident' => 'boolean',
+        'unavailable_until' => 'datetime',
     ];
 
     /**
@@ -106,7 +108,92 @@ class User extends Authenticatable
 
     public function isAvailableForAssignment(): bool
     {
-        return $this->isActive() && $this->is_available !== false;
+        return $this->availabilityProblem() === null;
+    }
+
+    /**
+     * Turn the availability switch back on for priests whose "unavailable until" date has passed.
+     * Runs lazily wherever availability is read, so no scheduler/cron is needed.
+     */
+    public static function releaseExpiredUnavailability(): int
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('users', 'unavailable_until')) {
+            return 0;
+        }
+
+        $released = static::query()
+            ->where('role', 'priest')
+            ->where('is_available', false)
+            ->whereNotNull('unavailable_until')
+            ->where('unavailable_until', '<', now())
+            ->update(['is_available' => true, 'unavailable_until' => null]);
+
+        if ($released > 0) {
+            \Illuminate\Support\Facades\Log::info('Priest availability auto-restored', ['count' => $released]);
+        }
+
+        return $released;
+    }
+
+    /** The availability switch, taking an expired "until" date into account. */
+    public function switchIsOn(): bool
+    {
+        if ($this->is_available !== false) {
+            return true;
+        }
+
+        return $this->unavailable_until !== null && $this->unavailable_until->isPast();
+    }
+
+    /** Time-off entry that blocks $date (and $time when given), if any. */
+    public function timeOffOn(string $date, ?string $time = null): ?PriestTimeOff
+    {
+        $day = \Carbon\Carbon::parse($date)->toDateString();
+
+        return PriestTimeOff::query()
+            ->where('priest_id', $this->user_id)
+            ->overlapping($day, $day)
+            ->orderBy('start_date')
+            ->get()
+            ->first(fn (PriestTimeOff $entry) => $entry->covers($day, $time));
+    }
+
+    /**
+     * Why this priest cannot take a service on $date/$time, or null if he can.
+     * Without a date, only the account status and the availability switch are checked.
+     */
+    public function availabilityProblem(?string $date = null, ?string $time = null): ?string
+    {
+        $name = 'Fr. ' . trim($this->full_name);
+
+        if (!$this->isActive()) {
+            return "{$name}'s account is disabled.";
+        }
+
+        if (!$this->switchIsOn()) {
+            $until = $this->unavailable_until;
+            if ($until === null) {
+                return "{$name} has marked himself unavailable.";
+            }
+            if ($date === null || \Carbon\Carbon::parse($date)->toDateString() <= $until->toDateString()) {
+                return "{$name} is unavailable until " . $until->format('M j, Y') . '.';
+            }
+        }
+
+        if ($date !== null) {
+            $entry = $this->timeOffOn($date, $time);
+            if ($entry) {
+                $reason = $entry->reason ? " ({$entry->reason})" : '';
+                return "{$name} is on time off: {$entry->label}{$reason}.";
+            }
+        }
+
+        return null;
+    }
+
+    public function timeOff()
+    {
+        return $this->hasMany(PriestTimeOff::class, 'priest_id', 'user_id');
     }
 
     /**

@@ -22,6 +22,7 @@ use App\Http\Controllers\WalkInBookingController;
 use App\Http\Controllers\SecretaryDashboardController;
 use App\Http\Controllers\PriestDashboardController;
 use App\Http\Controllers\PriestScheduleController;
+use App\Http\Controllers\PriestTimeOffController;
 use App\Http\Controllers\ChurchExpenseController;
 
 // ============ PUBLIC ROUTES ============
@@ -95,7 +96,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // Priest schedules (secretary checks who is free before assigning)
         Route::middleware('role:secretary')->prefix('priests')->group(function () {
             Route::get('/schedule-summary', [PriestScheduleController::class, 'summary']);
+            Route::get('/time-off', [PriestTimeOffController::class, 'index']);
+            Route::get('/assignment-conflicts', [PriestTimeOffController::class, 'assignmentConflicts']);
             Route::get('/{id}/schedule', [PriestScheduleController::class, 'show']);
+            Route::post('/{priestId}/time-off', [PriestTimeOffController::class, 'store']);
+            Route::delete('/{priestId}/time-off/{id}', [PriestTimeOffController::class, 'destroy']);
         });
 
         // Certificate generation (secretary only)
@@ -290,6 +295,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:priest')->prefix('priest')->group(function () {
         Route::get('/profile', [AuthController::class, 'profile']);
         Route::put('/availability', [AuthController::class, 'updatePriestAvailability']);
+        Route::get('/calendar', [PriestScheduleController::class, 'myCalendar']);
+        Route::post('/time-off', [PriestTimeOffController::class, 'myStore']);
+        Route::put('/time-off/{id}', [PriestTimeOffController::class, 'myUpdate']);
+        Route::delete('/time-off/{id}', [PriestTimeOffController::class, 'myDestroy']);
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
         Route::get('/monthly-activity', [PriestDashboardController::class, 'monthlyActivity']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);

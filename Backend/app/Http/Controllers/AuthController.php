@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -323,7 +324,8 @@ class AuthController extends Controller
             'role' => $user->role,
             'role_label' => $user->role_label,
             'is_active' => $user->is_active,
-            'is_available' => $user->is_available ?? true,
+            'is_available' => $user->switchIsOn(),
+            'unavailable_until' => $user->switchIsOn() ? null : $user->unavailable_until?->toIso8601String(),
             'last_login' => $user->last_login,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
@@ -433,6 +435,18 @@ class AuthController extends Controller
      */
     public function listUsers(Request $request)
     {
+        User::releaseExpiredUnavailability();
+
+        $forDate = null;
+        if ($request->filled('for_date')) {
+            try {
+                $forDate = \Carbon\Carbon::createFromFormat('Y-m-d', (string) $request->input('for_date'))->toDateString();
+            } catch (\Exception $e) {
+                $forDate = null;
+            }
+        }
+        $forTime = $request->filled('for_time') ? (string) $request->input('for_time') : null;
+
         $query = User::query();
 
         if ($request->has('role') && $request->role !== 'all') {
@@ -456,8 +470,13 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $users->through(function ($user) {
-                return $this->formatUserData($user);
+            'data' => $users->through(function ($user) use ($forDate, $forTime) {
+                $data = $this->formatUserData($user);
+                if ($user->isPriest()) {
+                    // Pickers send the service date/time so unavailable priests can be shown disabled with the reason
+                    $data['availability_problem'] = $user->availabilityProblem($forDate, $forTime);
+                }
+                return $data;
             })
         ]);
     }
@@ -729,25 +748,51 @@ class AuthController extends Controller
             ], 403);
         }
 
+        $maxUntil = now()->addDays(30)->toDateString();
         $validator = Validator::make($request->all(), [
             'is_available' => 'required|boolean',
+            'unavailable_until' => [
+                'nullable',
+                'required_if:is_available,false,0',
+                'date_format:Y-m-d',
+                'after_or_equal:today',
+                'before_or_equal:' . $maxUntil,
+            ],
+        ], [
+            'unavailable_until.required_if' => 'Choose until when you will be unavailable.',
+            'unavailable_until.after_or_equal' => 'The date cannot be in the past.',
+            'unavailable_until.before_or_equal' => 'You can be unavailable for at most 30 days. Use My Calendar for longer time off.',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
 
         $isAvailable = $request->boolean('is_available');
-        $user->update(['is_available' => $isAvailable]);
+        $until = $isAvailable
+            ? null
+            : \Carbon\Carbon::createFromFormat('Y-m-d', $request->input('unavailable_until'))->endOfDay();
+
+        $user->update([
+            'is_available' => $isAvailable,
+            'unavailable_until' => $until,
+        ]);
+
+        Log::info('Priest availability switch changed', [
+            'priest_id' => $user->user_id,
+            'is_available' => $isAvailable,
+            'unavailable_until' => $until?->toDateTimeString(),
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => $isAvailable
                 ? 'You are now available for new assignments.'
-                : 'You are now unavailable for new assignments.',
+                : 'You are unavailable until ' . $until->format('M j, Y') . '. You will be available again automatically after that.',
             'data' => $this->formatUserData($user->fresh())
         ]);
     }

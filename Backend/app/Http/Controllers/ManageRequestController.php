@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class ManageRequestController extends Controller
 {
@@ -951,6 +952,30 @@ class ManageRequestController extends Controller
                     || str_contains(strtolower((string) $service->service_type), 'certificate')
                 ));
 
+            if (!$isCertificateRequest && $manageRequest->assigned_priest) {
+                User::releaseExpiredUnavailability();
+                $assignedPriest = User::find($manageRequest->assigned_priest);
+                $priestProblem = $assignedPriest?->availabilityProblem(
+                    $request->preferred_date,
+                    $request->preferred_time
+                );
+
+                if ($priestProblem !== null) {
+                    Log::info('Reschedule blocked by priest availability', [
+                        'request_id' => $manageRequest->request_id,
+                        'priest_id' => $manageRequest->assigned_priest,
+                        'problem' => $priestProblem,
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => $isAdmin
+                            ? $priestProblem . ' Choose another date/time, or assign a different priest first.'
+                            : 'The assigned priest is not available at that date and time. Please choose another schedule.',
+                    ], 422);
+                }
+            }
+
             $doReschedule = fn () => $manageRequest->reschedule([
                 'preferred_date' => $request->preferred_date,
                 'preferred_time' => $request->preferred_time,
@@ -1081,10 +1106,21 @@ class ManageRequestController extends Controller
                 ], 422);
             }
 
-            if (!$priest->isAvailableForAssignment()) {
+            User::releaseExpiredUnavailability();
+            $manageRequest->loadMissing('service');
+            $isCertificateRequest = !empty($manageRequest->certificate_form_id)
+                || $manageRequest->service?->category === 'certificate';
+            $availabilityProblem = $isCertificateRequest
+                ? $priest->fresh()->availabilityProblem()
+                : $priest->fresh()->availabilityProblem(
+                    $manageRequest->preferred_date ? Carbon::parse($manageRequest->preferred_date)->toDateString() : null,
+                    ManageRequest::normalizeTime($manageRequest->preferred_time) ?: null
+                );
+
+            if ($availabilityProblem !== null) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'The selected priest is currently unavailable for new assignments.'
+                    'message' => $availabilityProblem . ' Please choose another priest.'
                 ], 422);
             }
 

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
 import { manageRequestAPI, getUserFullName } from '../../../../library/manage-request';
 import type { ManageRequest, RequestStatus, PaymentStatus } from '../../../../library/manage-request';
-import { usersAPI } from '../../../../library/api';
 import { priestAPI, type PriestMonthlyActivity } from '../../../../library/priest';
 import {
   notificationAPI,
@@ -26,6 +25,7 @@ import {
   PieChart,
 } from 'lucide-react';
 import PriestNav from './PriestNav';
+import PriestAvailabilitySwitch from './components/PriestAvailabilitySwitch';
 import { DonutChart, HorizontalBarChart } from '../components/MonthlyCharts';
 
 interface PriestSchedule {
@@ -44,8 +44,6 @@ interface PriestSchedule {
   contactNumber?: string;
   email?: string;
 }
-
-type PriestStatus = 'available' | 'unavailable';
 
 const formatDate = (dateString: string): string => {
   if (!dateString) return 'N/A';
@@ -135,15 +133,11 @@ const monthInputValue = (year: number, month: number) =>
 
 const PriestHomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout } = useAuth();
   const now = new Date();
   const [schedules, setSchedules] = useState<PriestSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [priestStatus, setPriestStatus] = useState<PriestStatus>(
-    user?.is_available === false ? 'unavailable' : 'available'
-  );
-  const [statusUpdating, setStatusUpdating] = useState(false);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
   const [selectedSchedule, setSelectedSchedule] = useState<PriestSchedule | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -262,26 +256,6 @@ const PriestHomePage: React.FC = () => {
     }
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [showNotifications]);
-
-  const toggleStatus = async () => {
-    const nextAvailable = priestStatus !== 'available';
-    const previousStatus = priestStatus;
-    setPriestStatus(nextAvailable ? 'available' : 'unavailable');
-    setStatusUpdating(true);
-    try {
-      console.log('Updating priest availability:', nextAvailable);
-      const response = await usersAPI.updateAvailability(nextAvailable);
-      if (response.data?.success && response.data?.data) {
-        updateUser(response.data.data);
-      }
-    } catch (err) {
-      console.error('Error updating priest availability:', err);
-      setPriestStatus(previousStatus);
-      alert('Failed to update availability. Please try again.');
-    } finally {
-      setStatusUpdating(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -434,28 +408,8 @@ const PriestHomePage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-sm font-medium ${
-                  priestStatus === 'available' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {priestStatus === 'available' ? 'Available' : 'Unavailable'}
-              </span>
-              <button
-                onClick={toggleStatus}
-                disabled={statusUpdating}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
-                  priestStatus === 'available' ? 'bg-green-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    priestStatus === 'available' ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
+            <PriestAvailabilitySwitch />
+
 
             <button
               onClick={() => {
