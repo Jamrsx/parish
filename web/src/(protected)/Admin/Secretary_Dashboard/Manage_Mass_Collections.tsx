@@ -335,7 +335,7 @@ const ManageMassCollections: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
                         <th className="text-left px-3 py-2 font-medium">Denomination</th>
-                        <th className="text-left px-3 py-2 font-medium">Amount</th>
+                        <th className="text-left px-3 py-2 font-medium">Quantity</th>
                         <th className="text-left px-3 py-2 font-medium">Total</th>
                         <th className="px-3 py-2 w-10" />
                       </tr>

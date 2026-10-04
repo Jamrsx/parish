@@ -376,7 +376,7 @@ const ManageSpecialIntentions: React.FC = () => {
                 <input
                   value={form.parishioner_name}
                   onChange={(e) => setForm({ ...form, parishioner_name: e.target.value })}
-                  placeholder="e.g. Althian James"
+                  placeholder="e.g. Geildan Lozada"
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                 />
               </div>
@@ -416,7 +416,7 @@ const ManageSpecialIntentions: React.FC = () => {
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
                         <th className="text-left px-3 py-2 font-medium">Denomination</th>
-                        <th className="text-left px-3 py-2 font-medium">Amount</th>
+                        <th className="text-left px-3 py-2 font-medium">Quantity</th>
                         <th className="text-left px-3 py-2 font-medium">Total</th>
                         <th className="px-3 py-2 w-10" />
                       </tr>
