@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppSetting;
 use App\Models\CertificateReprint;
 use App\Models\ChurchExpense;
 use App\Models\Donation;
@@ -263,6 +264,7 @@ class CashierController extends Controller
                 'special_intentions' => $intentions,
                 'special_intentions_total' => $intentionTotal,
                 'income_for_date' => $serviceTotal + $massTotal + $donationTotal + $intentionTotal,
+                'sharing' => AppSetting::splitIncome($serviceTotal + $massTotal + $donationTotal + $intentionTotal),
             ],
         ]);
     }
@@ -323,6 +325,9 @@ class CashierController extends Controller
         $pending = ChurchExpense::forwarded()
             ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()]);
 
+        $churchPercent = AppSetting::churchSharePercent();
+        $sharing = AppSetting::splitIncome($income['total'], $churchPercent);
+
         $weeklyBreakdown = [];
         if ($request->period === 'monthly') {
             $cursor = $start->copy();
@@ -338,13 +343,18 @@ class CashierController extends Controller
                     ->filter(fn ($e) => $e->expense_date->between($cursor->copy()->startOfDay(), $weekEnd))
                     ->sum('amount'), 2);
 
+                $weekShare = AppSetting::splitIncome($weekIncome, $churchPercent);
+
                 $weeklyBreakdown[] = [
                     'label' => "Week {$weekNo}",
                     'start_date' => $cursor->toDateString(),
                     'end_date' => $weekEnd->toDateString(),
                     'income' => $weekIncome,
+                    'church_share' => $weekShare['church_amount'],
+                    'archdiocese_share' => $weekShare['archdiocese_amount'],
                     'expenses' => $weekExpenses,
                     'net' => round($weekIncome - $weekExpenses, 2),
+                    'church_net' => round($weekShare['church_amount'] - $weekExpenses, 2),
                 ];
 
                 $cursor = $weekEnd->copy()->addDay()->startOfDay();
@@ -384,6 +394,8 @@ class CashierController extends Controller
                     'amount' => round((float) (clone $pending)->sum('amount'), 2),
                 ],
                 'net' => round($income['total'] - $expenseTotal, 2),
+                'sharing' => $sharing,
+                'church_net' => round($sharing['church_amount'] - $expenseTotal, 2),
                 'weekly_breakdown' => $weeklyBreakdown,
                 'generated_at' => now()->toIso8601String(),
             ],

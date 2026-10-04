@@ -19,7 +19,8 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../../../../context/AuthContext";
 import { cashierAPI, type CashierDashboardData } from "../../../../library/cashier";
-import type { MonthlyOverviewData } from "../../../../library/secretary-dashboard";
+import { splitIncome, type MonthlyOverviewData } from "../../../../library/secretary-dashboard";
+import IncomeSharingCard from "../components/IncomeSharingCard";
 import ManageUnpaidRequest from "./Manage_Unpaid_Request";
 import MassCollections from "./Mass_Financial";
 import TransactionHistory from "./Transaction_History";
@@ -548,6 +549,22 @@ const CashierHomePage: React.FC = () => {
                               </p>
                             </div>
                           </div>
+
+                          {monthly.sharing && (
+                            <IncomeSharingCard
+                              sharing={monthly.sharing}
+                              periodLabel={monthly.month_label}
+                              editable
+                              onRatioSaved={(setting) => {
+                                console.log("Cashier sharing ratio saved:", setting);
+                                setMonthly((prev) =>
+                                  prev?.sharing
+                                    ? { ...prev, sharing: splitIncome(prev.sharing.total, setting.church_percent) }
+                                    : prev
+                                );
+                              }}
+                            />
+                          )}
 
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">

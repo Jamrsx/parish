@@ -34,12 +34,34 @@ export interface OtherIncomeShare {
   percentage: number;
 }
 
+/** Church / archdiocese split of an income total (default 60% / 40%). */
+export interface IncomeSplit {
+  church_percent: number;
+  archdiocese_percent: number;
+  total: number;
+  church_amount: number;
+  archdiocese_amount: number;
+}
+
+/** Mirrors AppSetting::splitIncome on the backend. */
+export const splitIncome = (total: number, churchPercent: number): IncomeSplit => {
+  const church = Math.round(total * churchPercent) / 100;
+  return {
+    church_percent: churchPercent,
+    archdiocese_percent: 100 - churchPercent,
+    total,
+    church_amount: church,
+    archdiocese_amount: Math.round((total - church) * 100) / 100,
+  };
+};
+
 export interface MonthlyOverviewData {
   year: number;
   month: number;
   month_label: string;
   period: { start: string; end: string };
   summary: MonthlyOverviewSummary;
+  sharing?: IncomeSplit;
   activity_by_service: ServiceActivityShare[];
   income_by_service: ServiceIncomeShare[];
   other_income: OtherIncomeShare[];

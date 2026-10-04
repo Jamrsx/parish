@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, FileDown, PieChart, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  Church,
+  FileDown,
+  PieChart,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import {
   expenseAPI,
   getApiErrorMessage,
@@ -106,13 +115,16 @@ const GeneralReport: React.FC = () => {
       ]
     : [];
 
+  const sharing = report?.sharing;
+  const churchNet = report ? (sharing ? (report.church_net ?? report.net) : report.net) : 0;
+
   return (
     <div>
       <div className="mb-6 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">General Report</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Parish income minus verified church expenses, by month or by week
+            Church share of parish income minus verified church expenses, by month or by week
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -205,14 +217,40 @@ const GeneralReport: React.FC = () => {
             </span>
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-blue-700 uppercase">Total income</p>
                 <TrendingUp size={18} className="text-blue-600" />
               </div>
               <p className="text-2xl font-bold text-slate-900 mt-2">{formatPeso(report.income.total)}</p>
+              {sharing && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Split {sharing.church_percent}% / {sharing.archdiocese_percent}%
+                </p>
+              )}
             </div>
+            {sharing && (
+              <>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-700 uppercase">Church share ({sharing.church_percent}%)</p>
+                    <Church size={18} className="text-emerald-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900 mt-2">{formatPeso(sharing.church_amount)}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-indigo-700 uppercase">
+                      Archdiocese share ({sharing.archdiocese_percent}%)
+                    </p>
+                    <Building2 size={18} className="text-indigo-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900 mt-2">{formatPeso(sharing.archdiocese_amount)}</p>
+                  <p className="text-xs text-slate-500 mt-1">To be remitted</p>
+                </div>
+              </>
+            )}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-red-700 uppercase">Verified expenses</p>
@@ -223,18 +261,19 @@ const GeneralReport: React.FC = () => {
             </div>
             <div
               className={`rounded-xl border p-4 shadow-sm ${
-                report.net >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+                churchNet >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
               }`}
             >
               <div className="flex items-center justify-between">
-                <p className={`text-xs font-semibold uppercase ${report.net >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                  {report.net >= 0 ? "Net income" : "Net loss"}
+                <p className={`text-xs font-semibold uppercase ${churchNet >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                  {sharing ? (churchNet >= 0 ? "Church net" : "Church shortfall") : churchNet >= 0 ? "Net income" : "Net loss"}
                 </p>
-                <Wallet size={18} className={report.net >= 0 ? "text-emerald-600" : "text-red-600"} />
+                <Wallet size={18} className={churchNet >= 0 ? "text-emerald-600" : "text-red-600"} />
               </div>
-              <p className={`text-2xl font-bold mt-2 ${report.net >= 0 ? "text-emerald-800" : "text-red-800"}`}>
-                {formatPeso(report.net)}
+              <p className={`text-2xl font-bold mt-2 ${churchNet >= 0 ? "text-emerald-800" : "text-red-800"}`}>
+                {formatPeso(churchNet)}
               </p>
+              {sharing && <p className="text-xs text-slate-500 mt-1">Church share − expenses</p>}
             </div>
           </div>
 
@@ -278,6 +317,18 @@ const GeneralReport: React.FC = () => {
                   <span className="font-semibold text-slate-800">Total income</span>
                   <span className="font-bold text-blue-700">{formatPeso(report.income.total)}</span>
                 </div>
+                {sharing && (
+                  <>
+                    <div className="flex justify-between py-2.5 text-sm">
+                      <span className="text-emerald-700">Church share ({sharing.church_percent}%)</span>
+                      <span className="font-semibold text-emerald-800">{formatPeso(sharing.church_amount)}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5 text-sm">
+                      <span className="text-indigo-700">Archdiocese share ({sharing.archdiocese_percent}%)</span>
+                      <span className="font-semibold text-indigo-800">{formatPeso(sharing.archdiocese_amount)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -328,24 +379,39 @@ const GeneralReport: React.FC = () => {
                       <th className="text-left px-4 py-2.5">Week</th>
                       <th className="text-left px-4 py-2.5">Dates</th>
                       <th className="text-right px-4 py-2.5">Income</th>
+                      {sharing && (
+                        <>
+                          <th className="text-right px-4 py-2.5">Church ({sharing.church_percent}%)</th>
+                          <th className="text-right px-4 py-2.5">Archdiocese ({sharing.archdiocese_percent}%)</th>
+                        </>
+                      )}
                       <th className="text-right px-4 py-2.5">Expenses</th>
-                      <th className="text-right px-4 py-2.5">Net</th>
+                      <th className="text-right px-4 py-2.5">{sharing ? "Church net" : "Net"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {report.weekly_breakdown.map((w) => (
-                      <tr key={w.label}>
-                        <td className="px-4 py-2.5 font-medium">{w.label}</td>
-                        <td className="px-4 py-2.5 text-slate-500">
-                          {w.start_date} to {w.end_date}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">{formatPeso(w.income)}</td>
-                        <td className="px-4 py-2.5 text-right">{formatPeso(w.expenses)}</td>
-                        <td className={`px-4 py-2.5 text-right font-semibold ${w.net < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                          {formatPeso(w.net)}
-                        </td>
-                      </tr>
-                    ))}
+                    {report.weekly_breakdown.map((w) => {
+                      const rowNet = sharing ? (w.church_net ?? w.net) : w.net;
+                      return (
+                        <tr key={w.label}>
+                          <td className="px-4 py-2.5 font-medium">{w.label}</td>
+                          <td className="px-4 py-2.5 text-slate-500">
+                            {w.start_date} to {w.end_date}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">{formatPeso(w.income)}</td>
+                          {sharing && (
+                            <>
+                              <td className="px-4 py-2.5 text-right">{formatPeso(w.church_share ?? 0)}</td>
+                              <td className="px-4 py-2.5 text-right">{formatPeso(w.archdiocese_share ?? 0)}</td>
+                            </>
+                          )}
+                          <td className="px-4 py-2.5 text-right">{formatPeso(w.expenses)}</td>
+                          <td className={`px-4 py-2.5 text-right font-semibold ${rowNet < 0 ? "text-red-700" : "text-emerald-700"}`}>
+                            {formatPeso(rowNet)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

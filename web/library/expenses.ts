@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
+import type { IncomeSplit } from './secretary-dashboard';
 
 export type ExpenseCategory =
   | 'water_bill'
@@ -176,8 +177,11 @@ export interface GeneralReportWeekRow {
   start_date: string;
   end_date: string;
   income: number;
+  church_share?: number;
+  archdiocese_share?: number;
   expenses: number;
   net: number;
+  church_net?: number;
 }
 
 export interface GeneralReportExpenseItem {
@@ -215,6 +219,9 @@ export interface GeneralReportData {
   };
   pending_verification: { count: number; amount: number };
   net: number;
+  sharing?: IncomeSplit;
+  /** Church share minus verified expenses */
+  church_net?: number;
   weekly_breakdown: GeneralReportWeekRow[];
   generated_at: string;
 }

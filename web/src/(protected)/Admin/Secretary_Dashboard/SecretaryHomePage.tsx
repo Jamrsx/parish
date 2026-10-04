@@ -27,6 +27,7 @@ import EmptyState from "./components/EmptyState";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
 import { SecretaryListSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
 import { DonutChart, HorizontalBarChart } from "../components/MonthlyCharts";
+import IncomeSharingCard from "../components/IncomeSharingCard";
 
 interface DashboardStats {
   totalRequests: number;
@@ -358,6 +359,10 @@ const SecretaryHomePage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {monthly.sharing && (
+                  <IncomeSharingCard sharing={monthly.sharing} periodLabel={monthly.month_label} />
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">

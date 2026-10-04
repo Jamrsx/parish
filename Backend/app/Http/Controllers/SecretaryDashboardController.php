@@ -7,6 +7,7 @@ use App\Models\ManageRequest;
 use App\Models\MassCollection;
 use App\Models\PaymentTransaction;
 use App\Models\CertificateReprint;
+use App\Models\AppSetting;
 use App\Models\SpecialIntention;
 use App\Models\User;
 use Carbon\Carbon;
@@ -195,6 +196,7 @@ class SecretaryDashboardController extends Controller
                 'special_intentions_total' => round($intentionTotal, 2),
                 'total_income' => round($totalIncome, 2),
             ],
+            'sharing' => AppSetting::splitIncome($totalIncome),
             'activity_by_service' => $activityShare,
             'income_by_service' => $incomeShare,
             'other_income' => array_map(function ($row) use ($totalIncome) {

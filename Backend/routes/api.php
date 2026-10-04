@@ -8,6 +8,7 @@ use App\Http\Controllers\ServiceFormController;
 use App\Http\Controllers\CertificateFormController;
 use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\CertificateReprintController;
+use App\Http\Controllers\IncomeSharingController;
 use App\Http\Controllers\ChurchServiceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AvailabilityController;
@@ -123,9 +124,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/daily-report', [CashierController::class, 'dailyReport']);
             Route::get('/general-report', [CashierController::class, 'generalReport']);
 
+            Route::get('/income-sharing', [IncomeSharingController::class, 'show']);
+
             Route::middleware('role:cashier')->group(function () {
                 Route::get('/certificate-reprints', [CertificateReprintController::class, 'cashierIndex']);
                 Route::post('/certificate-reprints/{id}/pay', [CertificateReprintController::class, 'markPaid']);
+                Route::put('/income-sharing', [IncomeSharingController::class, 'update']);
             });
         });
 

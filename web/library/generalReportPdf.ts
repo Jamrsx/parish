@@ -89,6 +89,10 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
   doc.setFontSize(10);
   doc.text(`${report.label}  (${report.start_date} to ${report.end_date})`, pageW / 2, 29, { align: "center" });
 
+  const sharing = report.sharing;
+  const churchNet = report.church_net ?? report.net;
+  console.log("[GeneralReportPdf] Sharing", sharing, "church net", churchNet);
+
   let y = 40;
 
   y = sectionTitle(doc, y, "Summary");
@@ -101,8 +105,16 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
     ],
     [
       ["Total income", peso(report.income.total)],
+      ...(sharing
+        ? [
+            [`Church share (${sharing.church_percent}%)`, peso(sharing.church_amount)],
+            [`Archdiocese share (${sharing.archdiocese_percent}%) - to be remitted`, peso(sharing.archdiocese_amount)],
+          ]
+        : []),
       ["Total verified expenses", peso(report.expenses.total)],
-      [report.net >= 0 ? "Net income" : "Net loss", peso(report.net)],
+      sharing
+        ? [churchNet >= 0 ? "Church net (church share - expenses)" : "Church shortfall (church share - expenses)", peso(churchNet)]
+        : [report.net >= 0 ? "Net income" : "Net loss", peso(report.net)],
       [
         `Pending verification (${report.pending_verification.count} item/s, not included)`,
         peso(report.pending_verification.amount),
@@ -142,22 +154,43 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
 
   if (report.period === "monthly" && report.weekly_breakdown.length > 0) {
     y = sectionTitle(doc, y, "Weekly breakdown");
-    y = drawTable(
-      doc,
-      y,
-      [
-        { header: "Week", width: 52 },
-        { header: "Income", width: 43, align: "right" },
-        { header: "Expenses", width: 43, align: "right" },
-        { header: "Net", width: 44, align: "right" },
-      ],
-      report.weekly_breakdown.map((w) => [
-        `${w.label} (${w.start_date.slice(5)} to ${w.end_date.slice(5)})`,
-        peso(w.income),
-        peso(w.expenses),
-        peso(w.net),
-      ])
-    );
+    y = sharing
+      ? drawTable(
+          doc,
+          y,
+          [
+            { header: "Week", width: 42 },
+            { header: "Income", width: 28, align: "right" },
+            { header: `Church ${sharing.church_percent}%`, width: 28, align: "right" },
+            { header: `Archd. ${sharing.archdiocese_percent}%`, width: 28, align: "right" },
+            { header: "Expenses", width: 28, align: "right" },
+            { header: "Church net", width: 28, align: "right" },
+          ],
+          report.weekly_breakdown.map((w) => [
+            `${w.label} (${w.start_date.slice(5)} to ${w.end_date.slice(5)})`,
+            peso(w.income),
+            peso(w.church_share ?? 0),
+            peso(w.archdiocese_share ?? 0),
+            peso(w.expenses),
+            peso(w.church_net ?? w.net),
+          ])
+        )
+      : drawTable(
+          doc,
+          y,
+          [
+            { header: "Week", width: 52 },
+            { header: "Income", width: 43, align: "right" },
+            { header: "Expenses", width: 43, align: "right" },
+            { header: "Net", width: 44, align: "right" },
+          ],
+          report.weekly_breakdown.map((w) => [
+            `${w.label} (${w.start_date.slice(5)} to ${w.end_date.slice(5)})`,
+            peso(w.income),
+            peso(w.expenses),
+            peso(w.net),
+          ])
+        );
   }
 
   if (report.expenses.items.length > 0) {

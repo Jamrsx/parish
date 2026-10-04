@@ -1,6 +1,6 @@
 import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
-import type { MonthlyOverviewData } from './secretary-dashboard';
+import type { IncomeSplit, MonthlyOverviewData } from './secretary-dashboard';
 
 export interface CashierDashboardData {
   unpaid_count: number;
@@ -117,7 +117,27 @@ export interface DailyReportData {
   special_intentions: SpecialIntentionRow[];
   special_intentions_total: number;
   income_for_date: number;
+  sharing?: IncomeSplit;
 }
+
+export interface IncomeSharingSetting {
+  church_percent: number;
+  archdiocese_percent: number;
+  is_default: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export const incomeSharingAPI = {
+  get: () => api.get<ApiResponse<IncomeSharingSetting>>('/admin/cashier/income-sharing'),
+
+  update: (churchPercent: number) => {
+    console.log('[IncomeSharingAPI] update', churchPercent);
+    return api.put<ApiResponse<IncomeSharingSetting>>('/admin/cashier/income-sharing', {
+      church_percent: churchPercent,
+    });
+  },
+};
 
 export const cashierAPI = {
   dashboard: () => api.get<ApiResponse<CashierDashboardData>>('/admin/cashier/dashboard'),

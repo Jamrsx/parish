@@ -171,9 +171,23 @@ const DailyReport: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex justify-between items-center">
-            <span className="font-semibold text-blue-900">Income for {report.date}</span>
-            <span className="text-2xl font-bold text-blue-900">{formatPeso(report.income_for_date)}</span>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-blue-900">Income for {report.date}</span>
+              <span className="text-2xl font-bold text-blue-900">{formatPeso(report.income_for_date)}</span>
+            </div>
+            {report.sharing && (
+              <div className="mt-3 pt-3 border-t border-blue-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div className="flex justify-between rounded-lg bg-white/70 px-3 py-2">
+                  <span className="text-emerald-800">Church share ({report.sharing.church_percent}%)</span>
+                  <span className="font-semibold text-emerald-900">{formatPeso(report.sharing.church_amount)}</span>
+                </div>
+                <div className="flex justify-between rounded-lg bg-white/70 px-3 py-2">
+                  <span className="text-indigo-800">Archdiocese share ({report.sharing.archdiocese_percent}%)</span>
+                  <span className="font-semibold text-indigo-900">{formatPeso(report.sharing.archdiocese_amount)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
