@@ -72,6 +72,8 @@ export interface MassCollectionRow {
 export interface DonationRow {
   donation_id: number;
   donor_name: string;
+  donor_user_id?: number | null;
+  is_registered_donor?: boolean;
   contribution_type?: 'donation' | 'love_offering';
   amount: number;
   denomination_breakdown?: DenominationLine[];
@@ -196,6 +198,7 @@ export const donationAPI = {
 
   create: (data: {
     donor_name?: string;
+    donor_user_id?: number;
     contribution_type: 'donation' | 'love_offering';
     donation_date: string;
     notes?: string;

@@ -204,6 +204,12 @@ export const usersAPI = {
       },
     }),
 
+  /** Active parishioner accounts matching name, email, username or contact number (for donor pickers). */
+  searchParishioners: (search: string, limit = 8) =>
+    api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
+      params: { role: 'parishioner', active_only: 1, search, per_page: limit },
+    }),
+
   listCashiers: () =>
     api.get<ApiResponse<PaginatedResponse<User>>>('/admin/users', {
       params: {

@@ -11,6 +11,7 @@ class Donation extends Model
 
     protected $fillable = [
         'donor_name',
+        'donor_user_id',
         'contribution_type',
         'amount',
         'denomination_breakdown',
@@ -29,6 +30,12 @@ class Donation extends Model
         'denomination_breakdown' => 'array',
         'received_at' => 'datetime',
     ];
+
+    /** Registered parishioner who gave the donation (null for walk-in or anonymous donors). */
+    public function donor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'donor_user_id', 'user_id');
+    }
 
     public function recordedBy(): BelongsTo
     {

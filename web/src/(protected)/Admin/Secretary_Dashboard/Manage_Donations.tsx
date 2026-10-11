@@ -11,6 +11,9 @@ import {
 } from "../../../../library/denominations";
 import { HandCoins, Plus, Trash2 } from "lucide-react";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
+import DonorPicker, { type DonorValue } from "./components/DonorPicker";
+
+const EMPTY_DONOR: DonorValue = { userId: null, name: "", detail: null };
 
 const formatPeso = (n: number) =>
   `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -33,11 +36,12 @@ const ManageDonations: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState("all");
   const [nameSearch, setNameSearch] = useState("");
   const [form, setForm] = useState({
-    donor_name: "",
     contribution_type: "donation" as "donation" | "love_offering",
     donation_date: todayLocal(),
     notes: "",
   });
+  const [donor, setDonor] = useState<DonorValue>(EMPTY_DONOR);
+  const [formError, setFormError] = useState<string | null>(null);
   const [denomRows, setDenomRows] = useState<DenominationLine[]>([emptyDenominationRow()]);
   const [preview, setPreview] = useState<DonationRow | null>(null);
 
@@ -88,33 +92,42 @@ const ManageDonations: React.FC = () => {
 
   const resetForm = () => {
     setForm({
-      donor_name: "",
       contribution_type: "donation",
       donation_date: todayLocal(),
       notes: "",
     });
+    setDonor(EMPTY_DONOR);
+    setFormError(null);
     setDenomRows([emptyDenominationRow()]);
   };
 
   const handleCreate = async () => {
     const breakdown = toPayloadBreakdown(denomRows);
     if (!form.contribution_type) {
-      setFeedback("Select whether this is a Donation or a Love Offering.");
+      setFormError("Select whether this is a Donation or a Love Offering.");
       return;
     }
     if (breakdown.length === 0 || !form.donation_date) {
-      setFeedback("Add at least one denomination with a count, and set the date.");
+      setFormError("Add at least one denomination with a count, and set the date.");
+      return;
+    }
+    const typedName = donor.name.trim();
+    if (!donor.userId && typedName.length > 150) {
+      setFormError("The donor name is too long (150 characters at most).");
       return;
     }
     setSubmitting(true);
     setFeedback(null);
+    setFormError(null);
     try {
       console.log("Saving contribution:", {
         contribution_type: form.contribution_type,
+        donor: donor.userId ? { registered: donor.userId, name: donor.name } : typedName || "Anonymous",
         breakdown,
       });
       const res = await donationAPI.create({
-        donor_name: form.donor_name || undefined,
+        donor_user_id: donor.userId ?? undefined,
+        donor_name: donor.userId ? undefined : typedName || undefined,
         contribution_type: form.contribution_type,
         donation_date: form.donation_date,
         notes: form.notes || undefined,
@@ -123,16 +136,18 @@ const ManageDonations: React.FC = () => {
       if (res.data?.success) {
         setShowModal(false);
         resetForm();
+        const savedDonor = res.data?.data?.donor_name || typedName || "Anonymous";
         setFeedback(
-          `${typeLabel(form.contribution_type)} recorded. Remit the cash to the cashier for approval.`
+          `${typeLabel(form.contribution_type)} from ${savedDonor}${donor.userId ? " (registered parishioner)" : ""} recorded. Remit the cash to the cashier for approval.`
         );
         fetchRows();
       } else {
-        setFeedback(res.data?.message || "Failed to record contribution.");
+        setFormError(res.data?.message || "Failed to record contribution.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setFeedback(err?.response?.data?.message || "Failed to record contribution.");
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setFormError(message || "Failed to record contribution.");
     } finally {
       setSubmitting(false);
     }
@@ -231,7 +246,14 @@ const ManageDonations: React.FC = () => {
               ) : (
                 filteredRows.map((row) => (
                   <tr key={row.donation_id}>
-                    <td className="px-4 py-3 font-medium">{row.donor_name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {row.donor_name}
+                      {row.is_registered_donor && (
+                        <span className="ml-1.5 inline-block rounded bg-emerald-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-emerald-700">
+                          Parishioner
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -305,13 +327,8 @@ const ManageDonations: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-slate-700">Donor name</label>
-                <input
-                  value={form.donor_name}
-                  onChange={(e) => setForm({ ...form, donor_name: e.target.value })}
-                  placeholder="Anonymous if blank"
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                />
+                <label className="text-sm font-medium text-slate-700">Donor</label>
+                <DonorPicker value={donor} onChange={setDonor} disabled={submitting} />
               </div>
 
               <div>
@@ -406,8 +423,19 @@ const ManageDonations: React.FC = () => {
                 />
               </div>
             </div>
+            {formError && (
+              <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
             <div className="flex gap-3 justify-end mt-5">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-slate-100 rounded-lg text-sm">
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setFormError(null);
+                }}
+                className="px-4 py-2 bg-slate-100 rounded-lg text-sm"
+              >
                 Cancel
               </button>
               <button

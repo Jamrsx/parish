@@ -66,6 +66,7 @@ class DonationController extends Controller
 
         $validator = Validator::make($request->all(), [
             'donor_name' => 'nullable|string|max:150',
+            'donor_user_id' => 'nullable|integer',
             'contribution_type' => 'required|in:donation,love_offering',
             'donation_date' => 'required|date',
             'notes' => 'nullable|string|max:500',
@@ -80,6 +81,17 @@ class DonationController extends Controller
                 'errors' => $validator->errors(),
                 'message' => 'Select Donation or Love Offering, and add at least one denomination with a count.',
             ], 422);
+        }
+
+        $donor = null;
+        if ($request->filled('donor_user_id')) {
+            $donor = User::where('user_id', (int) $request->donor_user_id)->where('role', 'parishioner')->first();
+            if (!$donor || !$donor->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected parishioner account was not found or is disabled. Pick another account or type the name instead.',
+                ], 422);
+            }
         }
 
         $normalized = $this->normalizeBreakdown($request->input('denomination_breakdown', []));
@@ -101,7 +113,8 @@ class DonationController extends Controller
         }
 
         $donation = Donation::create([
-            'donor_name' => $request->donor_name ?: 'Anonymous',
+            'donor_name' => $donor ? $this->fullName($donor) : (trim((string) $request->donor_name) ?: 'Anonymous'),
+            'donor_user_id' => $donor?->user_id,
             'contribution_type' => $request->contribution_type,
             'amount' => $amount,
             'denomination_breakdown' => $breakdown,
@@ -238,11 +251,18 @@ class DonationController extends Controller
         return [$normalized, round($amount, 2)];
     }
 
+    private function fullName(User $user): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $user->full_name));
+    }
+
     private function transform(Donation $d): array
     {
         return [
             'donation_id' => $d->donation_id,
             'donor_name' => $d->donor_name ?: 'Anonymous',
+            'donor_user_id' => $d->donor_user_id,
+            'is_registered_donor' => $d->donor_user_id !== null,
             'contribution_type' => $d->contribution_type ?: 'love_offering',
             'amount' => (float) $d->amount,
             'denomination_breakdown' => $d->denomination_breakdown ?: [],
