@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\ChurchExpense;
+use App\Models\ExpenseCategory;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ChurchExpenseController extends Controller
@@ -98,7 +101,83 @@ class ChurchExpenseController extends Controller
         return response()->json([
             'success' => true,
             'data' => $rows,
+            'categories' => $this->categoryOptions(),
         ]);
+    }
+
+    /**
+     * Secretary adds a custom expense category.
+     */
+    public function storeCategory(Request $request)
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (!$user->isSecretary()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only the secretary can add expense categories.',
+            ], 403);
+        }
+
+        $label = preg_replace('/\s+/u', ' ', trim((string) $request->input('label')));
+
+        $validator = Validator::make(['label' => $label], [
+            'label' => ['required', 'string', 'min:2', 'max:30', "regex:/^[\pL\pN][\pL\pN &\/.,'-]*$/u"],
+        ], [
+            'label.required' => 'Enter a category name.',
+            'label.min' => 'Category name must be at least 2 characters.',
+            'label.max' => 'Category name can be up to 30 characters.',
+            'label.regex' => 'Use only letters, numbers, spaces, and & / . , \' -',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $duplicateMessage = 'That category already exists.';
+        $isDuplicate = collect(ChurchExpense::allCategories())
+            ->contains(fn ($existing) => mb_strtolower($existing) === mb_strtolower($label));
+
+        if ($isDuplicate) {
+            return response()->json([
+                'success' => false,
+                'errors' => ['label' => [$duplicateMessage]],
+                'message' => $duplicateMessage,
+            ], 422);
+        }
+
+        try {
+            $category = ExpenseCategory::create([
+                'value' => $this->uniqueCategoryValue($label),
+                'label' => $label,
+                'created_by' => $user->user_id,
+            ]);
+        } catch (QueryException $e) {
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            return response()->json([
+                'success' => false,
+                'errors' => ['label' => [$duplicateMessage]],
+                'message' => $duplicateMessage,
+            ], 422);
+        }
+
+        ChurchExpense::forgetCategoryCache();
+
+        Log::info('Expense category added', ['value' => $category->value, 'by' => $user->user_id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category added.',
+            'data' => ['value' => $category->value, 'label' => $category->label],
+        ], 201);
     }
 
     public function store(Request $request)
@@ -388,7 +467,7 @@ class ChurchExpenseController extends Controller
         $personLabel = $category === 'allowance' ? 'scholar' : 'worker';
 
         $rules = [
-            'category' => ['required', Rule::in(array_keys(ChurchExpense::CATEGORIES))],
+            'category' => ['required', Rule::in(array_keys(ChurchExpense::allCategories()))],
             'description' => 'required|string|min:3|max:255',
             'payee_name' => [
                 Rule::requiredIf(in_array($category, ChurchExpense::PAYEE_REQUIRED_CATEGORIES, true)),
@@ -508,10 +587,25 @@ class ChurchExpenseController extends Controller
 
     private function categoryOptions(): array
     {
-        return collect(ChurchExpense::CATEGORIES)
+        return collect(ChurchExpense::allCategories())
             ->map(fn ($label, $value) => ['value' => $value, 'label' => $label])
             ->values()
             ->all();
+    }
+
+    /** Builds a stored key that fits church_expenses.category (40 chars). */
+    private function uniqueCategoryValue(string $label): string
+    {
+        $base = 'custom_' . (substr(Str::slug($label, '_'), 0, 33) ?: 'category');
+        $value = $base;
+        $suffixNumber = 2;
+
+        while (ExpenseCategory::where('value', $value)->exists()) {
+            $suffix = '_' . $suffixNumber++;
+            $value = substr($base, 0, 40 - strlen($suffix)) . $suffix;
+        }
+
+        return $value;
     }
 
     private function transform(ChurchExpense $e): array

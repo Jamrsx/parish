@@ -19,6 +19,7 @@ import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import { calendarMonthFrom, shiftCalendarMonth } from '../../../../library/dateHelpers';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
@@ -195,11 +196,7 @@ export default function FuneralMassForm() {
   };
 
   const changeMonth = (increment: number) => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(prev.getMonth() + increment);
-      return newDate;
-    });
+    setSelectedMonth((prev) => shiftCalendarMonth(prev, increment));
   };
 
 
@@ -221,7 +218,7 @@ export default function FuneralMassForm() {
       newErrors.preferred_time = 'Time is required';
       isValid = false;
     } else {
-      const timeIssue = getServiceTimeProblem(formData.preferred_date, formData.preferred_time, bookedSlots);
+      const timeIssue = getServiceTimeProblem(formData.preferred_date, formData.preferred_time, bookedSlots, true);
       if (timeIssue) {
         console.warn('FuneralMassForm time rejected:', { date: formData.preferred_date, time: formData.preferred_time, timeIssue });
         newErrors.preferred_time = timeIssue;
@@ -401,7 +398,7 @@ export default function FuneralMassForm() {
             <Text className="text-sm text-gray-600 font-medium mb-1">Funeral Date *</Text>
             <TouchableOpacity
               onPress={() => {
-                setSelectedMonth(formData.preferred_date ? new Date(formData.preferred_date) : new Date());
+                setSelectedMonth(calendarMonthFrom(formData.preferred_date));
                 setShowDatePicker(true);
               }}
               className={`border rounded-xl px-4 py-3 bg-gray-50 ${
@@ -575,6 +572,7 @@ export default function FuneralMassForm() {
         selectedValue={formData.preferred_time}
         bookedSlots={bookedSlots}
         selectedDate={formData.preferred_date}
+        longService
         onSelect={(value) => handleChange('preferred_time', value)}
         onClose={() => setShowTimeDropdown(false)}
       />

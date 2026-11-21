@@ -75,6 +75,7 @@ class AvailabilityController extends Controller
                         'id' => $service->service_id,
                         'service_id' => $service->service_id,
                         'title' => $service->service_type,
+                        'icon' => $service->icon ?: 'FileText',
                         'description' => $service->description ?: 'Certificate request',
                         'form_handler' => $service->form_handler ?: 'generic',
                         'fee' => (float) $service->fee,

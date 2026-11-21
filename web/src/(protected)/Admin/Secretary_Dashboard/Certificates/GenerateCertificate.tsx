@@ -265,7 +265,7 @@ const GenerateCertificate: React.FC<GenerateCertificateProps> = ({ onPrint, onAl
       request_id: null,
       request_status: null,
       label: r.person_name || 'Baptism record',
-      hint: `Baptism record · ${r.status === 'done' ? 'Completed' : 'Approved'}`,
+      hint: `Baptism record · ${r.status === 'done' ? 'Completed' : 'Booked'}`,
     });
     setErrors({});
     setNotice(null);

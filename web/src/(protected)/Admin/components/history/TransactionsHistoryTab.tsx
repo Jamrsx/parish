@@ -267,7 +267,7 @@ const TransactionsHistoryTab: React.FC<{ scope: HistoryScope }> = ({ scope }) =>
           label={summary && summary.church_net < 0 ? "Church shortfall" : "Church net"}
           value={summary?.church_net}
           tone={summary && summary.church_net < 0 ? "text-red-700" : "text-slate-900"}
-          note="Church share minus expenses"
+          note="After expenses and split"
           loading={!summary}
         />
       </div>

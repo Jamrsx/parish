@@ -10,7 +10,7 @@ import {
 import { CashierListSkeleton, CashierStatSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();
@@ -178,6 +178,14 @@ const DailyReport: React.FC = () => {
             </div>
             {report.sharing && (
               <div className="mt-3 pt-3 border-t border-blue-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div className="flex justify-between rounded-lg bg-white/70 px-3 py-2">
+                  <span className="text-red-800">Less verified expenses</span>
+                  <span className="font-semibold text-red-800">−{formatPeso(report.sharing.operating_expenses ?? 0)}</span>
+                </div>
+                <div className="flex justify-between rounded-lg bg-white/70 px-3 py-2">
+                  <span className="text-blue-900">Net income to share</span>
+                  <span className="font-semibold text-blue-900">{formatPeso(report.sharing.total)}</span>
+                </div>
                 <div className="flex justify-between rounded-lg bg-white/70 px-3 py-2">
                   <span className="text-emerald-800">Church share ({report.sharing.church_percent}%)</span>
                   <span className="font-semibold text-emerald-900">{formatPeso(report.sharing.church_amount)}</span>

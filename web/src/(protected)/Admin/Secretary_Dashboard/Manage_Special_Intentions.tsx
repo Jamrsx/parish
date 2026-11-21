@@ -13,7 +13,7 @@ import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();
@@ -150,7 +150,7 @@ const ManageSpecialIntentions: React.FC = () => {
       console.log("Secretary approving special intention:", id);
       const res = await specialIntentionAPI.secretaryApprove(id);
       if (res.data?.success) {
-        setFeedback("Approved. This intention is now visible to the cashier.");
+        setFeedback("Booked. This intention is now visible to the cashier.");
         fetchRows();
       } else {
         setFeedback(res.data?.message || "Failed to approve.");
@@ -217,7 +217,7 @@ const ManageSpecialIntentions: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Special Intentions</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Approve mobile app requests, or record walk-in intentions for the cashier
+              Book mobile app requests, or record walk-in intentions for the cashier
             </p>
           </div>
         </div>
@@ -331,7 +331,7 @@ const ManageSpecialIntentions: React.FC = () => {
                                 disabled={busyId === row.intention_id}
                                 className="text-xs font-semibold text-emerald-700 disabled:opacity-50"
                               >
-                                Approve
+                                Book
                               </button>
                               <button
                                 onClick={() => {
@@ -448,7 +448,7 @@ const ManageSpecialIntentions: React.FC = () => {
                               placeholder="0"
                             />
                           </td>
-                          <td className="px-3 py-2 font-semibold">{Number(line.total || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2 font-semibold">{Number(line.total || 0).toLocaleString("en-PH")}</td>
                           <td className="px-3 py-2 text-center">
                             <button
                               type="button"
@@ -517,7 +517,7 @@ const ManageSpecialIntentions: React.FC = () => {
                     <tr key={i}>
                       <td className="px-3 py-2">{formatDenomination(line.denomination)}</td>
                       <td className="px-3 py-2">{line.count}</td>
-                      <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString("en-PH")}</td>
                     </tr>
                   ))}
                 </tbody>

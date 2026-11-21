@@ -281,8 +281,8 @@ class ManageRequestController extends Controller
 
         // Time-slot conflicts apply to church services only; the lock stops two
         // simultaneous submissions from both passing the "slot is free" check.
-        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($request, $preferredDate, $preferredTime) {
-            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
+        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($request, $preferredDate, $preferredTime, $churchService) {
+            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime, null, $churchService);
             if ($scheduleError) {
                 return response()->json([
                     'success' => false,
@@ -554,6 +554,13 @@ class ManageRequestController extends Controller
 
             // Store old status before updating
             $oldStatus = $manageRequest->status;
+
+            if ($manageRequest->canBeCompleted() && $manageRequest->isBeforeScheduledTime()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This service cannot be completed before its scheduled date and time.'
+                ], 422);
+            }
 
             if (!$manageRequest->complete()) {
                 return response()->json([
@@ -957,7 +964,8 @@ class ManageRequestController extends Controller
                 $assignedPriest = User::find($manageRequest->assigned_priest);
                 $priestProblem = $assignedPriest?->availabilityProblem(
                     $request->preferred_date,
-                    $request->preferred_time
+                    $request->preferred_time,
+                    $service
                 );
 
                 if ($priestProblem !== null) {
@@ -1114,7 +1122,8 @@ class ManageRequestController extends Controller
                 ? $priest->fresh()->availabilityProblem()
                 : $priest->fresh()->availabilityProblem(
                     $manageRequest->preferred_date ? Carbon::parse($manageRequest->preferred_date)->toDateString() : null,
-                    ManageRequest::normalizeTime($manageRequest->preferred_time) ?: null
+                    ManageRequest::normalizeTime($manageRequest->preferred_time) ?: null,
+                    $manageRequest->service
                 );
 
             if ($availabilityProblem !== null) {

@@ -14,6 +14,19 @@ export const SERVICE_TIME_OPTIONS = [
   { label: '5:00 PM', value: '17:00' },
 ];
 
+/** 5-hour blocks for Marriage and Funeral Mass (must match ManageRequest::LONG_SERVICE_BLOCKS). */
+const LONG_SERVICE_BLOCKS: Record<string, string[]> = {
+  '08:00': ['08:00', '09:00', '10:00', '11:00', '12:00'],
+  '13:00': ['13:00', '14:00', '15:00', '16:00', '17:00'],
+};
+
+export const isLongService = (formHandler?: string | null): boolean =>
+  ['marriage', 'funeral_mass'].includes((formHandler || '').toLowerCase());
+
+/** Time choices for a service: two 5-hour starts for long services, otherwise every hour. */
+export const timeOptionsFor = (longService = false) =>
+  longService ? SERVICE_TIME_OPTIONS.filter((opt) => opt.value in LONG_SERVICE_BLOCKS) : SERVICE_TIME_OPTIONS;
+
 export type SlotState = 'open' | 'booked' | 'passed';
 
 export type TimeOption = {
@@ -33,9 +46,10 @@ export const toHm = (d: Date): string =>
 
 export const normalizeHm = (time: string): string => (time || '').slice(0, 5);
 
-export const isBookedTime = (time: string, booked: string[]): boolean => {
+export const isBookedTime = (time: string, booked: string[], longService = false): boolean => {
   const hm = normalizeHm(time);
-  return booked.some((b) => normalizeHm(b) === hm);
+  const needed = longService ? LONG_SERVICE_BLOCKS[hm] ?? [hm] : [hm];
+  return booked.some((b) => needed.includes(normalizeHm(b)));
 };
 
 export const isPastTime = (date: string, time: string): boolean => {
@@ -46,19 +60,31 @@ export const isPastTime = (date: string, time: string): boolean => {
   return date === today && normalizeHm(time) <= toHm(now);
 };
 
-export const getSlotState = (date: string, time: string, booked: string[], checkBooked = true): SlotState => {
+export const getSlotState = (
+  date: string,
+  time: string,
+  booked: string[],
+  checkBooked = true,
+  longService = false,
+): SlotState => {
   if (isPastTime(date, time)) return 'passed';
-  if (checkBooked && isBookedTime(time, booked)) return 'booked';
+  if (checkBooked && isBookedTime(time, booked, longService)) return 'booked';
   return 'open';
 };
 
 /**
- * Every hourly slot for a date, marked open / booked / passed.
+ * Every slot for a date, marked open / booked / passed.
  * `checkBooked` is false for certificate visit times, which do not compete for slots.
+ * `longService` limits the list to 5-hour starts and needs the whole block free.
  */
-export const buildTimeOptions = (date: string, booked: string[], checkBooked = true): TimeOption[] =>
-  SERVICE_TIME_OPTIONS.map((opt) => {
-    const state = date ? getSlotState(date, opt.value, booked, checkBooked) : 'open';
+export const buildTimeOptions = (
+  date: string,
+  booked: string[],
+  checkBooked = true,
+  longService = false,
+): TimeOption[] =>
+  timeOptionsFor(longService).map((opt) => {
+    const state = date ? getSlotState(date, opt.value, booked, checkBooked, longService) : 'open';
     return {
       ...opt,
       state,
@@ -68,8 +94,17 @@ export const buildTimeOptions = (date: string, booked: string[], checkBooked = t
   });
 
 /** User-facing reason a chosen time cannot be used, or null when it is fine. */
-export const timeProblem = (date: string, time: string, booked: string[], checkBooked = true): string | null => {
-  const state = getSlotState(date, time, booked, checkBooked);
+export const timeProblem = (
+  date: string,
+  time: string,
+  booked: string[],
+  checkBooked = true,
+  longService = false,
+): string | null => {
+  if (longService && !(normalizeHm(time) in LONG_SERVICE_BLOCKS)) {
+    return 'Marriage and Funeral Mass can only start at 8:00 AM or 1:00 PM.';
+  }
+  const state = getSlotState(date, time, booked, checkBooked, longService);
   if (state === 'passed') return 'That time has already passed. Please choose a later time.';
   if (state === 'booked') return 'That time is already booked. Please choose another time.';
   return null;

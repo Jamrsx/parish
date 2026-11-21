@@ -32,7 +32,7 @@ import ExpenseReview from "./Expense_Review";
 import GeneralReport from "./General_Report";
 import CertificateReprints from "./Certificate_Reprints";
 import { CashierListSkeleton, CashierStatSkeleton } from "./CashierSkeletons";
-import { DonutChart, HorizontalBarChart } from "../components/MonthlyCharts";
+import { DonutChart } from "../components/MonthlyCharts";
 
 type TabId =
   | "dashboard"
@@ -104,7 +104,7 @@ const navGroups: {
 ];
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const monthInputValue = (year: number, month: number) =>
   `${year}-${String(month).padStart(2, "0")}`;
@@ -562,7 +562,7 @@ const CashierHomePage: React.FC = () => {
                                 console.log("Cashier sharing ratio saved:", setting);
                                 setMonthly((prev) =>
                                   prev?.sharing
-                                    ? { ...prev, sharing: splitIncome(prev.sharing.total, setting.church_percent) }
+                                    ? { ...prev, sharing: { ...prev.sharing, ...splitIncome(prev.sharing.total, setting.church_percent) } }
                                     : prev
                                 );
                               }}
@@ -596,8 +596,10 @@ const CashierHomePage: React.FC = () => {
                                   <p className="text-xs text-slate-500">Monthly booking volume</p>
                                 </div>
                               </div>
-                              <HorizontalBarChart
-                                bars={activityBars}
+                              <DonutChart
+                                slices={activityBars}
+                                centerLabel="Requests"
+                                centerValue={String(activityBars.reduce((sum, bar) => sum + bar.value, 0))}
                                 emptyMessage="No requests this month"
                                 valueFormatter={(v) => `${v}`}
                               />

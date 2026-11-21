@@ -12,7 +12,7 @@ interface IncomeSharingCardProps {
 }
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const errorMessage = (err: unknown, fallback: string) =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
@@ -92,7 +92,7 @@ const IncomeSharingCard: React.FC<IncomeSharingCardProps> = ({ sharing, periodLa
         <div>
           <h3 className="text-sm font-semibold text-slate-900">Income sharing</h3>
           <p className="text-xs text-slate-500">
-            {periodLabel} · all income ({formatPeso(sharing.total)}) split {churchPercent}% church / {archPercent}% archdiocese
+            {periodLabel} · after operating expenses, split {churchPercent}% church / {archPercent}% archdiocese
           </p>
         </div>
 
@@ -184,6 +184,27 @@ const IncomeSharingCard: React.FC<IncomeSharingCardProps> = ({ sharing, periodLa
             <X size={14} aria-hidden />
           </button>
         </div>
+      )}
+
+      <dl className="mb-3 grid grid-cols-1 gap-2 rounded-lg bg-slate-50 px-4 py-3 sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-slate-500">Total income</dt>
+          <dd className="text-sm font-semibold tabular-nums text-slate-900">{formatPeso(sharing.gross_income ?? sharing.total)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Less verified expenses</dt>
+          <dd className="text-sm font-semibold tabular-nums text-red-700">−{formatPeso(sharing.operating_expenses ?? 0)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Net income to share</dt>
+          <dd className="text-sm font-bold tabular-nums text-slate-900">{formatPeso(sharing.total)}</dd>
+        </div>
+      </dl>
+
+      {(sharing.shortfall ?? 0) > 0 && (
+        <p role="status" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Expenses are {formatPeso(sharing.shortfall ?? 0)} more than income, so there is nothing to share for this period.
+        </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

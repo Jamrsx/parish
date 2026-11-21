@@ -4,7 +4,7 @@ import { Calendar, CalendarOff, History, Package, Receipt, Wallet } from 'lucide
 
 const links = [
   { to: '/priest/PriestHomePage', label: 'Schedule', icon: Calendar, end: true },
-  { to: '/priest/calendar', label: 'My Calendar', icon: CalendarOff, end: false },
+  { to: '/priest/calendar', label: 'Priest Calendar', icon: CalendarOff, end: false },
   { to: '/priest/income', label: 'Income', icon: Wallet, end: false },
   { to: '/priest/inventory', label: 'Inventory', icon: Package, end: false },
   { to: '/priest/expenses', label: 'Expenses', icon: Receipt, end: false },

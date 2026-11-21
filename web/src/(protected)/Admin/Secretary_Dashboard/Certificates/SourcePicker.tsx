@@ -36,7 +36,7 @@ const statusBadge: Record<string, string> = {
 
 const statusLabel: Record<string, string> = {
   pending: 'Pending',
-  approved: 'Approved',
+  approved: 'Booked',
   done: 'Completed',
 };
 

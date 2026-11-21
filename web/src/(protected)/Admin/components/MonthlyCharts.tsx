@@ -22,6 +22,7 @@ type DonutChartProps = {
   centerLabel: string;
   centerValue: string;
   emptyMessage?: string;
+  valueFormatter?: (value: number) => string;
 };
 
 const polarToCartesian = (cx: number, cy: number, r: number, angleDeg: number) => {
@@ -44,6 +45,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   centerLabel,
   centerValue,
   emptyMessage = "No data for this month",
+  valueFormatter,
 }) => {
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   if (total <= 0) {
@@ -113,7 +115,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({
               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: arc.color }} />
               <span className="truncate text-slate-700">{arc.label}</span>
             </span>
-            <span className="text-slate-600 font-medium whitespace-nowrap">{arc.percentage.toFixed(1)}%</span>
+            <span className="text-slate-600 font-medium whitespace-nowrap">
+              {valueFormatter ? `${valueFormatter(arc.value)} · ` : ""}
+              {arc.percentage.toFixed(1)}%
+            </span>
           </li>
         ))}
       </ul>

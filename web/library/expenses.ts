@@ -10,7 +10,9 @@ export type ExpenseCategory =
   | 'manpower'
   | 'fuel'
   | 'kitchen_supplies'
-  | 'allowance';
+  | 'allowance'
+  /** Custom categories added by the secretary */
+  | (string & {});
 
 export type ExpenseStatus = 'draft' | 'forwarded' | 'verified' | 'returned';
 
@@ -101,6 +103,23 @@ export const lineItemsSummary = (category: string, items?: ExpenseLineItem[] | n
 export const getExpenseCategory = (value?: string | null): ExpenseCategoryInfo | undefined =>
   EXPENSE_CATEGORIES.find((c) => c.value === value);
 
+export interface ExpenseCategoryOption {
+  value: string;
+  label: string;
+}
+
+/** Built-ins keep their form settings; custom categories use a single amount and an optional payee */
+export const toExpenseCategoryInfo = (option: ExpenseCategoryOption): ExpenseCategoryInfo =>
+  getExpenseCategory(option.value) ?? {
+    value: option.value,
+    label: option.label,
+    hint: `${option.label} expense`,
+    payeeLabel: 'Payee / Supplier',
+    payeeRequired: false,
+    requiresBillingPeriod: false,
+    items: NO_ITEMS,
+  };
+
 export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
   draft: 'Draft',
   forwarded: 'Awaiting Cashier',
@@ -139,6 +158,7 @@ export interface ExpenseSummary {
 
 export interface ExpenseListResponse extends ApiResponse<PaginatedResponse<ExpenseRow>> {
   summary?: ExpenseSummary;
+  categories?: ExpenseCategoryOption[];
 }
 
 export interface ExpensePayload {
@@ -239,6 +259,11 @@ export const expenseAPI = {
   create: (data: ExpensePayload) => {
     console.log('[ExpenseAPI] create', data);
     return api.post<ApiResponse<ExpenseRow>>('/admin/expenses', data);
+  },
+
+  createCategory: (label: string) => {
+    console.log('[ExpenseAPI] create category', label);
+    return api.post<ApiResponse<ExpenseCategoryOption>>('/admin/expenses/categories', { label });
   },
 
   update: (id: number, data: ExpensePayload) => {

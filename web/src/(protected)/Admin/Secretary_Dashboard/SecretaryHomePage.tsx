@@ -27,7 +27,7 @@ import StatusBadge from "./components/StatusBadge";
 import EmptyState from "./components/EmptyState";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
 import { SecretaryListSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
-import { DonutChart, HorizontalBarChart } from "../components/MonthlyCharts";
+import { DonutChart } from "../components/MonthlyCharts";
 import IncomeSharingCard from "../components/IncomeSharingCard";
 
 interface DashboardStats {
@@ -133,17 +133,24 @@ const SecretaryHomePage: React.FC = () => {
   const fetchDashboardData = useCallback(async () => {
     try {
       setError(null);
-      const response = await manageRequestAPI.getAll({ page: 1, per_page: 100 });
+      const [response, pendingResponse] = await Promise.all([
+        manageRequestAPI.getAll({ page: 1, per_page: 100 }),
+        manageRequestAPI.getAll({ status: "pending", page: 1, per_page: 10 }),
+      ]);
 
       if (!response.data?.success) {
         throw new Error(response.data?.message || "Failed to fetch data");
       }
+      if (!pendingResponse.data?.success) {
+        throw new Error(pendingResponse.data?.message || "Failed to fetch pending requests");
+      }
 
       const requests: ManageRequest[] = response.data?.data?.data || [];
+      const pendingRequests: ManageRequest[] = pendingResponse.data?.data?.data || [];
       console.log("Secretary dashboard loaded requests:", requests.length);
       console.log(
-        "Recent request labels:",
-        requests.slice(0, 10).map((r) => ({
+        "Pending request labels:",
+        pendingRequests.map((r) => ({
           id: r.request_id,
           label: getServiceDisplayName(r),
           service_type: r.service?.service_type,
@@ -151,10 +158,10 @@ const SecretaryHomePage: React.FC = () => {
         }))
       );
 
-      setRecentRequests(requests.slice(0, 10));
+      setRecentRequests(pendingRequests);
       setStats({
         totalRequests: requests.length,
-        pendingRequests: requests.filter((r) => r.status === "pending").length,
+        pendingRequests: pendingResponse.data?.data?.total ?? pendingRequests.length,
         approvedRequests: requests.filter((r) => r.status === "approved").length,
         completedRequests: requests.filter((r) => r.status === "done").length,
         cancelledRequests: requests.filter((r) => r.status === "cancelled").length,
@@ -270,7 +277,7 @@ const SecretaryHomePage: React.FC = () => {
                   onClick={() => navigate("/admin/secretary/manage-requests?status=pending")}
                 />
                 <SecretaryStatCard
-                  label="Approved"
+                  label="Booked"
                   value={stats.approvedRequests}
                   icon={CheckCircle}
                   onClick={() => navigate("/admin/secretary/manage-requests?status=approved")}
@@ -394,8 +401,10 @@ const SecretaryHomePage: React.FC = () => {
                         <p className="text-xs text-slate-500">Share of monthly bookings</p>
                       </div>
                     </div>
-                    <HorizontalBarChart
-                      bars={activityBars}
+                    <DonutChart
+                      slices={activityBars}
+                      centerLabel="Requests"
+                      centerValue={String(activityBars.reduce((sum, bar) => sum + bar.value, 0))}
                       emptyMessage="No requests this month"
                       valueFormatter={(v) => `${v}`}
                     />
@@ -432,9 +441,9 @@ const SecretaryHomePage: React.FC = () => {
                   <ClipboardList size={18} />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-slate-900">Recent Requests</h3>
+                  <h3 className="text-base font-semibold text-slate-900">Pending Requests</h3>
                   <p className="text-xs text-slate-500">
-                    {loading ? " " : `${recentRequests.length} shown`}
+                    {loading ? " " : `${stats.pendingRequests} awaiting action`}
                   </p>
                 </div>
               </div>
@@ -492,8 +501,8 @@ const SecretaryHomePage: React.FC = () => {
                 ))
               ) : (
                 <EmptyState
-                  title="No requests found"
-                  description="New parishioner requests will appear here."
+                  title="No pending requests"
+                  description="New requests that need action will appear here."
                   icon={FileText}
                 />
               )}

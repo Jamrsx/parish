@@ -36,6 +36,29 @@ class ChurchExpense extends Model
 
     public const MAX_LINE_ITEMS = 50;
 
+    /** @var array<string, string>|null */
+    private static ?array $categoryCache = null;
+
+    /**
+     * Built-in categories followed by the custom ones added by the secretary.
+     *
+     * @return array<string, string> value => label
+     */
+    public static function allCategories(): array
+    {
+        if (self::$categoryCache === null) {
+            self::$categoryCache = self::CATEGORIES
+                + ExpenseCategory::query()->orderBy('label')->pluck('label', 'value')->all();
+        }
+
+        return self::$categoryCache;
+    }
+
+    public static function forgetCategoryCache(): void
+    {
+        self::$categoryCache = null;
+    }
+
     public static function isItemized(?string $category): bool
     {
         return in_array($category, self::PERSON_ITEM_CATEGORIES, true)
@@ -98,6 +121,6 @@ class ChurchExpense extends Model
 
     public function getCategoryLabelAttribute(): string
     {
-        return self::CATEGORIES[$this->category] ?? ucfirst(str_replace('_', ' ', (string) $this->category));
+        return self::allCategories()[$this->category] ?? ucfirst(str_replace('_', ' ', (string) $this->category));
     }
 }

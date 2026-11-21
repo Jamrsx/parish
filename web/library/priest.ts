@@ -2,7 +2,7 @@ import { api } from './api';
 import type { ApiResponse, PaginatedResponse } from './api';
 import type { DailyReportData } from './cashier';
 import type { InventoryItem, InventoryHistoryParams, InventoryHistoryResponse } from './inventory';
-import type { ExpenseRow, GeneralReportData, GeneralReportParams } from './expenses';
+import type { ExpenseCategoryOption, ExpenseRow, GeneralReportData, GeneralReportParams } from './expenses';
 
 export interface PriestServiceOption {
   service_id: number;
@@ -98,7 +98,7 @@ export const priestAPI = {
     per_page?: number;
   }) => {
     console.log('[PriestExpenses] Fetching expenses:', params);
-    return api.get<ApiResponse<PaginatedResponse<ExpenseRow>>>('/priest/expenses', { params });
+    return api.get<ApiResponse<PaginatedResponse<ExpenseRow>> & { categories?: ExpenseCategoryOption[] }>('/priest/expenses', { params });
   },
 
   getGeneralReport: (params: GeneralReportParams) => {

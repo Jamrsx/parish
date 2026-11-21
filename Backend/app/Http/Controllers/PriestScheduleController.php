@@ -274,7 +274,7 @@ class PriestScheduleController extends Controller
                     'assignments' => $assignments,
                     'time_off' => $this->timeOffBetween($priest, $from, $to),
                     'upcoming_time_off' => $upcomingTimeOff,
-                ],
+                ] + $this->otherPriestsSchedule($priest, $from, $to),
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to load priest calendar', ['priest_id' => $priest->user_id, 'error' => $e->getMessage()]);
@@ -284,6 +284,79 @@ class PriestScheduleController extends Controller
                 'message' => 'Failed to load your calendar. Please try again.',
             ], 500);
         }
+    }
+
+    /**
+     * What other active priests have scheduled, so a priest can plan a day off.
+     * Day-off reasons and client names stay private and are not included.
+     */
+    private function otherPriestsSchedule(User $priest, Carbon $from, Carbon $to): array
+    {
+        $otherPriests = fn ($q) => $q->where('role', 'priest')->where('is_active', true);
+
+        $timeOff = PriestTimeOff::query()
+            ->where('priest_id', '!=', $priest->user_id)
+            ->overlapping($from->toDateString(), $to->toDateString())
+            ->whereHas('priest', $otherPriests)
+            ->with('priest:user_id,first_name,middle_name,last_name')
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn (PriestTimeOff $e) => [
+                'time_off_id' => $e->time_off_id,
+                'priest_id' => $e->priest_id,
+                'priest_name' => trim($e->priest->full_name),
+                'start_date' => $e->start_date->toDateString(),
+                'end_date' => $e->end_date->toDateString(),
+                'start_time' => $e->isWholeDay() ? null : $e->start_time,
+                'end_time' => $e->isWholeDay() ? null : $e->end_time,
+                'whole_day' => $e->isWholeDay(),
+                'label' => $e->label,
+            ])
+            ->values()
+            ->all();
+
+        $switchedOff = User::query()
+            ->where('role', 'priest')
+            ->where('is_active', true)
+            ->where('is_available', false)
+            ->where('user_id', '!=', $priest->user_id)
+            ->get()
+            ->map(fn (User $p) => [
+                'priest_id' => $p->user_id,
+                'priest_name' => trim($p->full_name),
+                'unavailable_until' => $p->unavailable_until?->toDateString(),
+            ])
+            ->values()
+            ->all();
+
+        $assignments = ManageRequest::query()
+            ->whereNotNull('assigned_priest')
+            ->where('assigned_priest', '!=', $priest->user_id)
+            ->whereIn('status', self::SCHEDULE_STATUSES)
+            ->whereDate('preferred_date', '>=', $from->toDateString())
+            ->whereDate('preferred_date', '<=', $to->toDateString())
+            ->whereHas('assignedPriest', $otherPriests)
+            ->with(['service:service_id,service_type', 'assignedPriest:user_id,first_name,middle_name,last_name'])
+            ->orderBy('preferred_date')
+            ->orderBy('preferred_time')
+            ->get()
+            ->map(fn (ManageRequest $r) => [
+                'request_id' => $r->request_id,
+                'date' => Carbon::parse($r->preferred_date)->format('Y-m-d'),
+                'time' => ManageRequest::normalizeTime($r->preferred_time),
+                'service_type' => $r->service?->service_type ?? 'Service',
+                'status' => $r->status,
+                'priest_id' => $r->assigned_priest,
+                'priest_name' => trim($r->assignedPriest->full_name),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'other_time_off' => $timeOff,
+            'other_switched_off' => $switchedOff,
+            'other_assignments' => $assignments,
+        ];
     }
 
     private function timeOffBetween(User $priest, Carbon $from, Carbon $to): array

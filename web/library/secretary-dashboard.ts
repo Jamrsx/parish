@@ -34,13 +34,18 @@ export interface OtherIncomeShare {
   percentage: number;
 }
 
-/** Church / archdiocese split of an income total (default 60% / 40%). */
+/** Church / archdiocese split of income after operating expenses (default 60% / 40%). */
 export interface IncomeSplit {
   church_percent: number;
   archdiocese_percent: number;
+  /** Amount being shared: income minus expenses, never below zero. */
   total: number;
   church_amount: number;
   archdiocese_amount: number;
+  gross_income?: number;
+  operating_expenses?: number;
+  net_income?: number;
+  shortfall?: number;
 }
 
 /** Mirrors AppSetting::splitIncome on the backend. */

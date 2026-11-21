@@ -151,6 +151,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('expenses')->group(function () {
             Route::get('/', [ChurchExpenseController::class, 'index']);
             Route::post('/', [ChurchExpenseController::class, 'store']);
+            Route::post('/categories', [ChurchExpenseController::class, 'storeCategory']);
             Route::post('/forward', [ChurchExpenseController::class, 'forward']);
             Route::post('/verify', [ChurchExpenseController::class, 'verify']);
             Route::put('/{id}', [ChurchExpenseController::class, 'update']);

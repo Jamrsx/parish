@@ -74,4 +74,30 @@ class AppSetting extends Model
             'archdiocese_amount' => round($total - $church, 2),
         ];
     }
+
+    /**
+     * Deducts operating expenses first, then splits what remains.
+     * When expenses exceed income nothing is shared and the difference is the shortfall.
+     *
+     * @return array{church_percent: int, archdiocese_percent: int, total: float, church_amount: float, archdiocese_amount: float, gross_income: float, operating_expenses: float, net_income: float, shortfall: float}
+     */
+    public static function splitNetIncome(float $income, float $expenses, ?int $churchPercent = null): array
+    {
+        $income = round($income, 2);
+        $expenses = round($expenses, 2);
+        $net = round($income - $expenses, 2);
+
+        return static::splitIncome(max($net, 0), $churchPercent) + [
+            'gross_income' => $income,
+            'operating_expenses' => $expenses,
+            'net_income' => $net,
+            'shortfall' => $net < 0 ? abs($net) : 0.0,
+        ];
+    }
+
+    /** What the church keeps after the split, or the negative shortfall. */
+    public static function churchNet(array $sharing): float
+    {
+        return $sharing['net_income'] < 0 ? $sharing['net_income'] : $sharing['church_amount'];
+    }
 }

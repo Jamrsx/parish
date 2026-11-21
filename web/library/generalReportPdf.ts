@@ -105,15 +105,16 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
     ],
     [
       ["Total income", peso(report.income.total)],
+      ["Less total verified expenses", peso(report.expenses.total)],
       ...(sharing
         ? [
+            ["Net income to share", peso(sharing.total)],
             [`Church share (${sharing.church_percent}%)`, peso(sharing.church_amount)],
             [`Archdiocese share (${sharing.archdiocese_percent}%) - to be remitted`, peso(sharing.archdiocese_amount)],
           ]
         : []),
-      ["Total verified expenses", peso(report.expenses.total)],
       sharing
-        ? [churchNet >= 0 ? "Church net (church share - expenses)" : "Church shortfall (church share - expenses)", peso(churchNet)]
+        ? [churchNet >= 0 ? "Church net (after expenses and split)" : "Shortfall (expenses exceed income)", peso(churchNet)]
         : [report.net >= 0 ? "Net income" : "Net loss", peso(report.net)],
       [
         `Pending verification (${report.pending_verification.count} item/s, not included)`,

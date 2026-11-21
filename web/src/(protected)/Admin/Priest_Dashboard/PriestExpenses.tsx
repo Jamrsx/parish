@@ -8,6 +8,7 @@ import {
   getApiErrorMessage,
   lineItemPeople,
   lineItemsSummary,
+  type ExpenseCategoryOption,
   type ExpenseRow,
   type GeneralReportData,
   type GeneralReportParams,
@@ -20,7 +21,7 @@ import PriestNav from './PriestNav';
 const PAGE_SIZE = 10;
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const toDateInput = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -70,6 +71,7 @@ const PriestExpenses: React.FC = () => {
   const [listError, setListError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'verified' | 'forwarded'>('verified');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [categories, setCategories] = useState<ExpenseCategoryOption[]>(EXPENSE_CATEGORIES);
   const [page, setPage] = useState(1);
 
   const [itemsPreview, setItemsPreview] = useState<ExpenseRow | null>(null);
@@ -124,6 +126,7 @@ const PriestExpenses: React.FC = () => {
       if (!res.data?.success) throw new Error(res.data?.message || 'Failed to load expenses.');
       const data = res.data.data;
       setRows(Array.isArray(data) ? data : data?.data || []);
+      if (res.data.categories?.length) setCategories(res.data.categories);
     } catch (err) {
       console.error('[PriestExpenses] List error:', err);
       setRows([]);
@@ -410,7 +413,7 @@ const PriestExpenses: React.FC = () => {
                 className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
               >
                 <option value="all">All categories</option>
-                {EXPENSE_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>

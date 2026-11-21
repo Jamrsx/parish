@@ -13,7 +13,7 @@ import { Church, Plus, Trash2 } from "lucide-react";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();
@@ -367,7 +367,7 @@ const ManageMassCollections: React.FC = () => {
                               placeholder="0"
                             />
                           </td>
-                          <td className="px-3 py-2 font-semibold">{Number(line.total || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2 font-semibold">{Number(line.total || 0).toLocaleString("en-PH")}</td>
                           <td className="px-3 py-2 text-center">
                             <button
                               type="button"
@@ -435,7 +435,7 @@ const ManageMassCollections: React.FC = () => {
                   <tr key={i}>
                     <td className="px-3 py-2">{formatDenomination(line.denomination)}</td>
                     <td className="px-3 py-2">{line.count}</td>
-                    <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString("en-PH")}</td>
                   </tr>
                 ))}
               </tbody>

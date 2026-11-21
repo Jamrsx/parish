@@ -16,7 +16,7 @@ import DonorPicker, { type DonorValue } from "./components/DonorPicker";
 const EMPTY_DONOR: DonorValue = { userId: null, name: "", detail: null };
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();
@@ -380,7 +380,7 @@ const ManageDonations: React.FC = () => {
                             />
                           </td>
                           <td className="px-3 py-2 font-semibold text-slate-800">
-                            {Number(line.total || 0).toLocaleString()}
+                            {Number(line.total || 0).toLocaleString("en-PH")}
                           </td>
                           <td className="px-3 py-2 text-center">
                             <button
@@ -473,7 +473,7 @@ const ManageDonations: React.FC = () => {
                     <tr key={i}>
                       <td className="px-3 py-2">{formatDenomination(line.denomination)}</td>
                       <td className="px-3 py-2">{line.count}</td>
-                      <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString()}</td>
+                      <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString("en-PH")}</td>
                     </tr>
                   ))}
                 </tbody>

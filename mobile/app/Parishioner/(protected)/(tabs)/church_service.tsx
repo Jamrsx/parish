@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { api } from '../../../../library/api';
+import { getServiceIconName } from '../../../../constants/serviceIcons';
 import { getTodayLocalDateString } from '../../../../library/dateHelpers';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveGrid from '../../../../components/ResponsiveGrid';
@@ -47,6 +48,7 @@ interface CertificateAvailability {
   id: number;
   service_id?: number;
   title: string;
+  icon?: string;
   description: string;
   fee?: number;
   processingTime: string;
@@ -125,26 +127,7 @@ const CustomAlert = ({
   );
 };
 
-// ============================================================
-// ICON HELPERS
-// ============================================================
-const getServiceIcon = (name: string): { name: keyof typeof FontAwesome5.glyphMap; color: string } => {
-  const lower = name.toLowerCase();
-  if (lower.includes('baptism') && !lower.includes('certificate')) return { name: 'tint', color: '#2563EB' };
-  if (lower.includes('funeral')) return { name: 'cross', color: '#2563EB' };
-  if (lower.includes('marriage') && !lower.includes('certificate')) return { name: 'ring', color: '#2563EB' };
-  if (lower.includes('house blessing') || lower.includes('house')) return { name: 'home', color: '#2563EB' };
-  if (lower.includes('special intention') || lower.includes('intention')) return { name: 'hands', color: '#2563EB' };
-  if (lower.includes('certificate')) return { name: 'file-alt', color: '#2563EB' };
-  return { name: 'church', color: '#2563EB' };
-};
-
-const getCertificateIcon = (title: string): { name: keyof typeof FontAwesome5.glyphMap; color: string } => {
-  const lower = title.toLowerCase();
-  if (lower.includes('baptismal')) return { name: 'file-alt', color: '#2563EB' };
-  if (lower.includes('marriage')) return { name: 'file-signature', color: '#2563EB' };
-  return { name: 'file-alt', color: '#2563EB' };
-};
+const SERVICE_ICON_COLOR = '#2563EB';
 
 const formatServiceFee = (fee?: number | null, options?: { anyAmountLabel?: string }) => {
   if (fee === undefined || fee === null || Number.isNaN(Number(fee))) return null;
@@ -224,9 +207,9 @@ export default function ChurchService() {
   };
 
   // API CALLS — always use device-local "today" (Asia/Manila / phone timezone)
-  const fetchAvailability = useCallback(async () => {
+  const fetchAvailability = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const todayLocal = getTodayLocalDateString();
       console.log('Fetching service availability for local today:', todayLocal);
       const response = await api.getAvailability(todayLocal);
@@ -283,9 +266,12 @@ export default function ChurchService() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchAvailability();
-  }, [fetchAvailability]);
+  // Reload whenever this tab opens, so changes from Manage Services appear without restarting the app.
+  useFocusEffect(
+    useCallback(() => {
+      void fetchAvailability(true);
+    }, [fetchAvailability])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -504,7 +490,6 @@ export default function ChurchService() {
               if (isService(item)) {
                 const service = item;
                 const colors = getServiceColors();
-                const serviceIcon = getServiceIcon(service.name);
                 const isAvailable = service.isAvailable !== false;
                 const remainingSlots = getRemainingSlots(service.slotsRemaining);
                 const hasSlots = remainingSlots > 0;
@@ -518,7 +503,7 @@ export default function ChurchService() {
                   >
                     <View className="flex-row justify-between items-start">
                       <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center">
-                        <FontAwesome5 name={serviceIcon.name} size={18} color={serviceIcon.color} />
+                        <FontAwesome5 name={getServiceIconName(service.icon)} size={18} color={SERVICE_ICON_COLOR} />
                       </View>
                       <View
                         className={`px-2 py-1 rounded-full ${
@@ -599,7 +584,6 @@ export default function ChurchService() {
               } else {
                 const certificate = item as CertificateAvailability;
                 const colors = getCertificateColors();
-                const certIcon = getCertificateIcon(certificate.title);
 
                 return (
                   <View
@@ -608,7 +592,7 @@ export default function ChurchService() {
                   >
                     <View className="flex-row justify-between items-start">
                       <View className="w-10 h-10 rounded-full bg-blue-50 items-center justify-center">
-                        <FontAwesome5 name={certIcon.name} size={18} color={certIcon.color} />
+                        <FontAwesome5 name={getServiceIconName(certificate.icon, 'file-alt')} size={18} color={SERVICE_ICON_COLOR} />
                       </View>
                       <View className="px-2 py-1 rounded-full bg-green-100">
                         <Text className="text-xs font-medium text-green-700">Available</Text>

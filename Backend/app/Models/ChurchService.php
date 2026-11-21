@@ -128,7 +128,7 @@ class ChurchService extends Model
      */
     public function isTimeSlotTaken($date, $time, $excludeRequestId = null): bool
     {
-        return ManageRequest::isTimeSlotTakenGlobally($date, $time, $excludeRequestId);
+        return ManageRequest::isTimeSlotTakenGlobally($date, $time, $excludeRequestId, $this);
     }
 
     /**
@@ -136,15 +136,7 @@ class ChurchService extends Model
      */
     public function validateSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
     {
-        if (ManageRequest::isPastSlot($date, $time)) {
-            return 'That time has already passed. Please choose a later time.';
-        }
-
-        if ($this->isTimeSlotTaken($date, $time, $excludeRequestId)) {
-            return 'The selected time slot is already booked. Please choose another time.';
-        }
-
-        return null;
+        return ManageRequest::validateGlobalSchedule($date, $time, $excludeRequestId, $this);
     }
 
     /**

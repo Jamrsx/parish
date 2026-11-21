@@ -10,7 +10,7 @@ import {
 } from "../../../../../library/expenseLineItems";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface Props {
   config: ExpenseItemConfig;

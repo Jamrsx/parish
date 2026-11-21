@@ -826,7 +826,7 @@ const PriestHomePage: React.FC = () => {
                 <div>
                   <p className="text-xs text-gray-500">Service Fee</p>
                   <p className="font-semibold text-gray-800">
-                    ₱{Number(selectedSchedule.serviceFee || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    ₱{Number(selectedSchedule.serviceFee || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div>
@@ -838,7 +838,7 @@ const PriestHomePage: React.FC = () => {
                     ₱
                     {Number(
                       selectedSchedule.status === 'cancelled' ? 0 : selectedSchedule.amountPaid || 0
-                    ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    ).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>

@@ -13,14 +13,15 @@ interface ExtendedChurchService {
   form_type?: string | null;
   form_handler?: string;
 }
-import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCircle, ClipboardList, Zap, Calendar, UserCog } from "lucide-react";
+import { CalendarDays, BarChart3, Tags, AlertTriangle, CheckCircle2, Info, XCircle, Calendar, UserCog, UserX, ChevronRight, X, Clock } from "lucide-react";
 import SecretaryStatCard from "./components/SecretaryStatCard";
 import ModalCloseButton from "./components/ModalCloseButton";
 import { ServiceTypeIcon } from "./components/ServiceTypeIcon";
+import PriestScheduleModal from "./components/PriestScheduleModal";
 import { getFormattedRequestContactNumber, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress } from "./components/requestHelpers";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
-import { buildTimeOptions, timeProblem } from "../../../components/booking/serviceSlots";
+import { buildTimeOptions, isLongService, isPastTime, timeProblem } from "../../../components/booking/serviceSlots";
 import { SecretaryCalendarSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
 import { priestScheduleAPI, priestSlotFor, timeOffCovers, timeOffShortLabel } from "../../../../library/priestSchedule";
 import type { AllPriestTimeOff } from "../../../../library/priestSchedule";
@@ -53,6 +54,7 @@ interface ScheduledServices {
   displayStatus: string;
   isCompleted?: boolean;
   assignedPriestId?: number | null;
+  formHandler?: string;
   requestDetails?: RequestDetails;
 }
 
@@ -181,6 +183,7 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
     displayStatus: getDisplayStatus(request.status),
     isCompleted: request.status === 'done',
     assignedPriestId,
+    formHandler: service?.form_handler,
     requestDetails,
   };
 
@@ -376,21 +379,21 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const getIcon = () => {
     switch(type) {
-      case 'success': return <CheckCircle2 className="text-blue-600" size={32} />;
-      case 'error': return <XCircle className="text-red-600" size={32} />;
-      case 'warning': return <AlertTriangle className="text-amber-600" size={32} />;
-      case 'info': return <Info className="text-blue-600" size={32} />;
-      default: return <Info className="text-blue-600" size={32} />;
+      case 'success': return <CheckCircle2 className="text-green-600" size={22} aria-hidden />;
+      case 'error': return <XCircle className="text-red-600" size={22} aria-hidden />;
+      case 'warning': return <AlertTriangle className="text-amber-600" size={22} aria-hidden />;
+      case 'info': return <Info className="text-blue-600" size={22} aria-hidden />;
+      default: return <Info className="text-blue-600" size={22} aria-hidden />;
     }
   };
 
-  const getBorderColor = () => {
+  const getIconBackground = () => {
     switch(type) {
-      case 'success': return 'border-green-500 bg-green-50';
-      case 'error': return 'border-red-500 bg-red-50';
-      case 'warning': return 'border-amber-500 bg-amber-50';
-      case 'info': return 'border-blue-500 bg-blue-50';
-      default: return 'border-blue-500 bg-blue-50';
+      case 'success': return 'bg-green-50';
+      case 'error': return 'bg-red-50';
+      case 'warning': return 'bg-amber-50';
+      case 'info': return 'bg-blue-50';
+      default: return 'bg-blue-50';
     }
   };
 
@@ -406,10 +409,12 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fadeIn">
-      <div className={`bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border-l-4 ${getBorderColor()}`}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
         <div className="p-6">
           <div className="flex items-start gap-3">
-            <span className="text-3xl">{getIcon()}</span>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${getIconBackground()}`}>
+              {getIcon()}
+            </span>
             <div className="flex-1">
               <h3 className="text-lg font-bold text-gray-800 mb-2">{title}</h3>
               <p className="text-gray-600 leading-relaxed">{message}</p>
@@ -438,6 +443,8 @@ const ScheduledServices: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [awayData, setAwayData] = useState<AllPriestTimeOff | null>(null);
+  const [awayReloadNonce, setAwayReloadNonce] = useState(0);
+  const [awaySchedule, setAwaySchedule] = useState<{ priestId: number; name: string; date: string } | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedService, setSelectedService] = useState<ScheduledServices | null>(null);
@@ -541,7 +548,19 @@ const ScheduledServices: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [monthKey]);
+  }, [monthKey, awayReloadNonce]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowModal(false);
+        setSelectedDate(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showModal]);
 
   const fetchServices = async () => {
     try {
@@ -666,7 +685,13 @@ const ScheduledServices: React.FC = () => {
       return;
     }
 
-    const slotIssue = timeProblem(rescheduleData.preferred_date, rescheduleData.preferred_time, bookedSlots);
+    const slotIssue = timeProblem(
+      rescheduleData.preferred_date,
+      rescheduleData.preferred_time,
+      bookedSlots,
+      true,
+      isLongService(selectedService.formHandler),
+    );
     if (slotIssue) {
       console.warn('[ScheduledServices] Reschedule slot rejected', { ...rescheduleData, slotIssue });
       showError(slotIssue);
@@ -816,23 +841,45 @@ const ScheduledServices: React.FC = () => {
     return allServices.filter(service => service.date === dateString);
   };
 
-  const getPriestsAwayOn = (dateKey: string): string[] => {
+  const getPriestsAwayOn = (dateKey: string): { key: string; priestId: number; name: string; text: string }[] => {
     if (!awayData) return [];
     const away = awayData.time_off
       .filter((entry) => timeOffCovers(entry, dateKey))
       .map((entry) => {
         const label = timeOffShortLabel(entry);
-        return `Fr. ${entry.priest_name ?? 'Unknown'} ${label === 'Off' ? 'away' : label.replace('Off', 'off')}`;
+        const name = entry.priest_name ?? 'Unknown';
+        return {
+          key: `entry-${entry.time_off_id}`,
+          priestId: entry.priest_id,
+          name,
+          text: `Fr. ${name} ${label === 'Off' ? 'away' : label.replace('Off', 'off')}`,
+        };
       });
     const todayKey = formatDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
     if (dateKey >= todayKey) {
       awayData.switched_off.forEach((p) => {
         if (!p.unavailable_until || dateKey <= p.unavailable_until.slice(0, 10)) {
-          away.push(`Fr. ${p.priest_name} unavailable`);
+          away.push({
+            key: `switch-${p.priest_id}`,
+            priestId: p.priest_id,
+            name: p.priest_name,
+            text: `Fr. ${p.priest_name} unavailable`,
+          });
         }
       });
     }
     return away;
+  };
+
+  const openAwaySchedule = (priestId: number, name: string, date: string) => {
+    console.log('[ScheduledServices] Opening priest schedule', { priestId, date });
+    setShowModal(false);
+    setAwaySchedule({ priestId, name, date });
+  };
+
+  const closeAwaySchedule = () => {
+    setAwaySchedule(null);
+    setShowModal(true);
   };
 
   const formatDateKey = (year: number, month: number, day: number) => {
@@ -846,24 +893,9 @@ const ScheduledServices: React.FC = () => {
            day === today.getDate();
   };
 
-  const getServiceColor = (service: ScheduledServices) => {
-    if (service.status === 'done' || service.isCompleted) {
-      return 'bg-green-50 border-green-400 text-green-800';
-    }
-    return 'bg-blue-50 border-blue-300 text-blue-800';
-  };
-
-  const getDayBadgeColor = (servicesOnDay: ScheduledServices[]) => {
-    const allCompleted = servicesOnDay.every((service) => service.status === 'done');
-    return allCompleted ? 'bg-green-500' : 'bg-blue-500';
-  };
-
   const handleDateClick = (dateKey: string) => {
-    const servicesOnDate = getServicesForDate(dateKey);
-    if (servicesOnDate.length > 0) {
-      setSelectedDate(dateKey);
-      setShowModal(true);
-    }
+    setSelectedDate(dateKey);
+    setShowModal(true);
   };
 
   const closeModal = () => {
@@ -893,7 +925,7 @@ const ScheduledServices: React.FC = () => {
     const daysInMonth = getDaysInMonth(year, month);
     const firstDay = getFirstDayOfMonth(year, month);
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
+
     const cells = [];
 
     weekdays.forEach((day) => {
@@ -905,7 +937,7 @@ const ScheduledServices: React.FC = () => {
     });
 
     for (let i = 0; i < firstDay; i++) {
-      cells.push(<div key={`empty-${i}`} className="h-28 bg-gray-50/30" />);
+      cells.push(<div key={`empty-${i}`} className="h-20 sm:h-24 border-t border-l border-gray-100 bg-gray-50/40" />);
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -915,67 +947,54 @@ const ScheduledServices: React.FC = () => {
       const hasServices = servicesOnDay.length > 0;
       const allCompleted = hasServices && servicesOnDay.every((service) => service.status === 'done');
       const priestsAway = getPriestsAwayOn(dateKey);
+      const isClickable = hasServices || priestsAway.length > 0;
+      const countLabel = `${servicesOnDay.length} service${servicesOnDay.length === 1 ? '' : 's'}`;
+      const StatusIcon = allCompleted ? CheckCircle2 : CalendarDays;
 
       cells.push(
-        <div
+        <button
+          type="button"
           key={`day-${day}`}
-          onClick={() => hasServices && handleDateClick(dateKey)}
-          className={`
-            h-28 border border-gray-100 p-1.5 transition-all duration-200
-            ${hasServices 
-              ? allCompleted
-                ? 'cursor-pointer hover:bg-green-50 hover:shadow-inner hover:scale-[1.02] hover:z-10 relative'
-                : 'cursor-pointer hover:bg-blue-50 hover:shadow-inner hover:scale-[1.02] hover:z-10 relative'
-              : 'bg-gray-50/30 cursor-default opacity-60'}
-            ${isTodayDate ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
-            ${selectedDate === dateKey ? (allCompleted ? 'bg-green-100 ring-2 ring-green-400' : 'bg-blue-100 ring-2 ring-blue-400') : ''}
-          `}
+          disabled={!isClickable}
+          onClick={() => handleDateClick(dateKey)}
+          aria-label={`${dateKey}: ${hasServices ? countLabel : 'no services'}${priestsAway.length ? `, ${priestsAway.length} priest away` : ''}`}
+          className={`flex h-20 sm:h-24 flex-col items-start justify-between border-t border-l border-gray-100 p-1.5 sm:p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
+            isClickable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
+          }`}
         >
-          <div className="flex justify-between items-start">
-            <span className={`
-              text-sm font-medium px-2 py-0.5 rounded-full
-              ${isTodayDate ? 'bg-blue-500 text-white' : hasServices ? 'text-gray-800' : 'text-gray-400'}
-            `}>
-              {day}
-            </span>
-            {hasServices && (
-              <span className={`px-2 py-0.5 text-[10px] font-semibold text-white rounded-full shadow-sm ${getDayBadgeColor(servicesOnDay)}`}>
+          <span
+            className={`flex h-7 w-7 items-center justify-center rounded-full text-sm tabular-nums ${
+              isTodayDate
+                ? 'bg-blue-600 font-semibold text-white'
+                : hasServices
+                ? 'font-semibold text-gray-900'
+                : 'text-gray-500'
+            }`}
+          >
+            {day}
+          </span>
+
+          <span className="flex w-full items-center justify-between gap-1">
+            {hasServices ? (
+              <span
+                title={countLabel}
+                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+                  allCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
+                }`}
+              >
+                <StatusIcon size={13} aria-hidden />
                 {servicesOnDay.length}
               </span>
+            ) : (
+              <span />
             )}
-          </div>
-          
-          {hasServices && (
-            <div className="mt-1.5 space-y-0.5">
-              {servicesOnDay.slice(0, 2).map((service, idx) => (
-                <div 
-                  key={idx}
-                  className={`text-[10px] truncate px-1.5 py-0.5 rounded border-l-2 ${getServiceColor(service)}`}
-                  title={service.name}
-                >
-                  <span className="mr-0.5 inline-flex align-middle">
-                    <ServiceTypeIcon serviceName={service.type} size={12} />
-                  </span>
-                  {service.name}
-                </div>
-              ))}
-              {servicesOnDay.length > 2 && (
-                <div className="text-[10px] text-blue-600 font-semibold px-1.5">
-                  +{servicesOnDay.length - 2} more
-                </div>
-              )}
-            </div>
-          )}
-
-          {priestsAway.length > 0 && (
-            <div
-              className="mt-0.5 truncate rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 opacity-100"
-              title={priestsAway.join('\n')}
-            >
-              {priestsAway.length === 1 ? priestsAway[0] : `${priestsAway.length} priests away`}
-            </div>
-          )}
-        </div>
+            {priestsAway.length > 0 && (
+              <span title={priestsAway.map((p) => p.text).join('\n')} className="text-amber-600">
+                <UserX size={14} aria-hidden />
+              </span>
+            )}
+          </span>
+        </button>
       );
     }
 
@@ -985,271 +1004,319 @@ const ScheduledServices: React.FC = () => {
   const renderModal = () => {
     if (!showModal || !selectedDate) return null;
 
-    const servicesOnDate = getServicesForDate(selectedDate);
-    const formattedDate = new Date(selectedDate).toLocaleDateString('en-US', {
+    const timeKey = (service: ScheduledServices) => service.time?.match(/\d{2}:\d{2}/)?.[0] ?? '99:99';
+    const servicesOnDate = [...getServicesForDate(selectedDate)].sort((a, b) => timeKey(a).localeCompare(timeKey(b)));
+    const priestsAway = getPriestsAwayOn(selectedDate);
+    const completedCount = servicesOnDate.filter((service) => service.status === 'done' || service.isCompleted).length;
+    const scheduledCount = servicesOnDate.length - completedCount;
+    const formattedDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
+    const summary = servicesOnDate.length === 0
+      ? 'No services on this date'
+      : [
+          `${servicesOnDate.length} service${servicesOnDate.length === 1 ? '' : 's'}`,
+          scheduledCount > 0 ? `${scheduledCount} scheduled` : '',
+          completedCount > 0 ? `${completedCount} completed` : '',
+        ].filter(Boolean).join(' · ');
 
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-blue-50">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        onClick={closeModal}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Services on ${formattedDate}`}
+          onClick={(event) => event.stopPropagation()}
+          className="flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
             <div>
-              <h3 className="text-xl font-bold text-gray-800">{formattedDate}</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
-                {servicesOnDate.length} service{servicesOnDate.length > 1 ? 's' : ''} scheduled
-              </p>
+              <h3 className="text-lg font-bold text-gray-900">{formattedDate}</h3>
+              <p className="mt-0.5 text-sm text-gray-500">{summary}</p>
             </div>
             <button
+              type="button"
               onClick={closeModal}
-              className="p-2 hover:bg-white/60 rounded-xl transition-colors"
+              aria-label="Close"
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={20} aria-hidden />
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-            <div className="space-y-3">
-              {servicesOnDate.map((service) => {
-                const isCompleted = service.status === 'done' || service.isCompleted;
+          {priestsAway.length > 0 && (
+            <div className="border-b border-amber-100 bg-amber-50 px-5 py-3">
+              <p className="mb-2 text-xs font-medium text-amber-900">Priest day off. Select a priest to view their schedule.</p>
+              <div className="flex flex-wrap gap-2">
+                {priestsAway.map((priest) => (
+                  <button
+                    key={priest.key}
+                    type="button"
+                    onClick={() => openAwaySchedule(priest.priestId, priest.name, selectedDate)}
+                    aria-label={`View schedule of Fr. ${priest.name}`}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-left text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  >
+                    <UserX size={15} className="shrink-0" aria-hidden />
+                    <span className="min-w-0 truncate">{priest.text}</span>
+                    <ChevronRight size={15} className="shrink-0" aria-hidden />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-                return (
-                <div 
-                  key={service.id} 
-                  className={`flex items-center justify-between p-4 rounded-xl transition-all duration-200 border hover:shadow-md hover:scale-[1.01] ${
-                    isCompleted
-                      ? 'bg-green-50/70 border-green-200'
-                      : 'bg-blue-50/50 border-blue-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <ServiceTypeIcon serviceName={service.type} size={28} />
-                    <div>
-                      <div className="font-semibold text-gray-800">{service.type}</div>
-                      <div className="text-sm text-gray-600">{service.name}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-gray-700">
-                        {formatTimeDisplay12Hour(service.time || '')}
-                      </div>
-                    </div>
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${
-                      isCompleted
-                        ? 'bg-green-100 text-green-700 border-green-200'
-                        : 'bg-blue-100 text-blue-700 border-blue-200'
-                    }`}>
-                      {service.displayStatus}
+          <ul className="divide-y divide-gray-100 overflow-y-auto">
+            {servicesOnDate.map((service) => {
+              const isCompleted = service.status === 'done' || service.isCompleted;
+
+              return (
+                <li key={service.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeModal();
+                      handleViewDetails(service);
+                    }}
+                    aria-label={`View details: ${service.type}, ${service.name}`}
+                    className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                  >
+                    <span className="w-16 shrink-0 text-sm font-semibold tabular-nums text-gray-900">
+                      {formatTimeDisplay12Hour(service.time || '')}
                     </span>
-                    <button
-                      onClick={() => {
-                        closeModal();
-                        handleViewDetails(service);
-                      }}
-                      className={`px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-colors shadow-sm hover:shadow ${
-                        isCompleted ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                      <ServiceTypeIcon serviceName={service.type} size={18} className="text-slate-600" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-gray-900">{service.type}</span>
+                      <span className="block truncate text-sm text-gray-500">{service.name}</span>
+                    </span>
+                    <span
+                      className={`hidden shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium sm:inline-block ${
+                        isCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
                       }`}
                     >
-                      View Details
-                    </button>
-                  </div>
-                </div>
+                      {service.displayStatus}
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-gray-400 group-hover:text-gray-600" aria-hidden />
+                  </button>
+                </li>
               );
-              })}
-            </div>
-          </div>
-
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-            <button
-              onClick={closeModal}
-              className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              Close
-            </button>
-          </div>
+            })}
+          </ul>
         </div>
       </div>
     );
   };
 
-  const renderDetailModal = () => {
+const renderDetailModal = () => {
     if (!showDetailModal || !selectedService) return null;
 
     const details = selectedService.requestDetails;
     const isCompleted = selectedService.status === 'done' || selectedService.isCompleted;
+    const scheduledHm = selectedService.time?.match(/\d{2}:\d{2}/)?.[0] ?? '00:00';
+    const canComplete = isPastTime(selectedService.date, scheduledHm);
+    const scheduledDate = new Date(`${selectedService.date}T00:00:00`);
+    const completeFromLabel = scheduledDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const shortDate = scheduledDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const timeLabel = formatTimeDisplay12Hour(selectedService.time || '');
+    const paymentStatus = (details?.paymentStatus || '').toLowerCase();
+    const paymentLabel = paymentStatus ? paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1) : 'N/A';
+    const paymentTone =
+      paymentStatus === 'paid'
+        ? 'bg-green-50 text-green-700'
+        : paymentStatus === 'partial'
+        ? 'bg-amber-50 text-amber-800'
+        : 'bg-slate-100 text-slate-700';
+    const formatPeso = (amount?: number) => `₱${(amount || 0).toLocaleString("en-PH")}`;
 
-    const DetailField = ({ label, value }: { label: string; value?: string | number }) => (
-      <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
-        <p className="text-sm text-gray-800 mt-0.5 font-medium">{value || 'N/A'}</p>
-      </div>
+    const closeDetails = () => {
+      setShowDetailModal(false);
+      setSelectedService(null);
+    };
+
+    const renderSection = (title: string, rows: Array<[string, React.ReactNode]>) => (
+      <section className="min-w-0">
+        <h4 className="mb-2 text-sm font-semibold text-slate-900">{title}</h4>
+        <dl className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex items-start justify-between gap-4 px-4 py-2.5">
+              <dt className="shrink-0 text-sm text-slate-500">{label}</dt>
+              <dd className="min-w-0 break-words text-right text-sm font-medium text-slate-900">{value || 'N/A'}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     );
 
+    const clientRows: Array<[string, React.ReactNode]> = [
+      ['Contact', details?.contactNumber],
+      ['Residency', details?.residency || 'Resident'],
+    ];
+    if (details?.address) clientRows.push(['Address', details.address]);
+
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-indigo-50">
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">Service Details</h3>
-              <p className="text-sm text-gray-600 mt-0.5">Complete request information</p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedService.type} details`}
+          className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        >
+          <div className="flex items-start gap-3 px-6 pb-4 pt-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+              <ServiceTypeIcon serviceName={selectedService.type} size={22} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xl font-bold text-slate-900">{selectedService.type}</h3>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    isCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
+                  }`}
+                >
+                  {selectedService.displayStatus}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-sm text-slate-600">{selectedService.name}</p>
             </div>
             <button
-              onClick={() => {
-                setShowDetailModal(false);
-                setSelectedService(null);
-              }}
-              className="p-2 hover:bg-white/60 rounded-xl transition-colors"
+              type="button"
+              onClick={closeDetails}
+              aria-label="Close"
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X size={20} aria-hidden />
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-            <div className="space-y-6">
-              {/* Header Info */}
-              <div className="grid grid-cols-2 gap-6 p-5 bg-gray-50 rounded-xl border border-gray-200">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Service Type</label>
-                  <p className="text-lg font-bold text-gray-800 flex items-center gap-2 mt-0.5">
-                    <ServiceTypeIcon serviceName={selectedService.type} size={18} />
-                    {selectedService.type}
+          <div className="grid grid-cols-1 gap-3 border-y border-slate-200 bg-slate-50 px-6 py-3 sm:grid-cols-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+              <Calendar size={16} className="shrink-0 text-slate-500" aria-hidden />
+              {shortDate}
+            </div>
+            <div className="flex items-center gap-2 text-sm font-medium tabular-nums text-slate-900">
+              <Clock size={16} className="shrink-0 text-slate-500" aria-hidden />
+              {timeLabel}
+            </div>
+            <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-900" title={details?.assignedPriest}>
+              <UserCog size={16} className="shrink-0 text-slate-500" aria-hidden />
+              <span className="truncate">{details?.assignedPriest || 'Not assigned'}</span>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+            {details && (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {renderSection('Client', clientRows)}
+                {renderSection('Payment', [
+                  ['Service fee', <span className="tabular-nums">{formatPeso(details.serviceFee)}</span>],
+                  ['Amount paid', <span className="tabular-nums">{formatPeso(details.amountPaid)}</span>],
+                  ['Status', <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${paymentTone}`}>{paymentLabel}</span>],
+                ])}
+              </div>
+            )}
+
+            {details?.childBirthDate &&
+              renderSection('Baptism', [
+                ["Child's birth date", details.childBirthDate],
+                ["Mother's name", details.motherName],
+                ["Father's name", details.fatherName],
+              ])}
+
+            {details && (
+              <p className="text-xs text-slate-500">
+                Created {details.createdAt} · Last updated {details.updatedAt}
+              </p>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 bg-white px-6 py-4">
+            {isCompleted ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="flex items-center gap-2 text-sm text-green-800">
+                  <CheckCircle2 size={16} className="shrink-0 text-green-600" aria-hidden />
+                  Completed and kept on the calendar for record keeping.
+                </p>
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                {!canComplete && (
+                  <p className="mb-3 flex items-center gap-2 text-sm text-slate-600">
+                    <Info size={16} className="shrink-0 text-blue-600" aria-hidden />
+                    You can mark this as completed starting {completeFromLabel} at {timeLabel}.
                   </p>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</label>
-                  <span className={`inline-block mt-1 px-3 py-1 text-sm font-semibold rounded-full border ${
-                    isCompleted
-                      ? 'bg-green-100 text-green-700 border-green-200'
-                      : 'bg-blue-100 text-blue-700 border-blue-200'
-                  }`}>
-                    {selectedService.displayStatus}
-                  </span>
-                </div>
-                <DetailField label="Name" value={selectedService.name} />
-                <DetailField 
-                  label="Date" 
-                  value={new Date(selectedService.date).toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })} 
-                />
-                <DetailField label="Time" value={formatTimeDisplay12Hour(selectedService.time || '')} />
-              </div>
-
-              {/* Request Details */}
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                  <ClipboardList size={16} className="text-blue-600" /> Complete Request Details
-                </h4>
-                <div className="grid grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl border border-gray-200">
-                  {details && (
-                    <>
-                      <DetailField label="Contact Number" value={details.contactNumber} />
-                      <DetailField label="Residency" value={details.residency || 'Resident'} />
-                      {details.address && <DetailField label="Address" value={details.address} />}
-                      <DetailField label="Assigned Priest" value={details.assignedPriest} />
-                      <DetailField label="Service Fee" value={details.serviceFee ? `₱${details.serviceFee.toLocaleString()}` : '₱0'} />
-                      <DetailField label="Payment Status" value={details.paymentStatus ? details.paymentStatus.charAt(0).toUpperCase() + details.paymentStatus.slice(1) : 'N/A'} />
-                      <DetailField label="Amount Paid" value={details.amountPaid ? `₱${details.amountPaid.toLocaleString()}` : '₱0'} />
-                      <DetailField label="Created" value={details.createdAt} />
-                      <DetailField label="Last Updated" value={details.updatedAt} />
-                      
-                      {details.childBirthDate && (
-                        <>
-                          <DetailField label="Child's Birth Date" value={details.childBirthDate} />
-                          <DetailField label="Mother's Name" value={details.motherName} />
-                          <DetailField label="Father's Name" value={details.fatherName} />
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Actions */}
-              {!isCompleted && (
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                  <Zap size={16} className="text-blue-600" /> Actions
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                )}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={handleReschedule}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <Calendar size={16} aria-hidden />
+                      Reschedule
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleChangePriest}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <UserCog size={16} aria-hidden />
+                      Change Priest
+                    </button>
+                  </div>
                   <button
+                    type="button"
                     onClick={() => handleMarkAsDone(selectedService.id)}
-                    disabled={actionInProgress}
-                    className="px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow"
+                    disabled={actionInProgress || !canComplete}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${
+                      canComplete ? 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-60' : 'bg-slate-100 text-slate-600'
+                    }`}
                   >
                     {actionInProgress ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
                         Processing...
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 size={18} />
+                        <CheckCircle2 size={16} aria-hidden />
                         Mark as Completed
                       </>
                     )}
                   </button>
-
-                  <button
-                    onClick={handleReschedule}
-                    className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
-                  >
-                    <Calendar size={18} />
-                    Reschedule
-                  </button>
-
-                  <button
-                    onClick={handleChangePriest}
-                    className="px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 shadow-sm hover:shadow"
-                  >
-                    <UserCog size={18} />
-                    Change Priest
-                  </button>
                 </div>
-              </div>
-              )}
-
-              {isCompleted && (
-                <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                    <CheckCircle2 size={20} className="text-green-600" />
-                    <p className="text-sm text-green-800 font-medium">
-                      This service has been completed and is kept on the calendar for record keeping.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-            <button
-              onClick={() => {
-                setShowDetailModal(false);
-                setSelectedService(null);
-              }}
-              className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              Close
-            </button>
+              </>
+            )}
           </div>
         </div>
       </div>
     );
   };
 
-  // ============ MAIN RENDER ============
+// ============ MAIN RENDER ============
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1344,6 +1411,11 @@ const ScheduledServices: React.FC = () => {
               <div className="grid grid-cols-7 gap-0">
                 {renderCalendar()}
               </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
+                <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} className="text-blue-700" aria-hidden />Has scheduled services</span>
+                <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={13} className="text-green-700" aria-hidden />All completed</span>
+                <span className="inline-flex items-center gap-1.5"><UserX size={13} className="text-amber-600" aria-hidden />Priest away</span>
+              </div>
             </div>
               </>
             )}
@@ -1354,6 +1426,15 @@ const ScheduledServices: React.FC = () => {
       {/* Modals */}
       {renderModal()}
       {renderDetailModal()}
+      {awaySchedule && (
+        <PriestScheduleModal
+          priestId={awaySchedule.priestId}
+          priestName={awaySchedule.name}
+          initialDate={awaySchedule.date}
+          onClose={closeAwaySchedule}
+          onChanged={() => setAwayReloadNonce((n) => n + 1)}
+        />
+      )}
 
       {/* Reschedule Modal */}
       {showRescheduleModal && selectedService && (
@@ -1385,7 +1466,7 @@ const ScheduledServices: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">{rescheduleData.preferred_date ? 'Select time' : 'Pick a date first'}</option>
-                  {buildTimeOptions(rescheduleData.preferred_date, bookedSlots).map((option) => (
+                  {buildTimeOptions(rescheduleData.preferred_date, bookedSlots, true, isLongService(selectedService?.formHandler)).map((option) => (
                     <option key={option.value} value={option.value} disabled={option.disabled}>
                       {option.display}
                     </option>

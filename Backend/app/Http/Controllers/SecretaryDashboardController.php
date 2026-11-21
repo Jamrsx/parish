@@ -8,6 +8,7 @@ use App\Models\MassCollection;
 use App\Models\PaymentTransaction;
 use App\Models\CertificateReprint;
 use App\Models\AppSetting;
+use App\Models\ChurchExpense;
 use App\Models\SpecialIntention;
 use App\Models\User;
 use Carbon\Carbon;
@@ -133,6 +134,9 @@ class SecretaryDashboardController extends Controller
         ];
 
         $totalIncome = $serviceFeesTotal + $massTotal + $donationTotal + $intentionTotal;
+        $operatingExpenses = (float) ChurchExpense::verified()
+            ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
+            ->sum('amount');
 
         $incomeShare = collect($incomeByService)
             ->map(function ($row) use ($serviceFeesTotal) {
@@ -196,7 +200,7 @@ class SecretaryDashboardController extends Controller
                 'special_intentions_total' => round($intentionTotal, 2),
                 'total_income' => round($totalIncome, 2),
             ],
-            'sharing' => AppSetting::splitIncome($totalIncome),
+            'sharing' => AppSetting::splitNetIncome($totalIncome, $operatingExpenses),
             'activity_by_service' => $activityShare,
             'income_by_service' => $incomeShare,
             'other_income' => array_map(function ($row) use ($totalIncome) {

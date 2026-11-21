@@ -16,7 +16,7 @@ import ExpenseItemsModal from "../components/ExpenseItemsModal";
 const PAGE_SIZE = 10;
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatMonthLabel = (ym?: string | null) => {
   if (!ym) return "";

@@ -4,7 +4,7 @@ import { formatDenomination } from "../../../../library/denominations";
 import { CashierTableSkeleton } from "./CashierSkeletons";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type DonationStatus = "pending" | "received" | "rejected";
 type StatusFilter = "all" | DonationStatus;
@@ -351,7 +351,7 @@ const DonationHandover: React.FC<Props> = ({ onChanged }) => {
                       <tr key={i}>
                         <td className="px-3 py-2 font-medium">{formatDenomination(line.denomination)}</td>
                         <td className="px-3 py-2">{line.count}</td>
-                        <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString()}</td>
+                        <td className="px-3 py-2 font-semibold">{Number(line.total).toLocaleString("en-PH")}</td>
                       </tr>
                     ))}
                   </tbody>

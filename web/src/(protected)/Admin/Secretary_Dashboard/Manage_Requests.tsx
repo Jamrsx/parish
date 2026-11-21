@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { manageRequestAPI } from '../../../../library/manage-request';
+import { getStatusLabel, manageRequestAPI } from '../../../../library/manage-request';
 import { usersAPI } from '../../../../library/api';
 import type { ManageRequest, ManageRequestFilters, RescheduleData } from '../../../../library/manage-request';
 import type { User } from '../../../../library/AuthStorage';
@@ -14,7 +14,7 @@ import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeI
 import { getFormattedRequestContactNumber, formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress, isParishResident } from './components/requestHelpers';
 import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
 import ServiceDatePicker from '../../../components/booking/ServiceDatePicker';
-import { buildTimeOptions, timeProblem } from '../../../components/booking/serviceSlots';
+import { buildTimeOptions, isLongService, timeProblem } from '../../../components/booking/serviceSlots';
 import { SecretaryTableSkeleton } from './components/SecretarySkeletons';
 import { priestSlotFor } from '../../../../library/priestSchedule';
 
@@ -147,6 +147,7 @@ const ManageRequests: React.FC = () => {
     selectedRequest?.request_id
   );
   const rescheduleIsCertificate = !!selectedRequest?.certificate_form_id;
+  const rescheduleIsLong = isLongService(selectedRequest?.service?.form_handler);
 
   // Priest Assignment Modal State
   const [priestModal, setPriestModal] = useState<PriestAssignmentModalState>({
@@ -390,7 +391,7 @@ const ManageRequests: React.FC = () => {
       setRequests((prev) => prev.filter((r) => r.request_id !== requestId));
       setAlertModal({
         isOpen: true,
-        message: 'Request approved successfully!',
+        message: 'Request booked successfully!',
         variant: 'success',
       });
     } catch (err) {
@@ -436,7 +437,7 @@ const ManageRequests: React.FC = () => {
       closePriestAssignmentModal();
       setAlertModal({
         isOpen: true,
-        message: 'Priest assigned. You can approve this certificate anytime from the status dropdown.',
+        message: 'Priest assigned. You can book this certificate anytime from the status dropdown.',
         variant: 'success',
       });
     } catch (err) {
@@ -456,7 +457,7 @@ const ManageRequests: React.FC = () => {
       setAlertModal({
         isOpen: true,
         message: priestOptional
-          ? 'Select a priest to assign, or go back and choose No to approve without a priest.'
+          ? 'Select a priest to assign, or go back and choose No to book without a priest.'
           : 'Please select a priest to assign.',
         variant: 'warning',
       });
@@ -478,7 +479,7 @@ const ManageRequests: React.FC = () => {
 
       setAlertModal({
         isOpen: true,
-        message: 'Request approved and priest assigned successfully!',
+        message: 'Request booked and priest assigned successfully!',
         variant: 'success',
       });
 
@@ -512,10 +513,10 @@ const ManageRequests: React.FC = () => {
       if (isSpecialIntentionRequest(request)) {
         setConfirmModal({
           isOpen: true,
-          title: 'Confirm Approval',
-          message: 'Approve this special intention? A priest assignment is not required.',
+          title: 'Confirm Booking',
+          message: 'Book this special intention? A priest assignment is not required.',
           variant: 'warning',
-          confirmText: 'Yes, Approve',
+          confirmText: 'Yes, Book',
           cancelText: 'Cancel',
           onConfirm: async () => {
             setConfirmModal((prev) => ({ ...prev, isOpen: false }));
@@ -530,10 +531,10 @@ const ManageRequests: React.FC = () => {
         if (request.assigned_priest) {
           setConfirmModal({
             isOpen: true,
-            title: 'Confirm Approval',
-            message: 'This certificate already has an assigned priest. Proceed with approval?',
+            title: 'Confirm Booking',
+            message: 'This certificate already has an assigned priest. Proceed with booking?',
             variant: 'warning',
-            confirmText: 'Yes, Approve',
+            confirmText: 'Yes, Book',
             cancelText: 'Cancel',
             onConfirm: async () => {
               setConfirmModal((prev) => ({ ...prev, isOpen: false }));
@@ -547,7 +548,7 @@ const ManageRequests: React.FC = () => {
           isOpen: true,
           title: 'Assign a Priest?',
           message:
-            'Do you want to assign a priest to this certificate request? Choose Yes to pick a priest, or No to approve without one.',
+            'Do you want to assign a priest to this certificate request? Choose Yes to pick a priest, or No to book without one.',
           variant: 'info',
           confirmText: 'Yes',
           cancelText: 'No',
@@ -570,10 +571,10 @@ const ManageRequests: React.FC = () => {
       if (request.assigned_priest) {
         setConfirmModal({
           isOpen: true,
-          title: 'Confirm Approval',
-          message: `This request already has an assigned priest. Do you want to proceed with approval?`,
+          title: 'Confirm Booking',
+          message: `This request already has an assigned priest. Do you want to proceed with booking?`,
           variant: 'warning',
-          confirmText: 'Yes, Approve',
+          confirmText: 'Yes, Book',
           cancelText: 'Cancel',
           onConfirm: async () => {
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -591,7 +592,7 @@ const ManageRequests: React.FC = () => {
 
               setAlertModal({
                 isOpen: true,
-                message: 'Request approved successfully!',
+                message: 'Request booked successfully!',
                 variant: 'success',
               });
             } catch (err) {
@@ -696,7 +697,8 @@ const ManageRequests: React.FC = () => {
       rescheduleData.preferred_date,
       rescheduleData.preferred_time,
       bookedSlots,
-      !rescheduleIsCertificate
+      !rescheduleIsCertificate,
+      rescheduleIsLong
     );
     if (slotIssue) {
       console.warn('[ManageRequests] Reschedule slot rejected', { ...rescheduleData, slotIssue });
@@ -1280,7 +1282,7 @@ const ManageRequests: React.FC = () => {
                       {getFormattedRequestContactNumber(request)}
                     </td>
                     <td className="px-4 py-4">
-                      <StatusBadge status={request.status} label={request.status.toUpperCase()} />
+                      <StatusBadge status={request.status} label={getStatusLabel(request.status).toUpperCase()} />
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col">
@@ -1337,12 +1339,12 @@ const ManageRequests: React.FC = () => {
                           >
                             {getStatusOptions(request.status).map((option) => (
                               <option key={option} value={option}>
-                                {option.toUpperCase()}
+                                {getStatusLabel(option).toUpperCase()}
                               </option>
                             ))}
                           </select>
                         ) : isApproved ? (
-                          <StatusBadge status="approved" label="Approved" />
+                          <StatusBadge status="approved" label="Booked" />
                         ) : null}
                         
                         {/* Reschedule Button - only for pending and approved */}
@@ -1419,7 +1421,7 @@ const ManageRequests: React.FC = () => {
                   <div>
                     <span className="text-sm text-gray-500">Status</span>
                     <p>
-                      <StatusBadge status={detailsModal.request.status} label={detailsModal.request.status.toUpperCase()} />
+                      <StatusBadge status={detailsModal.request.status} label={getStatusLabel(detailsModal.request.status).toUpperCase()} />
                     </p>
                   </div>
                   <div>
@@ -1529,7 +1531,7 @@ const ManageRequests: React.FC = () => {
                     </div>
                     {detailsModal.request.approved_at && (
                       <div>
-                        <span className="text-gray-500">Approved At</span>
+                        <span className="text-gray-500">Booked At</span>
                         <p className="font-medium">{formatDateTime(detailsModal.request.approved_at)}</p>
                       </div>
                     )}
@@ -1632,7 +1634,7 @@ const ManageRequests: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">{rescheduleData.preferred_date ? 'Select time' : 'Pick a date first'}</option>
-                  {buildTimeOptions(rescheduleData.preferred_date, bookedSlots, !rescheduleIsCertificate).map((option) => (
+                  {buildTimeOptions(rescheduleData.preferred_date, bookedSlots, !rescheduleIsCertificate, rescheduleIsLong).map((option) => (
                     <option key={option.value} value={option.value} disabled={option.disabled}>
                       {option.display}
                     </option>
@@ -1686,8 +1688,8 @@ const ManageRequests: React.FC = () => {
                 {priestModal.mode === 'assign_only'
                   ? 'Assign Priest'
                   : priestModal.priestOptional
-                    ? 'Assign Priest & Approve'
-                    : 'Assign Priest & Approve Request'}
+                    ? 'Assign Priest & Book'
+                    : 'Assign Priest & Book Request'}
               </h3>
               <ModalCloseButton onClick={closePriestAssignmentModal} />
             </div>
@@ -1789,8 +1791,8 @@ const ManageRequests: React.FC = () => {
                     <CheckCircle2 size={16} className="shrink-0" />
                     <span>
                       {priestModal.mode === 'assign_only'
-                        ? 'This will assign the priest. The request stays pending until you approve it.'
-                        : 'This will assign the priest and approve the request in one step.'}
+                        ? 'This will assign the priest. The request stays pending until you book it.'
+                        : 'This will assign the priest and book the request in one step.'}
                     </span>
                   </p>
                 </div>
@@ -1823,7 +1825,7 @@ const ManageRequests: React.FC = () => {
                 ) : priestModal.mode === 'assign_only' ? (
                   'Assign Priest'
                 ) : (
-                  'Assign & Approve'
+                  'Assign & Book'
                 )}
               </button>
             </div>

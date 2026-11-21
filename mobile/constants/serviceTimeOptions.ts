@@ -11,6 +11,23 @@ export const SERVICE_TIME_OPTIONS = [
   { label: '5:00 PM', value: '17:00' },
 ];
 
+/** 5-hour blocks for Marriage and Funeral Mass (must match ManageRequest::LONG_SERVICE_BLOCKS). */
+const LONG_SERVICE_BLOCKS: Record<string, string[]> = {
+  '08:00': ['08:00', '09:00', '10:00', '11:00', '12:00'],
+  '13:00': ['13:00', '14:00', '15:00', '16:00', '17:00'],
+};
+
+/** Time choices for a service: two 5-hour starts for long services, otherwise every hour. */
+export const timeOptionsFor = (longService = false) =>
+  longService ? SERVICE_TIME_OPTIONS.filter((t) => t.value in LONG_SERVICE_BLOCKS) : SERVICE_TIME_OPTIONS;
+
+/** True when the time, or for a long service any hour of its block, is already booked. */
+export const isBookedServiceTime = (time: string, bookedSlots: string[], longService = false): boolean => {
+  const value = normalizeTimeValue(time);
+  const needed = longService ? LONG_SERVICE_BLOCKS[value] ?? [value] : [value];
+  return bookedSlots.some((slot) => needed.includes(normalizeTimeValue(slot)));
+};
+
 export const getDisplayTimeLabel = (time24Hour: string): string => {
   if (!time24Hour) return 'Select time';
   const option = SERVICE_TIME_OPTIONS.find((t) => t.value === time24Hour);
@@ -36,14 +53,18 @@ export const isPastServiceTime = (date: string, time: string): boolean => {
 export const getServiceTimeProblem = (
   date: string,
   time: string,
-  bookedSlots: string[] = []
+  bookedSlots: string[] = [],
+  longService = false
 ): string | null => {
   if (!date || !time) return null;
   const value = normalizeTimeValue(time);
+  if (longService && !(value in LONG_SERVICE_BLOCKS)) {
+    return 'Marriage and Funeral Mass can only start at 8:00 AM or 1:00 PM.';
+  }
   if (isPastServiceTime(date, value)) {
     return 'That time has already passed. Please choose a later time.';
   }
-  if (bookedSlots.some((slot) => normalizeTimeValue(slot) === value)) {
+  if (isBookedServiceTime(value, bookedSlots, longService)) {
     return 'This time is already booked. Please choose another time.';
   }
   return null;

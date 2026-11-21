@@ -19,6 +19,7 @@ import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import { calendarMonthFrom, shiftCalendarMonth } from '../../../../library/dateHelpers';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
 import { getDisplayTimeLabel, getServiceTimeProblem } from '../../../../constants/serviceTimeOptions';
@@ -274,7 +275,7 @@ export default function GenericServiceForm() {
             <Text className="text-sm text-gray-600 font-medium mb-1">Date *</Text>
             <TouchableOpacity
               onPress={() => {
-                setSelectedMonth(formData.preferred_date ? new Date(formData.preferred_date) : new Date());
+                setSelectedMonth(calendarMonthFrom(formData.preferred_date));
                 setShowDatePicker(true);
               }}
               className={`border rounded-xl px-4 py-3 bg-gray-50 ${errors.preferred_date ? 'border-red-500' : 'border-gray-300'}`}
@@ -355,11 +356,7 @@ export default function GenericServiceForm() {
               selectedMonth={selectedMonth}
               selectedDate={formData.preferred_date}
               onMonthChange={(inc: number) =>
-                setSelectedMonth((prev) => {
-                  const next = new Date(prev);
-                  next.setMonth(prev.getMonth() + inc);
-                  return next;
-                })
+                setSelectedMonth((prev) => shiftCalendarMonth(prev, inc))
               }
               onDateSelect={(day: number) => {
                 const year = selectedMonth.getFullYear();

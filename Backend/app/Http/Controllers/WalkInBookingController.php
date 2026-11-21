@@ -102,7 +102,7 @@ class WalkInBookingController extends Controller
             User::releaseExpiredUnavailability();
             $availabilityProblem = $isCertificate
                 ? $priest->fresh()->availabilityProblem()
-                : $priest->fresh()->availabilityProblem($request->preferred_date, $request->preferred_time);
+                : $priest->fresh()->availabilityProblem($request->preferred_date, $request->preferred_time, $churchService);
             if ($availabilityProblem !== null) {
                 return response()->json([
                     'success' => false,
@@ -221,8 +221,8 @@ class WalkInBookingController extends Controller
 
         // Services compete for parish time slots: check and save under one lock so two
         // bookings for the same date and time cannot both get through.
-        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($preferredDate, $preferredTime, $save) {
-            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime);
+        $response = ManageRequest::withScheduleLock($preferredDate, $preferredTime, function () use ($preferredDate, $preferredTime, $save, $churchService) {
+            $scheduleError = ManageRequest::validateGlobalSchedule($preferredDate, $preferredTime, null, $churchService);
             if ($scheduleError) {
                 return response()->json([
                     'success' => false,

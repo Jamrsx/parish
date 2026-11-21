@@ -7,7 +7,7 @@ import { LogOut, RefreshCw } from 'lucide-react';
 import PriestNav from './PriestNav';
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();

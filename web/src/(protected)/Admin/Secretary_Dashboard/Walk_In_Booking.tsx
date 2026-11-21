@@ -11,7 +11,7 @@ import { priestSlotFor } from "../../../../library/priestSchedule";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import { availabilityAPI } from "../../../../library/Availability";
 import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
-import { buildTimeOptions } from "../../../components/booking/serviceSlots";
+import { buildTimeOptions, isBookedTime, isLongService, timeOptionsFor } from "../../../components/booking/serviceSlots";
 import AlertModal from "./Inventory/Modals/AlertModal";
 
 type WalkInGodparent = {
@@ -49,19 +49,6 @@ const splitGodparentFullName = (full: string): GodparentNameRow => {
   };
 };
 
-const TIME_OPTIONS = [
-  { label: "8:00 AM", value: "08:00" },
-  { label: "9:00 AM", value: "09:00" },
-  { label: "10:00 AM", value: "10:00" },
-  { label: "11:00 AM", value: "11:00" },
-  { label: "12:00 PM", value: "12:00" },
-  { label: "1:00 PM", value: "13:00" },
-  { label: "2:00 PM", value: "14:00" },
-  { label: "3:00 PM", value: "15:00" },
-  { label: "4:00 PM", value: "16:00" },
-  { label: "5:00 PM", value: "17:00" },
-];
-
 const AUTO_SLOT_SEARCH_DAYS = 30;
 
 const toYmd = (d: Date): string =>
@@ -85,15 +72,15 @@ const formatTimeLabel = (hm: string): string => {
 const formatShortDate = (ymd: string): string =>
   new Date(`${ymd}T00:00:00`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
 
-/** Hourly slots that are not booked and, for today, not already past. */
-const openTimesFor = (date: string, booked: string[], skipBooked: boolean): typeof TIME_OPTIONS => {
+/** Slots that are not booked and, for today, not already past. */
+const openTimesFor = (date: string, booked: string[], skipBooked: boolean, longService: boolean) => {
   const now = new Date();
   const isToday = date === toYmd(now);
   const nowHm = toHm(now);
-  return TIME_OPTIONS.filter((opt) => {
+  return timeOptionsFor(longService).filter((opt) => {
     if (isToday && opt.value <= nowHm) return false;
     if (!skipBooked) return true;
-    return !booked.includes(opt.value) && !booked.includes(`${opt.value}:00`);
+    return !isBookedTime(opt.value, booked, longService);
   });
 };
 
@@ -213,7 +200,7 @@ const WalkInBooking: React.FC = () => {
   }, [certNowActive]);
 
   /** Finds the first open hourly slot from `startDate`, looking ahead `days` days. */
-  const autoPickSlot = useCallback(async (startDate: string, days: number) => {
+  const autoPickSlot = useCallback(async (startDate: string, days: number, longService: boolean) => {
     const run = ++autoPickRun.current;
     setAutoPicking(true);
     setScheduleNote(null);
@@ -224,7 +211,7 @@ const WalkInBooking: React.FC = () => {
         const res = await availabilityAPI.getBookedTimeSlots(date);
         if (run !== autoPickRun.current) return;
         const booked = res.success ? res.data?.booked_times || [] : [];
-        const open = openTimesFor(date, booked, true);
+        const open = openTimesFor(date, booked, true, longService);
         if (open.length > 0) {
           console.log("[WalkIn] Earliest open slot", { date, time: open[0].value });
           setForm((prev) => ({ ...prev, preferred_date: date, preferred_time: open[0].value }));
@@ -262,7 +249,7 @@ const WalkInBooking: React.FC = () => {
       setForm((prev) => ({ ...prev, preferred_date: toYmd(now), preferred_time: toHm(now) }));
       console.log("[WalkIn] Certificate visit time set to now", { date: toYmd(now), time: toHm(now) });
     } else {
-      void autoPickSlot(toYmd(now), AUTO_SLOT_SEARCH_DAYS);
+      void autoPickSlot(toYmd(now), AUTO_SLOT_SEARCH_DAYS, isLongService(service.form_handler));
     }
   };
 
@@ -282,7 +269,7 @@ const WalkInBooking: React.FC = () => {
 
   const handleDateChange = (date: string) => {
     setForm((prev) => ({ ...prev, preferred_date: date, preferred_time: "" }));
-    if (!isCertificate && date) void autoPickSlot(date, 1);
+    if (!isCertificate && date) void autoPickSlot(date, 1, isLongService(selected?.form_handler));
     else setScheduleNote(null);
   };
 
@@ -556,8 +543,11 @@ const WalkInBooking: React.FC = () => {
   };
 
   const timeChoices = useMemo(
-    () => (form.preferred_date ? buildTimeOptions(form.preferred_date, bookedSlots, !isCertificate) : []),
-    [form.preferred_date, bookedSlots, isCertificate],
+    () =>
+      form.preferred_date
+        ? buildTimeOptions(form.preferred_date, bookedSlots, !isCertificate, isLongService(selected?.form_handler))
+        : [],
+    [form.preferred_date, bookedSlots, isCertificate, selected?.form_handler],
   );
   const hasOpenTime = timeChoices.some((opt) => !opt.disabled);
 
@@ -889,8 +879,18 @@ const WalkInBooking: React.FC = () => {
                 <input className={inputClass} placeholder="Child first name *" value={form.child_first_name} onChange={(e) => setField("child_first_name", e.target.value)} />
                 <input className={inputClass} placeholder="Child middle name" value={form.child_middle_name} onChange={(e) => setField("child_middle_name", e.target.value)} />
                 <input className={inputClass} placeholder="Child last name *" value={form.child_last_name} onChange={(e) => setField("child_last_name", e.target.value)} />
-                <input className={inputClass} type="date" value={form.child_birth_date} onChange={(e) => setField("child_birth_date", e.target.value)} />
-                <input className={`${inputClass} sm:col-span-2`} placeholder="Birth place" value={form.child_birth_place} onChange={(e) => setField("child_birth_place", e.target.value)} />
+                <div>
+                  <label htmlFor="walkin-child-birth-date" className="block text-sm font-medium text-slate-700 mb-1">
+                    Child's birthday <span className="text-red-500">*</span>
+                  </label>
+                  <input id="walkin-child-birth-date" className={inputClass} type="date" required value={form.child_birth_date} onChange={(e) => setField("child_birth_date", e.target.value)} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="walkin-child-birth-place" className="block text-sm font-medium text-slate-700 mb-1">
+                    Birth place
+                  </label>
+                  <input id="walkin-child-birth-place" className={inputClass} placeholder="Birth place" value={form.child_birth_place} onChange={(e) => setField("child_birth_place", e.target.value)} />
+                </div>
               </div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 pt-2">Parents</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

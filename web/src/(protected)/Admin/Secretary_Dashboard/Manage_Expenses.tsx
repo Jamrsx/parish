@@ -17,10 +17,11 @@ import {
   EXPENSE_STATUS_LABELS,
   expenseAPI,
   getApiErrorMessage,
-  getExpenseCategory,
   lineItemPeople,
   lineItemsSummary,
+  toExpenseCategoryInfo,
   type ExpenseCategory,
+  type ExpenseCategoryInfo,
   type ExpensePayload,
   type ExpenseRow,
   type ExpenseStatus,
@@ -43,9 +44,10 @@ import { toPesoInputValue } from "../../../../library/pesoInput";
 import { SecretaryStatSkeleton, SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 
 const PAGE_SIZE = 10;
+const ADD_CATEGORY_VALUE = "__add_category__";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const todayLocal = () => {
   const d = new Date();
@@ -122,6 +124,12 @@ const ManageExpenses: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [itemsPreview, setItemsPreview] = useState<ExpenseRow | null>(null);
 
+  const [categories, setCategories] = useState<ExpenseCategoryInfo[]>(EXPENSE_CATEGORIES);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
+
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
@@ -140,6 +148,7 @@ const ManageExpenses: React.FC = () => {
       const data = res.data.data;
       setRows(Array.isArray(data) ? data : data?.data || []);
       setSummary(res.data.summary || null);
+      if (res.data.categories?.length) setCategories(res.data.categories.map(toExpenseCategoryInfo));
       console.log("[ManageExpenses] Loaded", res.data.summary);
     } catch (err) {
       console.error("[ManageExpenses] Load error:", err);
@@ -201,12 +210,45 @@ const ManageExpenses: React.FC = () => {
     );
   };
 
+  const closeCategoryAdder = () => {
+    setAddingCategory(false);
+    setNewCategoryLabel("");
+    setNewCategoryError(null);
+  };
+
+  const handleAddCategory = async () => {
+    const label = newCategoryLabel.trim().replace(/\s+/g, " ");
+    if (label.length < 2) {
+      setNewCategoryError("Category name must be at least 2 characters.");
+      return;
+    }
+
+    setSavingCategory(true);
+    setNewCategoryError(null);
+    try {
+      const res = await expenseAPI.createCategory(label);
+      if (!res.data?.success || !res.data.data) throw new Error(res.data?.message || "Failed to add category.");
+      const created = toExpenseCategoryInfo(res.data.data);
+      console.log("[ManageExpenses] Category added:", created.value);
+      setCategories((prev) => [...prev, created]);
+      setForm((prev) => ({ ...prev, category: created.value }));
+      setFormErrors((prev) => ({ ...prev, category: undefined, payee_name: undefined, billing_period: undefined }));
+      closeCategoryAdder();
+    } catch (err) {
+      console.error("[ManageExpenses] Add category error:", err);
+      setNewCategoryError(getApiErrorMessage(err, "Failed to add category. Please try again."));
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm());
     setFormErrors({});
     setLineItems([newEditableLineItem()]);
     setLineItemErrors({});
+    closeCategoryAdder();
     setShowForm(true);
   };
 
@@ -225,10 +267,11 @@ const ManageExpenses: React.FC = () => {
     setFormErrors({});
     setLineItems(toEditableLineItems(row.line_items));
     setLineItemErrors({});
+    closeCategoryAdder();
     setShowForm(true);
   };
 
-  const categoryInfo = getExpenseCategory(form.category);
+  const categoryInfo = categories.find((c) => c.value === form.category);
   const itemMode = categoryInfo?.items.mode ?? "none";
   const isItemized = itemMode !== "none";
   const itemizedTotal = useMemo(
@@ -501,7 +544,7 @@ const ManageExpenses: React.FC = () => {
             className="mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
           >
             <option value="all">All categories</option>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
@@ -770,6 +813,12 @@ const ManageExpenses: React.FC = () => {
                   value={form.category}
                   onChange={(e) => {
                     const value = e.target.value as ExpenseCategory;
+                    if (value === ADD_CATEGORY_VALUE) {
+                      setAddingCategory(true);
+                      setNewCategoryError(null);
+                      return;
+                    }
+                    closeCategoryAdder();
                     console.log("[ManageExpenses] Category selected:", value);
                     setForm({ ...form, category: value });
                     setFormErrors((prev) => ({ ...prev, category: undefined, payee_name: undefined, billing_period: undefined }));
@@ -777,12 +826,61 @@ const ManageExpenses: React.FC = () => {
                   className={`${inputClass(formErrors.category)} bg-white`}
                 >
                   <option value="">Select category…</option>
-                  {EXPENSE_CATEGORIES.map((c) => (
+                  {categories.map((c) => (
                     <option key={c.value} value={c.value}>
                       {c.label}
                     </option>
                   ))}
+                  <option value={ADD_CATEGORY_VALUE}>+ Add new category…</option>
                 </select>
+                {addingCategory && (
+                  <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <label htmlFor="exp-new-category" className="text-xs font-medium text-slate-700">
+                      New category name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="mt-1 flex flex-col sm:flex-row gap-2">
+                      <input
+                        id="exp-new-category"
+                        autoFocus
+                        value={newCategoryLabel}
+                        maxLength={30}
+                        placeholder="e.g. Flowers"
+                        onChange={(e) => {
+                          setNewCategoryLabel(e.target.value);
+                          setNewCategoryError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (!savingCategory) handleAddCategory();
+                          }
+                        }}
+                        className={`flex-1 min-w-0 px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          newCategoryError ? "border-red-400" : "border-slate-200"
+                        }`}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAddCategory}
+                          disabled={savingCategory}
+                          className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                        >
+                          {savingCategory ? "Adding..." : "Add"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={closeCategoryAdder}
+                          disabled={savingCategory}
+                          className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                    {newCategoryError && <p className="mt-1 text-xs text-red-600">{newCategoryError}</p>}
+                  </div>
+                )}
                 {categoryInfo && <p className="mt-1 text-xs text-slate-500">{categoryInfo.hint}</p>}
                 {formErrors.category && <p className="mt-1 text-xs text-red-600">{formErrors.category}</p>}
               </div>
@@ -956,7 +1054,7 @@ const ManageExpenses: React.FC = () => {
                 {confirm.all && (
                   <p className="text-xs text-slate-500 mb-1">
                     {monthFilter ? formatMonthLabel(monthFilter) : "All months"}
-                    {categoryFilter !== "all" ? ` · ${getExpenseCategory(categoryFilter)?.label}` : ""}
+                    {categoryFilter !== "all" ? ` · ${categories.find((c) => c.value === categoryFilter)?.label}` : ""}
                     {search.trim() ? ` · matching "${search.trim()}"` : ""}
                   </p>
                 )}

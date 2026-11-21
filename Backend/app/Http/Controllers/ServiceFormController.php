@@ -147,7 +147,9 @@ class ServiceFormController extends Controller
 
         $scheduleError = ManageRequest::validateGlobalSchedule(
             $request->preferred_date,
-            $request->preferred_time
+            $request->preferred_time,
+            null,
+            $churchService
         );
 
         if ($scheduleError) {

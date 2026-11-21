@@ -4,23 +4,41 @@ import {
   formatFee,
   type ChurchService,
 } from "../../../../library/church_service";
-import { Layers, Plus } from "lucide-react";
+import {
+  BookOpen,
+  Church,
+  Cross,
+  Droplets,
+  FileText,
+  Flame,
+  Heart,
+  Home,
+  Layers,
+  Plus,
+  Star,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 import PesoInput from "../../../components/PesoInput";
 import { toPesoInputValue } from "../../../../library/pesoInput";
 
-const ICON_OPTIONS = [
-  "Church",
-  "Home",
-  "Heart",
-  "Cross",
-  "Droplets",
-  "BookOpen",
-  "FileText",
-  "Star",
-  "Users",
-  "Candle",
+/** Saved icon names (must match SERVICE_ICON_MAP in the mobile app). */
+const ICON_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] = [
+  { value: "Church", label: "Church", Icon: Church },
+  { value: "Home", label: "Home", Icon: Home },
+  { value: "Heart", label: "Heart", Icon: Heart },
+  { value: "Cross", label: "Cross", Icon: Cross },
+  { value: "Droplets", label: "Water", Icon: Droplets },
+  { value: "BookOpen", label: "Book", Icon: BookOpen },
+  { value: "FileText", label: "Document", Icon: FileText },
+  { value: "Star", label: "Star", Icon: Star },
+  { value: "Users", label: "People", Icon: Users },
+  { value: "Candle", label: "Candle", Icon: Flame },
 ];
+
+const iconFor = (value?: string | null): LucideIcon =>
+  ICON_OPTIONS.find((option) => option.value === value)?.Icon ?? Church;
 
 const emptyForm = {
   service_type: "",
@@ -208,18 +226,27 @@ const ManageServices: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                rows.map((row) => {
+                  const RowIcon = iconFor(row.icon);
+                  return (
                   <tr key={row.service_id} className={row.is_active === false ? "opacity-60" : ""}>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-800">{row.service_type || row.service_name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
-                        {row.description || "No description"}
-                      </p>
-                      {row.is_system && (
-                        <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                          SYSTEM
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                          <RowIcon size={18} aria-hidden />
                         </span>
-                      )}
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-800">{row.service_type || row.service_name}</p>
+                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                            {row.description || "No description"}
+                          </p>
+                          {row.is_system && (
+                            <span className="inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              SYSTEM
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 capitalize">{row.category || "service"}</td>
                     <td className="px-4 py-3 font-semibold">{formatFee(row.fee)}</td>
@@ -260,7 +287,8 @@ const ManageServices: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -294,34 +322,43 @@ const ManageServices: React.FC = () => {
                   placeholder="Shown on the parishioner app card"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-slate-700">Category *</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) =>
-                      setForm({ ...form, category: e.target.value as "service" | "certificate" })
-                    }
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
-                    disabled={!!editing?.is_system}
-                  >
-                    <option value="service">Service</option>
-                    <option value="certificate">Certificate</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700">Icon</label>
-                  <select
-                    value={form.icon}
-                    onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
-                  >
-                    {ICON_OPTIONS.map((icon) => (
-                      <option key={icon} value={icon}>
-                        {icon}
-                      </option>
-                    ))}
-                  </select>
+              <div>
+                <label className="text-sm font-medium text-slate-700">Category *</label>
+                <select
+                  value={form.category}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value as "service" | "certificate" })
+                  }
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                  disabled={!!editing?.is_system}
+                >
+                  <option value="service">Service</option>
+                  <option value="certificate">Certificate</option>
+                </select>
+              </div>
+              <div>
+                <p id="service-icon-label" className="text-sm font-medium text-slate-700">Icon</p>
+                <div role="radiogroup" aria-labelledby="service-icon-label" className="mt-1 grid grid-cols-5 gap-2">
+                  {ICON_OPTIONS.map(({ value, label, Icon }) => {
+                    const selected = form.icon === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setForm({ ...form, icon: value })}
+                        className={`flex flex-col items-center gap-1 rounded-lg border px-1 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                          selected
+                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Icon size={18} aria-hidden />
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

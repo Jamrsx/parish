@@ -23,7 +23,7 @@ import { CashierStatSkeleton } from "./CashierSkeletons";
 import { HorizontalBarChart } from "../components/MonthlyCharts";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const toDateInput = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -124,7 +124,7 @@ const GeneralReport: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800">General Report</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Church share of parish income minus verified church expenses, by month or by week
+            Parish income minus verified expenses, then split between church and archdiocese
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -226,7 +226,7 @@ const GeneralReport: React.FC = () => {
               <p className="text-2xl font-bold text-slate-900 mt-2">{formatPeso(report.income.total)}</p>
               {sharing && (
                 <p className="text-xs text-slate-500 mt-1">
-                  Split {sharing.church_percent}% / {sharing.archdiocese_percent}%
+                  Before expenses
                 </p>
               )}
             </div>
@@ -273,7 +273,11 @@ const GeneralReport: React.FC = () => {
               <p className={`text-2xl font-bold mt-2 ${churchNet >= 0 ? "text-emerald-800" : "text-red-800"}`}>
                 {formatPeso(churchNet)}
               </p>
-              {sharing && <p className="text-xs text-slate-500 mt-1">Church share − expenses</p>}
+              {sharing && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {churchNet >= 0 ? "Kept after expenses and split" : "Expenses exceed income"}
+                </p>
+              )}
             </div>
           </div>
 
@@ -319,6 +323,14 @@ const GeneralReport: React.FC = () => {
                 </div>
                 {sharing && (
                   <>
+                    <div className="flex justify-between py-2.5 text-sm">
+                      <span className="text-red-700">Less verified expenses</span>
+                      <span className="font-semibold text-red-700">−{formatPeso(report.expenses.total)}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5 text-sm">
+                      <span className="font-semibold text-slate-800">Net income to share</span>
+                      <span className="font-bold text-slate-900">{formatPeso(sharing.total)}</span>
+                    </div>
                     <div className="flex justify-between py-2.5 text-sm">
                       <span className="text-emerald-700">Church share ({sharing.church_percent}%)</span>
                       <span className="font-semibold text-emerald-800">{formatPeso(sharing.church_amount)}</span>

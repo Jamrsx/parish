@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { manageRequestAPI } from '../../../../library/manage-request';
+import { getStatusLabel, manageRequestAPI } from '../../../../library/manage-request';
 import type { ManageRequest, ManageRequestFilters } from '../../../../library/manage-request';
 import type { User } from '../../../../library/api';
 import { FileArchive, BarChart3, CheckCircle, CircleCheck, Ban, Church, CheckCircle2, AlertTriangle, Info, XCircle, Clock, Mail, Phone, MapPin } from 'lucide-react';
@@ -431,7 +431,7 @@ const ServiceRecords: React.FC = () => {
           <>
         <SecretaryStatCard label="Total Records" value={counts.total} icon={BarChart3} />
         <SecretaryStatCard label="Pending" value={counts.pending} icon={Clock} />
-        <SecretaryStatCard label="Approved" value={counts.approved} icon={CheckCircle} />
+        <SecretaryStatCard label="Booked" value={counts.approved} icon={CheckCircle} />
         <SecretaryStatCard label="Completed" value={counts.done} icon={CircleCheck} />
         <SecretaryStatCard label="Cancelled" value={counts.cancelled} icon={Ban} />
           </>
@@ -465,7 +465,7 @@ const ServiceRecords: React.FC = () => {
             {([
               ['all', 'All'],
               ['pending', 'Pending'],
-              ['approved', 'Approved'],
+              ['approved', 'Booked'],
               ['done', 'Completed'],
               ['cancelled', 'Cancelled'],
             ] as const).map(([value, label]) => (
@@ -613,7 +613,7 @@ const ServiceRecords: React.FC = () => {
                       {getFormattedRequestContactNumber(request)}
                     </td>
                     <td className="px-4 py-4">
-                      <StatusBadge status={request.status} label={request.status.toUpperCase()} />
+                      <StatusBadge status={request.status} label={getStatusLabel(request.status).toUpperCase()} />
                     </td>
                     <td className="px-4 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(request.payment_status)}`}>
@@ -681,7 +681,7 @@ const ServiceRecords: React.FC = () => {
                 <>
               {/* Status Badge */}
               <div className="flex items-center gap-3">
-                <StatusBadge status={viewModal.request.status} label={viewModal.request.status.toUpperCase()} />
+                <StatusBadge status={viewModal.request.status} label={getStatusLabel(viewModal.request.status).toUpperCase()} />
                 <span className={`px-4 py-1.5 rounded-full text-sm font-semibold border ${getPaymentStatusColor(viewModal.request.payment_status)}`}>
                   {viewModal.request.payment_status.toUpperCase()}
                 </span>
@@ -788,7 +788,7 @@ const ServiceRecords: React.FC = () => {
                 </div>
                 {viewModal.request.approved_at && (
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Approved</p>
+                    <p className="text-sm text-gray-500">Booked</p>
                     <p className="text-sm text-gray-800">{formatDateTime(viewModal.request.approved_at)}</p>
                   </div>
                 )}

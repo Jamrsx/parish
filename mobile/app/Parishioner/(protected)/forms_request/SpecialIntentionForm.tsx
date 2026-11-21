@@ -19,6 +19,7 @@ import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import { calendarMonthFrom, shiftCalendarMonth } from '../../../../library/dateHelpers';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useBookedTimeSlots } from '../../../../hooks/useBookedTimeSlots';
 import { getDisplayTimeLabel } from '../../../../constants/serviceTimeOptions';
@@ -336,9 +337,7 @@ export default function SpecialIntentionForm() {
               <Text className="text-sm text-gray-600 font-medium mb-1">Date *</Text>
               <TouchableOpacity
                 onPress={() => {
-                  setSelectedMonth(
-                    formData.intention_date ? new Date(formData.intention_date) : new Date()
-                  );
+                  setSelectedMonth(calendarMonthFrom(formData.intention_date));
                   setShowDatePicker(true);
                 }}
                 className={`border rounded-xl px-4 py-3 bg-gray-50 ${
@@ -458,11 +457,7 @@ export default function SpecialIntentionForm() {
               selectedMonth={selectedMonth}
               selectedDate={formData.intention_date}
               onMonthChange={(inc: number) =>
-                setSelectedMonth((prev) => {
-                  const next = new Date(prev);
-                  next.setMonth(prev.getMonth() + inc);
-                  return next;
-                })
+                setSelectedMonth((prev) => shiftCalendarMonth(prev, inc))
               }
               onDateSelect={(day: number) => {
                 const year = selectedMonth.getFullYear();

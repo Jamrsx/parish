@@ -340,30 +340,26 @@ class ManageRequest extends Model
         }
     }
 
-    public static function isTimeSlotTakenGlobally(string $date, string $time, ?int $excludeRequestId = null): bool
-    {
-        $normalizedTime = self::normalizeTime($time);
+    public static function isTimeSlotTakenGlobally(
+        string $date,
+        string $time,
+        ?int $excludeRequestId = null,
+        ?ChurchService $service = null
+    ): bool {
+        $needed = self::occupiedSlots($time, $service);
 
-        if ($normalizedTime === '') {
+        if ($needed === []) {
             return false;
         }
 
-        $query = static::query()
-            ->whereDate('preferred_date', $date)
-            ->blockingSchedule();
-
-        if ($excludeRequestId) {
-            $query->where('request_id', '!=', $excludeRequestId);
-        }
-
-        return $query->get()->contains(function (self $request) use ($normalizedTime) {
-            return self::normalizeTime($request->preferred_time) === $normalizedTime;
-        });
+        return array_intersect($needed, self::getBookedTimeSlotsForDate($date, $excludeRequestId)) !== [];
     }
 
+    /** Every hourly slot in use on a date. A Marriage or Funeral Mass fills its whole 5-hour block. */
     public static function getBookedTimeSlotsForDate(string $date, ?int $excludeRequestId = null): array
     {
         $query = static::query()
+            ->with('service')
             ->whereDate('preferred_date', $date)
             ->blockingSchedule();
 
@@ -372,20 +368,27 @@ class ManageRequest extends Model
         }
 
         return $query->get()
-            ->map(fn (self $request) => self::normalizeTime($request->preferred_time))
-            ->filter()
+            ->flatMap(fn (self $request) => self::occupiedSlots($request->preferred_time, $request->service))
             ->unique()
             ->values()
             ->all();
     }
 
-    public static function validateGlobalSchedule(string $date, string $time, ?int $excludeRequestId = null): ?string
-    {
+    public static function validateGlobalSchedule(
+        string $date,
+        string $time,
+        ?int $excludeRequestId = null,
+        ?ChurchService $service = null
+    ): ?string {
+        if (self::isLongService($service) && !isset(self::LONG_SERVICE_BLOCKS[self::normalizeTime($time)])) {
+            return 'Marriage and Funeral Mass can only start at 8:00 AM or 1:00 PM.';
+        }
+
         if (self::isPastSlot($date, $time)) {
             return 'That time has already passed. Please choose a later time.';
         }
 
-        if (self::isTimeSlotTakenGlobally($date, $time, $excludeRequestId)) {
+        if (self::isTimeSlotTakenGlobally($date, $time, $excludeRequestId, $service)) {
             return 'The selected time slot is already booked. Please choose another time.';
         }
 
@@ -397,6 +400,48 @@ class ManageRequest extends Model
         '08:00', '09:00', '10:00', '11:00', '12:00',
         '13:00', '14:00', '15:00', '16:00', '17:00',
     ];
+
+    /** Services that take a 5-hour block instead of one hourly slot. */
+    public const LONG_SERVICE_HANDLERS = ['marriage', 'funeral_mass'];
+
+    /** 5-hour blocks, keyed by start time (must match the web and mobile time lists). */
+    public const LONG_SERVICE_BLOCKS = [
+        '08:00' => ['08:00', '09:00', '10:00', '11:00', '12:00'],
+        '13:00' => ['13:00', '14:00', '15:00', '16:00', '17:00'],
+    ];
+
+    public static function isLongService(?ChurchService $service): bool
+    {
+        return in_array((string) $service?->form_handler, self::LONG_SERVICE_HANDLERS, true);
+    }
+
+    /** Start of the 5-hour block containing $time, or null when it is outside every block. */
+    public static function blockStartFor($time): ?string
+    {
+        $normalizedTime = self::normalizeTime($time);
+
+        foreach (self::LONG_SERVICE_BLOCKS as $start => $slots) {
+            if (in_array($normalizedTime, $slots, true)) {
+                return $start;
+            }
+        }
+
+        return null;
+    }
+
+    /** Hourly slots a booking uses: its whole block for a long service, otherwise its own time. */
+    public static function occupiedSlots($time, ?ChurchService $service = null): array
+    {
+        $normalizedTime = self::normalizeTime($time);
+
+        if ($normalizedTime === '') {
+            return [];
+        }
+
+        $blockStart = self::isLongService($service) ? self::blockStartFor($normalizedTime) : null;
+
+        return $blockStart ? self::LONG_SERVICE_BLOCKS[$blockStart] : [$normalizedTime];
+    }
 
     public static function isPastSlot(string $date, string $time): bool
     {
@@ -422,14 +467,15 @@ class ManageRequest extends Model
         $slotCount = count(self::SERVICE_TIME_SLOTS);
 
         return static::query()
+            ->with('service')
             ->whereDate('preferred_date', '>=', $from)
             ->whereDate('preferred_date', '<=', $to)
             ->blockingSchedule()
-            ->get(['request_id', 'preferred_date', 'preferred_time'])
+            ->get(['request_id', 'service_id', 'preferred_date', 'preferred_time'])
             ->groupBy(fn (self $request) => Carbon::parse($request->preferred_date)->format('Y-m-d'))
             ->filter(function ($requests) use ($slotCount) {
                 $taken = $requests
-                    ->map(fn (self $request) => self::normalizeTime($request->preferred_time))
+                    ->flatMap(fn (self $request) => self::occupiedSlots($request->preferred_time, $request->service))
                     ->filter(fn ($time) => in_array($time, self::SERVICE_TIME_SLOTS, true))
                     ->unique()
                     ->count();
@@ -449,7 +495,8 @@ class ManageRequest extends Model
      */
     public static function withScheduleLock(string $date, string $time, callable $callback)
     {
-        $key = 'schedule-slot:' . $date . ':' . self::normalizeTime($time);
+        // Lock the whole block, so an hourly booking and a 5-hour booking cannot overlap.
+        $key = 'schedule-slot:' . $date . ':' . (self::blockStartFor($time) ?? self::normalizeTime($time));
 
         try {
             return Cache::lock($key, 15)->block(5, $callback);
@@ -474,6 +521,28 @@ class ManageRequest extends Model
     public function canBeCompleted(): bool
     {
         return $this->status === 'approved';
+    }
+
+    /**
+     * True when a service has not reached its scheduled date and time yet.
+     * Certificates are exempt because they can be issued before the visit time.
+     */
+    public function isBeforeScheduledTime(): bool
+    {
+        $this->loadMissing('service');
+
+        $isCertificate = !empty($this->certificate_form_id)
+            || $this->service?->category === 'certificate'
+            || str_contains(strtolower((string) $this->service?->service_type), 'certificate');
+
+        if ($isCertificate || !$this->preferred_date || !$this->preferred_time) {
+            return false;
+        }
+
+        return !self::isPastSlot(
+            Carbon::parse($this->preferred_date)->toDateString(),
+            (string) $this->preferred_time
+        );
     }
 
     /**

@@ -35,6 +35,8 @@ import type {
 interface PriestScheduleModalProps {
   priestId: number;
   priestName: string;
+  /** Opens the calendar on this "YYYY-MM-DD" date instead of today */
+  initialDate?: string;
   onClose: () => void;
   /** Called after time off is added or removed so the list behind can refresh */
   onChanged?: () => void;
@@ -85,15 +87,15 @@ const isPastSlot = (ymd: string, hm: string) => {
   return slot.getTime() <= Date.now();
 };
 
-const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, priestName, onClose, onChanged }) => {
+const PriestScheduleModal: React.FC<PriestScheduleModalProps> = ({ priestId, priestName, initialDate, onClose, onChanged }) => {
   const todayYmd = toYmd(new Date());
   const [tab, setTab] = useState<Tab>('calendar');
   const [showTimeOffForm, setShowTimeOffForm] = useState(false);
   const [toRemove, setToRemove] = useState<PriestTimeOff | null>(null);
   const [removing, setRemoving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [visibleMonth, setVisibleMonth] = useState(() => monthStart(new Date()));
-  const [selectedDate, setSelectedDate] = useState(todayYmd);
+  const [visibleMonth, setVisibleMonth] = useState(() => monthStart(initialDate ? parseYmd(initialDate) : new Date()));
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? todayYmd);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [result, setResult] = useState<{ key: string; data?: PriestScheduleDetails; error?: string } | null>(null);
 

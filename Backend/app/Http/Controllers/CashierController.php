@@ -250,6 +250,7 @@ class CashierController extends Controller
         $massTotal = (float) $massCollections->sum('amount');
         $donationTotal = (float) $donations->sum('amount');
         $intentionTotal = (float) $intentions->sum('amount');
+        $operatingExpenses = (float) ChurchExpense::verified()->whereDate('expense_date', $date)->sum('amount');
 
         return response()->json([
             'success' => true,
@@ -264,7 +265,10 @@ class CashierController extends Controller
                 'special_intentions' => $intentions,
                 'special_intentions_total' => $intentionTotal,
                 'income_for_date' => $serviceTotal + $massTotal + $donationTotal + $intentionTotal,
-                'sharing' => AppSetting::splitIncome($serviceTotal + $massTotal + $donationTotal + $intentionTotal),
+                'sharing' => AppSetting::splitNetIncome(
+                    $serviceTotal + $massTotal + $donationTotal + $intentionTotal,
+                    $operatingExpenses
+                ),
             ],
         ]);
     }
@@ -309,7 +313,7 @@ class CashierController extends Controller
 
         $expenseTotal = round((float) $verified->sum('amount'), 2);
 
-        $byCategory = collect(ChurchExpense::CATEGORIES)->map(function ($catLabel, $key) use ($verified, $expenseTotal) {
+        $byCategory = collect(ChurchExpense::allCategories())->map(function ($catLabel, $key) use ($verified, $expenseTotal) {
             $rows = $verified->where('category', $key);
             $amount = round((float) $rows->sum('amount'), 2);
 
@@ -326,7 +330,7 @@ class CashierController extends Controller
             ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()]);
 
         $churchPercent = AppSetting::churchSharePercent();
-        $sharing = AppSetting::splitIncome($income['total'], $churchPercent);
+        $sharing = AppSetting::splitNetIncome($income['total'], $expenseTotal, $churchPercent);
 
         $weeklyBreakdown = [];
         if ($request->period === 'monthly') {
@@ -343,7 +347,7 @@ class CashierController extends Controller
                     ->filter(fn ($e) => $e->expense_date->between($cursor->copy()->startOfDay(), $weekEnd))
                     ->sum('amount'), 2);
 
-                $weekShare = AppSetting::splitIncome($weekIncome, $churchPercent);
+                $weekShare = AppSetting::splitNetIncome($weekIncome, $weekExpenses, $churchPercent);
 
                 $weeklyBreakdown[] = [
                     'label' => "Week {$weekNo}",
@@ -354,7 +358,7 @@ class CashierController extends Controller
                     'archdiocese_share' => $weekShare['archdiocese_amount'],
                     'expenses' => $weekExpenses,
                     'net' => round($weekIncome - $weekExpenses, 2),
-                    'church_net' => round($weekShare['church_amount'] - $weekExpenses, 2),
+                    'church_net' => AppSetting::churchNet($weekShare),
                 ];
 
                 $cursor = $weekEnd->copy()->addDay()->startOfDay();
@@ -395,7 +399,7 @@ class CashierController extends Controller
                 ],
                 'net' => round($income['total'] - $expenseTotal, 2),
                 'sharing' => $sharing,
-                'church_net' => round($sharing['church_amount'] - $expenseTotal, 2),
+                'church_net' => AppSetting::churchNet($sharing),
                 'weekly_breakdown' => $weeklyBreakdown,
                 'generated_at' => now()->toIso8601String(),
             ],

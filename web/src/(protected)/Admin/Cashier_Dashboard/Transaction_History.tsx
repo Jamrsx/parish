@@ -9,7 +9,7 @@ const LONG_NOTE_LENGTH = 60;
 const COLUMN_COUNT = 7;
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString() : "—");
 

@@ -19,6 +19,7 @@ import { api } from '../../../../library/api';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
+import { calendarMonthFrom, shiftCalendarMonth, setCalendarYear } from '../../../../library/dateHelpers';
 import ServiceTimeDropdownModal from '../../../../components/ServiceTimeDropdownModal';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useFormDraft } from '../../../../hooks/useFormDraft';
@@ -418,29 +419,20 @@ export default function BaptismForm() {
   };
 
   const changeMonth = (increment: number) => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(prev.getMonth() + increment);
-      return newDate;
-    });
+    setSelectedMonth((prev) => shiftCalendarMonth(prev, increment));
   };
 
   const handleYearChange = (year: number) => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setFullYear(year);
-      return newDate;
-    });
+    setSelectedMonth((prev) => setCalendarYear(prev, year));
   };
 
   const openBirthDatePicker = () => {
     setActiveDateField('child_birth_date');
     if (formData.child_birth_date) {
-      setSelectedMonth(new Date(formData.child_birth_date));
+      setSelectedMonth(calendarMonthFrom(formData.child_birth_date));
     } else {
-      const defaultDate = new Date();
-      defaultDate.setFullYear(defaultDate.getFullYear() - 5);
-      setSelectedMonth(defaultDate);
+      const today = new Date();
+      setSelectedMonth(setCalendarYear(today, today.getFullYear() - 5));
     }
     setShowDatePicker(true);
   };
@@ -874,7 +866,7 @@ export default function BaptismForm() {
             <TouchableOpacity
               onPress={() => {
                 setActiveDateField('preferred_date');
-                setSelectedMonth(formData.preferred_date ? new Date(formData.preferred_date) : new Date());
+                setSelectedMonth(calendarMonthFrom(formData.preferred_date));
                 setShowDatePicker(true);
               }}
               className={`border rounded-xl px-4 py-3 bg-gray-50 ${

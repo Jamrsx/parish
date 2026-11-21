@@ -241,7 +241,7 @@ class HistoryController extends Controller
         $expenses = $entries->where('direction', 'out');
         $incomeTotal = round((float) $income->sum('amount_in'), 2);
         $expenseTotal = round((float) $expenses->sum('amount_out'), 2);
-        $sharing = AppSetting::splitIncome($incomeTotal);
+        $sharing = AppSetting::splitNetIncome($incomeTotal, $expenseTotal);
 
         $byType = collect(self::TRANSACTION_TYPES)->map(fn ($label, $key) => [
             'type' => $key,
@@ -272,7 +272,7 @@ class HistoryController extends Controller
             'expense_total' => $expenseTotal,
             'net' => round($incomeTotal - $expenseTotal, 2),
             'sharing' => $sharing,
-            'church_net' => round($sharing['church_amount'] - $expenseTotal, 2),
+            'church_net' => AppSetting::churchNet($sharing),
             'by_type' => $byType,
             'filtered_in' => round((float) $filtered->sum('amount_in'), 2),
             'filtered_out' => round((float) $filtered->sum('amount_out'), 2),

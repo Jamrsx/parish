@@ -41,10 +41,11 @@ export const downloadTransactionsPdf = async (
   const s = summary.sharing;
   const summaryRows: [string, string][] = [
     ["Total money in", peso(summary.income_total)],
+    ["Less money out (verified expenses)", peso(summary.expense_total)],
+    ["Net income to share", peso(s.total)],
     [`Church share (${s.church_percent}%)`, peso(s.church_amount)],
     [`Archdiocese share (${s.archdiocese_percent}%) - to be remitted`, peso(s.archdiocese_amount)],
-    ["Total money out (verified expenses)", peso(summary.expense_total)],
-    [summary.church_net >= 0 ? "Church net (church share - expenses)" : "Church shortfall", peso(summary.church_net)],
+    [summary.church_net >= 0 ? "Church net (after expenses and split)" : "Shortfall (expenses exceed income)", peso(summary.church_net)],
   ];
   doc.setFontSize(9);
   summaryRows.forEach(([label, value], i) => {

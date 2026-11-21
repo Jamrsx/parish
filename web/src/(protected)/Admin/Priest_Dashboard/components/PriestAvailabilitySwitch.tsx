@@ -76,7 +76,7 @@ const PriestAvailabilitySwitch: React.FC<PriestAvailabilitySwitchProps> = ({ onC
       return;
     }
     if (date > ymdIn(30)) {
-      setError('Pick a date within 30 days. For longer time off, use My Calendar.');
+      setError('Pick a date within 30 days. For a longer day off, use Priest Calendar.');
       return;
     }
     save(false, date);
@@ -193,7 +193,7 @@ const PriestAvailabilitySwitch: React.FC<PriestAvailabilitySwitchProps> = ({ onC
               </button>
               <button type="button" onClick={confirmOff} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
                 {saving && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                Mark unavailable
+                Mark Day off
               </button>
             </div>
           </div>

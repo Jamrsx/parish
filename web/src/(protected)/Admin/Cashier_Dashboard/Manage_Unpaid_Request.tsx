@@ -5,7 +5,7 @@ import PesoInput from "../../../components/PesoInput";
 import { toPesoInputValue } from "../../../../library/pesoInput";
 
 const formatPeso = (n: number) =>
-  `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const formatRequestId = (requestId: number) => `REQ-${String(requestId).padStart(6, "0")}`;
 

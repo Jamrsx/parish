@@ -371,7 +371,9 @@ export const getStatusColor = (status: RequestStatus): string => {
     return colors[status] || 'bg-gray-100 text-gray-800';
 };
 
+/** Display label only: the stored status stays "approved". */
 export const getStatusLabel = (status: RequestStatus): string => {
+    if (status === 'approved') return 'Booked';
     return status.charAt(0).toUpperCase() + status.slice(1);
 };
 

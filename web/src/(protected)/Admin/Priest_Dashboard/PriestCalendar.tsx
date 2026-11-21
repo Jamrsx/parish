@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  UserX,
   X,
 } from 'lucide-react';
 import PriestPageShell from './components/PriestPageShell';
@@ -109,6 +110,30 @@ const PriestCalendar: React.FC = () => {
 
   const timeOffOn = (ymd: string) => (shown?.time_off ?? []).filter((e) => timeOffCovers(e, ymd));
 
+  /** Other priests who are off on a date, from day-off entries and the availability switch. */
+  const othersOffOn = (ymd: string) => {
+    const entries = (shown?.other_time_off ?? [])
+      .filter((e) => timeOffCovers(e, ymd))
+      .map((e) => ({
+        key: `entry-${e.time_off_id}`,
+        priestId: e.priest_id,
+        name: e.priest_name,
+        detail: e.whole_day ? 'Whole day' : `${formatHm(e.start_time ?? '')} – ${formatHm(e.end_time ?? '')}`,
+      }));
+    const switchedOff =
+      ymd >= todayYmd
+        ? (shown?.other_switched_off ?? [])
+            .filter((p) => !p.unavailable_until || ymd <= p.unavailable_until.slice(0, 10))
+            .map((p) => ({
+              key: `switch-${p.priest_id}`,
+              priestId: p.priest_id,
+              name: p.priest_name,
+              detail: p.unavailable_until ? `Until ${formatShortDate(p.unavailable_until)}` : 'Until further notice',
+            }))
+        : [];
+    return [...entries, ...switchedOff];
+  };
+
   const calendarCells = useMemo(() => {
     const first = monthStart(visibleMonth);
     const cells: (string | null)[] = Array(first.getDay()).fill(null);
@@ -156,6 +181,8 @@ const PriestCalendar: React.FC = () => {
 
   const dayAssignments = assignmentsByDate.get(selectedDate) ?? [];
   const dayTimeOff = timeOffOn(selectedDate);
+  const dayOthersOff = othersOffOn(selectedDate);
+  const dayOtherServices = (shown?.other_assignments ?? []).filter((a) => a.date === selectedDate);
   const selectedIsPast = selectedDate < todayYmd;
   const upcoming = shown?.upcoming_time_off ?? [];
 
@@ -165,7 +192,7 @@ const PriestCalendar: React.FC = () => {
         <button
           type="button"
           onClick={() => setForm({ mode: 'edit', entry })}
-          aria-label={`Edit time off ${entry.label}`}
+          aria-label={`Edit day off ${entry.label}`}
           className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-700"
         >
           <Pencil size={15} />
@@ -173,7 +200,7 @@ const PriestCalendar: React.FC = () => {
         <button
           type="button"
           onClick={() => setToRemove(entry)}
-          aria-label={`Remove time off ${entry.label}`}
+          aria-label={`Remove day off ${entry.label}`}
           className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
         >
           <Trash2 size={15} />
@@ -182,12 +209,12 @@ const PriestCalendar: React.FC = () => {
     );
 
   return (
-    <PriestPageShell subtitle="your availability calendar" onAvailabilityChanged={reload}>
+    <PriestPageShell subtitle="shared priest calendar" onAvailabilityChanged={reload}>
       <div className="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">My Calendar</h2>
+          <h2 className="text-xl font-bold text-slate-800">Priest Calendar</h2>
           <p className="text-sm text-slate-500 mt-1">
-            Mark the days or hours you can&apos;t take services. The secretary sees this and won&apos;t assign you then.
+            See when other priests are off or assigned before you choose your day off. The secretary won&apos;t assign you on your day off.
           </p>
         </div>
         <button
@@ -196,7 +223,7 @@ const PriestCalendar: React.FC = () => {
           className="inline-flex items-center gap-2 self-start rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
         >
           <Plus size={16} />
-          Mark unavailable
+          Mark Day off
         </button>
       </div>
 
@@ -266,6 +293,7 @@ const PriestCalendar: React.FC = () => {
                 if (!ymd) return <div key={`blank-${i}`} className="h-20" />;
                 const services = assignmentsByDate.get(ymd) ?? [];
                 const off = timeOffOn(ymd);
+                const othersOffCount = new Set(othersOffOn(ymd).map((o) => o.priestId)).size;
                 const wholeDayOff = off.some((e) => e.whole_day);
                 const isSelected = ymd === selectedDate;
                 const isToday = ymd === todayYmd;
@@ -276,7 +304,7 @@ const PriestCalendar: React.FC = () => {
                     type="button"
                     onClick={() => setSelectedDate(ymd)}
                     aria-pressed={isSelected}
-                    aria-label={`${formatDay(ymd)}: ${services.length} service${services.length === 1 ? '' : 's'}${off.length ? ', time off' : ''}`}
+                    aria-label={`${formatDay(ymd)}: ${services.length} service${services.length === 1 ? '' : 's'}${off.length ? ', your day off' : ''}${othersOffCount ? `, ${othersOffCount} other priest${othersOffCount === 1 ? '' : 's'} off` : ''}`}
                     className={`flex h-20 flex-col items-stretch rounded-lg border p-1 text-left text-xs transition-colors ${
                       isSelected
                         ? 'border-blue-600 ring-2 ring-blue-200'
@@ -292,6 +320,11 @@ const PriestCalendar: React.FC = () => {
                       {off.length > 0 && (
                         <span className="block truncate rounded bg-slate-700 px-1 text-[10px] font-semibold text-white">
                           {timeOffShortLabel(off[0])}
+                        </span>
+                      )}
+                      {othersOffCount > 0 && (
+                        <span className="block truncate rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-900">
+                          {othersOffCount} priest{othersOffCount === 1 ? '' : 's'} off
                         </span>
                       )}
                       {services.length > 0 && (
@@ -312,7 +345,11 @@ const PriestCalendar: React.FC = () => {
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="rounded bg-slate-700 px-1 text-[10px] font-semibold text-white">Off</span>
-                Your time off
+                Your day off
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-900">1 priest off</span>
+                Other priests off
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">4</span>
@@ -326,14 +363,14 @@ const PriestCalendar: React.FC = () => {
             <p className="font-semibold text-slate-800">{formatDay(selectedDate)}</p>
             <p className="text-xs text-slate-500 mb-3">
               {dayAssignments.length} service{dayAssignments.length === 1 ? '' : 's'}
-              {dayTimeOff.length ? ' · time off' : ''}
+              {dayTimeOff.length ? ' · your day off' : ''}
             </p>
 
             {dayTimeOff.map((entry) => (
               <div key={entry.time_off_id} className="mb-2 flex items-start justify-between gap-2 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                    <CalendarOff size={14} /> Unavailable
+                    <CalendarOff size={14} /> Your day off
                   </p>
                   <p className="text-xs text-slate-600">{entry.label}</p>
                   {entry.reason && <p className="text-xs text-slate-500">{entry.reason}</p>}
@@ -363,7 +400,7 @@ const PriestCalendar: React.FC = () => {
                       </div>
                       <p className="mt-1 text-sm font-semibold text-slate-800">{a.service_type}</p>
                       <p className="text-xs text-slate-600">{a.client_name || 'No name'} · Request #{a.request_id}</p>
-                      {blocked && <p className="mt-1 text-[11px] text-amber-800">You marked this time off — the secretary will reassign it.</p>}
+                      {blocked && <p className="mt-1 text-[11px] text-amber-800">You marked this as a day off — the secretary will reassign it.</p>}
                     </li>
                   );
                 })}
@@ -377,19 +414,63 @@ const PriestCalendar: React.FC = () => {
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 <CalendarOff size={15} />
-                Mark this day unavailable
+                Make a day off schedule
               </button>
             )}
+
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <h3 className="text-sm font-semibold text-slate-900">Other priests</h3>
+              {dayOthersOff.length === 0 && dayOtherServices.length === 0 ? (
+                <p className="mt-1 text-sm text-slate-500">No other priest is off or assigned on this day.</p>
+              ) : (
+                <div className="mt-2 space-y-3">
+                  {dayOthersOff.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-slate-500">Day off</p>
+                      <ul className="space-y-1">
+                        {dayOthersOff.map((o) => (
+                          <li key={o.key} className="flex items-start justify-between gap-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-sm">
+                            <span className="flex min-w-0 items-center gap-1.5 font-medium text-amber-950">
+                              <UserX size={14} className="shrink-0" aria-hidden />
+                              <span className="truncate">Fr. {o.name}</span>
+                            </span>
+                            <span className="shrink-0 text-xs text-amber-900">{o.detail}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {dayOtherServices.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-slate-500">Assigned services</p>
+                      <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                        {dayOtherServices.map((a) => (
+                          <li key={a.request_id} className="flex items-start gap-2 px-2.5 py-1.5">
+                            <span className="w-16 shrink-0 text-xs font-semibold tabular-nums text-slate-700">
+                              {a.time ? formatHm(a.time) : 'No time'}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-slate-800">{a.service_type}</span>
+                              <span className="block truncate text-xs text-slate-500">Fr. {a.priest_name}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Upcoming time off */}
           <div className="lg:col-span-3 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
-              <h3 className="text-sm font-semibold text-slate-900">Upcoming time off</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Your upcoming day off</h3>
               <p className="text-xs text-slate-500">Past entries are kept for records and can no longer be changed.</p>
             </div>
             {upcoming.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-slate-500">You have no upcoming time off.</p>
+              <p className="px-4 py-6 text-sm text-slate-500">You have no upcoming day off.</p>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {upcoming.map((entry) => (
@@ -420,7 +501,7 @@ const PriestCalendar: React.FC = () => {
 
       {form && (
         <TimeOffFormModal
-          title={form.mode === 'edit' ? 'Edit time off' : 'Mark unavailable'}
+          title={form.mode === 'edit' ? 'Edit day off' : 'Mark Day off'}
           initial={form.mode === 'edit' ? form.entry : null}
           defaultDate={form.mode === 'add' ? form.date : undefined}
           onSave={(payload) =>
@@ -434,7 +515,7 @@ const PriestCalendar: React.FC = () => {
       {toRemove && (
         <div className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div role="alertdialog" aria-modal="true" aria-labelledby="remove-title" className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <h3 id="remove-title" className="text-lg font-bold text-slate-800">Remove this time off?</h3>
+            <h3 id="remove-title" className="text-lg font-bold text-slate-800">Remove this day off?</h3>
             <p className="mt-2 text-sm text-slate-600">
               {toRemove.label}
               {toRemove.reason ? ` (${toRemove.reason})` : ''}. You&apos;ll be available for assignments again on these dates.

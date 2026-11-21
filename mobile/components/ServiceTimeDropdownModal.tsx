@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, Platform } from 'react-native';
-import { SERVICE_TIME_OPTIONS, isPastServiceTime, normalizeTimeValue } from '../constants/serviceTimeOptions';
+import { isBookedServiceTime, isPastServiceTime, timeOptionsFor } from '../constants/serviceTimeOptions';
 
 interface ServiceTimeDropdownModalProps {
   visible: boolean;
   selectedValue: string;
   bookedSlots?: string[];
   selectedDate?: string;
+  /** Marriage and Funeral Mass: offer only 5-hour start times. */
+  longService?: boolean;
   onSelect: (value: string) => void;
   onClose: () => void;
 }
@@ -16,14 +18,14 @@ const ServiceTimeDropdownModal: React.FC<ServiceTimeDropdownModalProps> = ({
   selectedValue,
   bookedSlots = [],
   selectedDate,
+  longService = false,
   onSelect,
   onClose,
 }) => {
   const isWeb = Platform.OS === 'web';
-  const bookedSet = new Set(bookedSlots.map(normalizeTimeValue));
 
-  const options = SERVICE_TIME_OPTIONS.map((item) => {
-    const isBooked = bookedSet.has(item.value);
+  const options = timeOptionsFor(longService).map((item) => {
+    const isBooked = isBookedServiceTime(item.value, bookedSlots, longService);
     const isPassed = !!selectedDate && isPastServiceTime(selectedDate, item.value);
     return { ...item, isBooked, isPassed, unavailable: isBooked || isPassed };
   });

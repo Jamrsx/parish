@@ -162,7 +162,7 @@ class User extends Authenticatable
      * Why this priest cannot take a service on $date/$time, or null if he can.
      * Without a date, only the account status and the availability switch are checked.
      */
-    public function availabilityProblem(?string $date = null, ?string $time = null): ?string
+    public function availabilityProblem(?string $date = null, ?string $time = null, ?ChurchService $service = null): ?string
     {
         $name = 'Fr. ' . trim($this->full_name);
 
@@ -181,10 +181,14 @@ class User extends Authenticatable
         }
 
         if ($date !== null) {
-            $entry = $this->timeOffOn($date, $time);
-            if ($entry) {
-                $reason = $entry->reason ? " ({$entry->reason})" : '';
-                return "{$name} is on time off: {$entry->label}{$reason}.";
+            // A Marriage or Funeral Mass needs the priest free for its whole 5-hour block.
+            $slots = $time !== null ? ManageRequest::occupiedSlots($time, $service) : [];
+            foreach ($slots ?: [$time] as $slot) {
+                $entry = $this->timeOffOn($date, $slot);
+                if ($entry) {
+                    $reason = $entry->reason ? " ({$entry->reason})" : '';
+                    return "{$name} is on time off: {$entry->label}{$reason}.";
+                }
             }
         }
 

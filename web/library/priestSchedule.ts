@@ -83,6 +83,26 @@ export interface PriestCalendarData {
   assignments: PriestAssignment[];
   time_off: PriestTimeOff[];
   upcoming_time_off: PriestTimeOff[];
+  other_time_off: OtherPriestTimeOff[];
+  other_switched_off: { priest_id: number; priest_name: string; unavailable_until: string | null }[];
+  other_assignments: OtherPriestAssignment[];
+}
+
+/** Another priest's day off. The reason stays private. */
+export type OtherPriestTimeOff = Pick<
+  PriestTimeOff,
+  'time_off_id' | 'priest_id' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'whole_day' | 'label'
+> & { priest_name: string };
+
+/** Another priest's service. The client's name stays private. */
+export interface OtherPriestAssignment {
+  request_id: number;
+  date: string;
+  time: string;
+  service_type: string;
+  status: PriestAssignmentStatus;
+  priest_id: number;
+  priest_name: string;
 }
 
 export interface TimeOffPayload {
@@ -149,7 +169,11 @@ export const priestSlotFor = (date?: string | null, time?: string | null): { for
 export const TIME_OFF_END_TIMES = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
 
 /** Whether a time-off entry covers a date (and a time slot when given). */
-export const timeOffCovers = (entry: PriestTimeOff, date: string, time?: string): boolean => {
+export const timeOffCovers = (
+  entry: Pick<PriestTimeOff, 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'whole_day'>,
+  date: string,
+  time?: string
+): boolean => {
   if (date < entry.start_date || date > entry.end_date) return false;
   if (entry.whole_day || !entry.start_time || !entry.end_time) return true;
   if (!time) return true;

@@ -16,7 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../library/api';
-import { getTodayLocalDateString } from '../../../../library/dateHelpers';
+import { getTodayLocalDateString, calendarMonthFrom, shiftCalendarMonth, setCalendarYear } from '../../../../library/dateHelpers';
 import ResponsiveContainer from '../../../../components/ResponsiveContainer';
 import ResponsiveRow from '../../../../components/ResponsiveRow';
 import DatePickerCalendar from '../../../../components/DatePickerCalendar';
@@ -270,11 +270,11 @@ export default function MarriageCertificate() {
   };
 
   const changeMonth = (increment: number) => {
-    setSelectedMonth(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(prev.getMonth() + increment);
-      return newDate;
-    });
+    setSelectedMonth((prev) => shiftCalendarMonth(prev, increment));
+  };
+
+  const handleYearChange = (year: number) => {
+    setSelectedMonth((prev) => setCalendarYear(prev, year));
   };
 
   const getDisplayTime = (time24Hour: string): string => {
@@ -520,7 +520,7 @@ export default function MarriageCertificate() {
           <TouchableOpacity
             onPress={() => {
               setActiveDateField('marriage_date');
-              setSelectedMonth(formData.marriage_date ? new Date(formData.marriage_date) : new Date());
+              setSelectedMonth(calendarMonthFrom(formData.marriage_date));
               setShowDatePicker(true);
             }}
             className={`border rounded-xl px-4 py-3 bg-gray-50 ${
@@ -579,7 +579,7 @@ export default function MarriageCertificate() {
             <TouchableOpacity
               onPress={() => {
                 setActiveDateField('preferred_date');
-                setSelectedMonth(formData.preferred_date ? new Date(formData.preferred_date) : new Date());
+                setSelectedMonth(calendarMonthFrom(formData.preferred_date));
                 setShowDatePicker(true);
               }}
               className={`border rounded-xl px-4 py-3 bg-gray-50 ${
@@ -692,8 +692,10 @@ export default function MarriageCertificate() {
               selectedMonth={selectedMonth}
               selectedDate={formData[activeDateField]}
               onMonthChange={changeMonth}
+              onYearChange={handleYearChange}
               onDateSelect={handleDateSelect}
               isDateDisabled={isDateDisabled}
+              enableYearPicker={activeDateField === 'marriage_date'}
             />
             <TouchableOpacity onPress={() => setShowDatePicker(false)} className="mt-4 bg-blue-600 py-3 rounded-xl mx-2">
               <Text className="text-white text-center font-semibold">Close</Text>

@@ -220,7 +220,7 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
             </div>
 
             <fieldset>
-              <legend className="text-sm font-medium text-slate-700">Unavailable for</legend>
+              <legend className="text-sm font-medium text-slate-700">Day off for</legend>
               <div className="mt-1 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup">
                 {[
                   { value: true, label: "Whole day" },
