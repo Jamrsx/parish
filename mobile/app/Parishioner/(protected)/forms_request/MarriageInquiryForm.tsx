@@ -171,7 +171,8 @@ export default function MarriageInquiryForm() {
     setAlertVisible(true);
   };
 
-  const getDisplayTime = getDisplayTimeLabel;
+  // Marriage and Funeral Mass use 5-hour blocks, shown as a time range
+  const getDisplayTime = (time: string) => getDisplayTimeLabel(time, true);
 
   // Calendar functions
   const isDateDisabled = (year: number, month: number, day: number) => {

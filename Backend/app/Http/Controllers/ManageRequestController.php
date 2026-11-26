@@ -33,7 +33,8 @@ class ManageRequestController extends Controller
             'certificateForm',
             'processedBy',
             'assignedPriest',
-            'rescheduledBy'
+            'rescheduledBy',
+            'completedBy',
         ]);
 
         // Filter by status
@@ -128,6 +129,9 @@ class ManageRequestController extends Controller
             'payment_date' => $request->payment_date,
             'approved_at' => $request->approved_at,
             'completed_at' => $request->completed_at,
+            'completed_by' => $request->completed_by,
+            'completed_by_name' => $request->completedBy?->full_name_with_title,
+            'completed_by_role' => $request->completedBy?->role,
             'created_at' => $request->created_at,
             'updated_at' => $request->updated_at,
 
@@ -562,7 +566,10 @@ class ManageRequestController extends Controller
                 ], 422);
             }
 
-            if (!$manageRequest->complete()) {
+            /** @var User|null $completedBy */
+            $completedBy = auth('sanctum')->user();
+
+            if (!$manageRequest->complete($completedBy)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Request cannot be completed. Only approved requests can be completed.'
@@ -1820,6 +1827,72 @@ class ManageRequestController extends Controller
     /**
      * Update request status for priest
      */
+    /**
+     * Priest marks one of their assigned services as completed.
+     * Same rules as the secretary: only Booked (approved) services, and not before the scheduled date and time.
+     */
+    public function priestComplete(Request $request, $id)
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+
+        if (!$user || !$user->isPriest()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only priests can use this action.'
+            ], 403);
+        }
+
+        try {
+            $manageRequest = ManageRequest::with('service')->findOrFail($id);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Request not found.'
+            ], 404);
+        }
+
+        if ((int) $manageRequest->assigned_priest !== (int) $user->user_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only complete services assigned to you.'
+            ], 403);
+        }
+
+        if ($manageRequest->canBeCompleted() && $manageRequest->isBeforeScheduledTime()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This service cannot be completed before its scheduled date and time.'
+            ], 422);
+        }
+
+        $oldStatus = $manageRequest->status;
+
+        if (!$manageRequest->complete($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only booked services can be marked as completed.'
+            ], 422);
+        }
+
+        try {
+            $manageRequest->createStatusNotification($oldStatus);
+        } catch (\Exception $e) {
+            Log::error('Failed to create notification: ' . $e->getMessage());
+        }
+
+        Log::info('Priest marked service completed', [
+            'request_id' => $manageRequest->request_id,
+            'priest_id' => $user->user_id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Service marked as completed.',
+            'data' => $this->transformRequest($manageRequest->fresh(['user', 'service']))
+        ]);
+    }
+
     public function updateRequestStatus(Request $request, $id)
     {
         /** @var User|null $user */

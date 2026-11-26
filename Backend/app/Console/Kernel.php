@@ -13,6 +13,9 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
+
+        // Day-before reminders: sent from 8:00 AM, discarded at 9:00 PM (needs a cron job running schedule:run)
+        $schedule->command('reminders:services')->everyFifteenMinutes();
     }
 
     /**

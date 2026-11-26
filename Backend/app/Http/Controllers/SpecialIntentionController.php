@@ -444,12 +444,12 @@ class SpecialIntentionController extends Controller
             if ($row->request_id) {
                 $manageRequest = ManageRequest::with('service')->find($row->request_id);
                 if ($manageRequest) {
+                    // Payment only: the service stays Booked until the secretary or priest marks it completed
                     $manageRequest->update([
-                        'status' => 'done',
+                        'status' => $manageRequest->status === 'pending' ? 'approved' : $manageRequest->status,
                         'payment_status' => 'paid',
                         'amount_paid' => $amountReceived,
                         'payment_date' => now(),
-                        'completed_at' => now(),
                         'processed_by' => $user->user_id,
                         'approved_at' => $manageRequest->approved_at ?: now(),
                     ]);

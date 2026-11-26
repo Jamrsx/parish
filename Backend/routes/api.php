@@ -312,6 +312,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/assigned-requests', [ManageRequestController::class, 'getAssignedRequests']);
         Route::get('/monthly-activity', [PriestDashboardController::class, 'monthlyActivity']);
         Route::put('/requests/{id}/status', [ManageRequestController::class, 'updateRequestStatus']);
+        Route::post('/requests/{id}/complete', [ManageRequestController::class, 'priestComplete']);
 
         // Read-only finance & inventory (view only — no write actions)
         Route::get('/income', [CashierController::class, 'dailyReport']);

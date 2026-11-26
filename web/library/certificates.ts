@@ -60,6 +60,10 @@ export interface IssueCertificatePayload extends Omit<BaptismalCertificateDetail
 
 export interface IssuedCertificateRow {
   issued_certificate_id: number;
+  /** Times this person has had this certificate reprinted (cancelled ones not counted) */
+  reprint_count?: number;
+  /** Why it cannot be reprinted (no Baptismal Certificate request), or null when it can */
+  reprint_blocked_reason?: string | null;
   certificate_type: 'baptismal';
   person_name: string;
   purpose: string | null;
@@ -104,6 +108,10 @@ export interface ReprintFeeSetting {
 
 export interface CertificateReprintRow {
   reprint_id: number;
+  /** 1 = this person's first reprint of this certificate; null when cancelled */
+  reprint_number?: number | null;
+  /** This person's total reprints of this certificate (cancelled not counted) */
+  reprint_total?: number;
   issued_certificate_id: number | null;
   person_name: string;
   certificate_type: string;

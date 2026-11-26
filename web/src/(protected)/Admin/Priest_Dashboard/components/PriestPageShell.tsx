@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../../../../../context/AuthContext';
 import PriestNav from '../PriestNav';
-import PriestAvailabilitySwitch from './PriestAvailabilitySwitch';
+// Availability switch hidden for now: Mark Day off covers this. Kept for possible future use.
+// import PriestAvailabilitySwitch from './PriestAvailabilitySwitch';
 
 interface PriestPageShellProps {
   subtitle: string;
@@ -11,7 +12,8 @@ interface PriestPageShellProps {
   children: React.ReactNode;
 }
 
-const PriestPageShell: React.FC<PriestPageShellProps> = ({ subtitle, onAvailabilityChanged, children }) => {
+// onAvailabilityChanged stays in the props for when the availability switch comes back
+const PriestPageShell: React.FC<PriestPageShellProps> = ({ subtitle, /* onAvailabilityChanged, */ children }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
@@ -38,7 +40,8 @@ const PriestPageShell: React.FC<PriestPageShellProps> = ({ subtitle, onAvailabil
             </p>
           </div>
           <div className="flex items-start gap-3 flex-wrap">
-            <PriestAvailabilitySwitch onChanged={onAvailabilityChanged} />
+            {/* Availability switch hidden for now: Mark Day off covers this. Kept for possible future use. */}
+            {/* <PriestAvailabilitySwitch onChanged={onAvailabilityChanged} /> */}
             <button
               type="button"
               onClick={handleLogout}

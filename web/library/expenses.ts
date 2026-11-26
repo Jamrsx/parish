@@ -309,3 +309,9 @@ export const getApiErrorMessage = (err: unknown, fallback: string): string => {
   }
   return data?.message || fallback;
 };
+
+/** "Week 4" for an expense date in a monthly report (from its weekly breakdown), or null when it isn't a monthly report. */
+export const expenseWeekLabel = (expenseDate: string, weeks: GeneralReportWeekRow[]): string | null => {
+  const day = (expenseDate || '').slice(0, 10);
+  return weeks.find((w) => day >= w.start_date && day <= w.end_date)?.label ?? null;
+};

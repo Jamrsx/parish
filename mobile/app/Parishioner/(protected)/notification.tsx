@@ -114,7 +114,9 @@ const NOTIFICATION_CONFIG = {
   request_cancelled: { icon: 'close-circle', color: '#EF4444', bgColor: '#FEE2E2' },
   request_completed: { icon: 'checkmark-done-circle', color: '#3B82F6', bgColor: '#DBEAFE' },
   request_rescheduled: { icon: 'calendar', color: '#8B5CF6', bgColor: '#EDE9FE' },
-  
+  // Day-before reminder for a booked service (shown 8:00 AM to 9:00 PM)
+  service_reminder: { icon: 'alarm', color: '#0369A1', bgColor: '#E0F2FE' },
+
   // Other notification types
   new_message: { icon: 'chatbubble', color: '#3B82F6', bgColor: '#DBEAFE' },
   system: { icon: 'information-circle', color: '#6B7280', bgColor: '#F3F4F6' },

@@ -124,6 +124,7 @@ class HistoryController extends Controller
             'assignedPriest:user_id,first_name,middle_name,last_name',
             'processedBy:user_id,first_name,middle_name,last_name',
             'cancelledBy:user_id,first_name,middle_name,last_name',
+            'completedBy:user_id,first_name,middle_name,last_name,role',
             'rescheduledBy:user_id,first_name,middle_name,last_name',
             'baptismForm:baptism_id,child_first_name,child_middle_name,child_last_name',
             'serviceForm:serviceform_id,full_name',
@@ -151,7 +152,7 @@ class HistoryController extends Controller
             $this->name($manageRequest->user)));
 
         if ($manageRequest->approved_at && !in_array('status:approved', $loggedActions, true)) {
-            $events->push($this->event($manageRequest->approved_at, 'approved', 'Approved', null, $this->name($manageRequest->processedBy)));
+            $events->push($this->event($manageRequest->approved_at, 'approved', 'Booked', null, $this->name($manageRequest->processedBy)));
         }
         if ($manageRequest->rescheduled_by && !in_array('rescheduled', $loggedActions, true)) {
             $events->push($this->event($manageRequest->updated_at, 'rescheduled', 'Rescheduled',
@@ -168,8 +169,14 @@ class HistoryController extends Controller
                 ($payment->or_number ? "OR {$payment->or_number}" : 'No OR number') . ($payment->notes ? " · {$payment->notes}" : ''),
                 $this->name($payment->receivedBy), (float) $payment->amount));
         }
+        // Payments recorded without a payment transaction (e.g. a cashier-confirmed special intention offering)
+        if ($manageRequest->paymentTransactions->isEmpty() && $manageRequest->payment_date && (float) $manageRequest->amount_paid > 0) {
+            $events->push($this->event($manageRequest->payment_date, 'paid', 'Payment received', null,
+                $this->name($manageRequest->processedBy), (float) $manageRequest->amount_paid));
+        }
         if ($manageRequest->completed_at && !in_array('status:done', $loggedActions, true)) {
-            $events->push($this->event($manageRequest->completed_at, 'completed', 'Service completed', null, null));
+            $events->push($this->event($manageRequest->completed_at, 'completed', 'Service completed', null,
+                $manageRequest->completedBy ? $this->name($manageRequest->completedBy) : null));
         }
         if ($manageRequest->status === 'cancelled' && !in_array('status:cancelled', $loggedActions, true)) {
             $events->push($this->event($manageRequest->updated_at, 'cancelled', 'Cancelled',
@@ -185,6 +192,10 @@ class HistoryController extends Controller
 
         foreach ($logs as $log) {
             if (in_array($log->subject_type, ['payment', 'certificate'], true) || $log->action === 'created' && $log->subject_type === 'request') {
+                continue;
+            }
+            // A special intention's own created/status logs repeat the request's events (submitted, approved, paid, cancelled)
+            if ($log->subject_type === 'special_intention' && in_array($log->action, ['created', 'status_changed'], true)) {
                 continue;
             }
             $type = match (true) {
@@ -530,7 +541,7 @@ class HistoryController extends Controller
     private function timelineTitle(string $type): string
     {
         return match ($type) {
-            'approved' => 'Approved',
+            'approved' => 'Booked',
             'completed' => 'Service completed',
             'cancelled' => 'Cancelled',
             'rescheduled' => 'Rescheduled',

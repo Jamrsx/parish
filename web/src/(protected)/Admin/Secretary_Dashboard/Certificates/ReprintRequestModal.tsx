@@ -102,12 +102,6 @@ const ReprintRequestModal: React.FC<ReprintRequestModalProps> = ({ certificate, 
             <span className="text-xl font-bold text-blue-900">{fee ? peso(fee.amount) : '—'}</span>
           </div>
 
-          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-600">
-            <li>The request goes to the treasurer.</li>
-            <li>The person pays the fee to the treasurer.</li>
-            <li>Once it is marked paid, print and release it from <strong>Reprint requests</strong>.</li>
-          </ol>
-
           <div>
             <label htmlFor="reprint-reason" className="mb-1 block text-sm font-medium text-slate-700">
               Reason <span className="font-normal text-slate-400">(optional)</span>

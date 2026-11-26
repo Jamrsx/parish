@@ -8,6 +8,7 @@ import {
   ScrollText,
   type LucideIcon,
 } from 'lucide-react';
+import { serviceIconFor, useSavedServiceIcon } from '../../components/serviceIcons';
 
 export type ServiceIconKey =
   | 'baptism'
@@ -60,8 +61,9 @@ export const ServiceTypeIcon: React.FC<ServiceTypeIconProps> = ({
   className = 'text-blue-600',
   size = 20,
 }) => {
-  const key = resolveServiceIconKey(serviceName, formType);
-  const Icon = ICON_MAP[key];
+  // The icon chosen in Manage Services wins; the name-based guess is only a fallback
+  const savedIcon = serviceIconFor(useSavedServiceIcon(serviceName));
+  const Icon = savedIcon ?? ICON_MAP[resolveServiceIconKey(serviceName, formType)];
   return <Icon className={className} size={size} aria-hidden />;
 };
 

@@ -114,7 +114,7 @@ const DailyReport: React.FC = () => {
             title="All income for this date (Basket, Kalag, SI, donations, fees)"
           >
             <FileDown size={16} />
-            {generatingPdf === "full-day" ? "Generating..." : "Full Day PDF"}
+            {generatingPdf === "full-day" ? "Generating..." : "Download PDF"}
           </button>
         </div>
       </div>
@@ -145,9 +145,9 @@ const DailyReport: React.FC = () => {
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-900">
             <p className="font-medium">Cash Count PDF</p>
             <p className="mt-1 text-blue-800/90">
-              <strong>Full Day PDF</strong> = all income for the date (page 1: cash count with separate
+              <strong>Download PDF</strong> (top right) = all income for the date (page 1: cash count with separate
               Love Offering and Donation columns; page 2: donor list by type).{" "}
-              <strong>Per Mass PDF</strong> (on each mass row) = that Holy Mass only — fills Time and
+              <strong>Download PDF</strong> on a mass row = that Holy Mass only — fills Time and
               Holy Mass No./Name. Basket = offering · Kalag = funeral · Love Offering and Donation are separate.
             </p>
           </div>
@@ -284,10 +284,11 @@ const DailyReport: React.FC = () => {
                         onClick={() => handlePerMassPdf(m)}
                         disabled={generatingPdf !== null}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-600 text-blue-700 text-xs font-medium hover:bg-blue-50 disabled:opacity-50"
-                        title={`Cash Count PDF for ${massCollectionLabel(m)}`}
+                        title={`Cash Count PDF for ${massCollectionLabel(m)} only`}
+                        aria-label={`Download PDF for ${massCollectionLabel(m)}`}
                       >
                         <FileDown size={14} />
-                        {generatingPdf === m.collection_id ? "..." : "Per Mass PDF"}
+                        {generatingPdf === m.collection_id ? "Generating..." : "Download PDF"}
                       </button>
                     </div>
                   </li>

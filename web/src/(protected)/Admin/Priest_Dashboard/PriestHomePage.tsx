@@ -25,8 +25,11 @@ import {
   PieChart,
 } from 'lucide-react';
 import PriestNav from './PriestNav';
-import PriestAvailabilitySwitch from './components/PriestAvailabilitySwitch';
+// Availability switch hidden for now: Mark Day off covers this. Kept for possible future use.
+// import PriestAvailabilitySwitch from './components/PriestAvailabilitySwitch';
 import { DonutChart, HorizontalBarChart } from '../components/MonthlyCharts';
+import { isPastTime } from '../../../components/booking/serviceSlots';
+import axios from 'axios';
 
 interface PriestSchedule {
   id: number;
@@ -73,7 +76,13 @@ const formatTime = (timeString: string): string => {
   return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 };
 
-const getStatusBadgeColor = (status: RequestStatus): string => {
+/** "16:00", "16:00:00" or a datetime string to "16:00"; empty means no set time */
+const formatHm = (timeString: string): string => {
+  const matches = (timeString || '').match(/\d{2}:\d{2}/g);
+  return matches && matches.length > 0 ? matches[matches.length - 1] : '00:00';
+};
+
+const getStatusBadgeColor =(status: RequestStatus): string => {
   const colors: Record<RequestStatus, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
     approved: 'bg-green-100 text-green-800',
@@ -141,6 +150,10 @@ const PriestHomePage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
   const [selectedSchedule, setSelectedSchedule] = useState<PriestSchedule | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [completeNotice, setCompleteNotice] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -236,6 +249,50 @@ const PriestHomePage: React.FC = () => {
   useEffect(() => {
     fetchMonthlyActivity();
   }, [fetchMonthlyActivity]);
+
+  const openDetails = (schedule: PriestSchedule) => {
+    setSelectedSchedule(schedule);
+    setConfirmComplete(false);
+    setCompleteError(null);
+    setShowModal(true);
+  };
+
+  const closeDetails = () => {
+    if (completing) return;
+    setShowModal(false);
+    setConfirmComplete(false);
+    setCompleteError(null);
+  };
+
+  const handleComplete = async () => {
+    if (!selectedSchedule) return;
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      console.log('[Priest] Marking service completed', selectedSchedule.requestId);
+      const res = await manageRequestAPI.priestComplete(selectedSchedule.requestId);
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Could not mark the service as completed.');
+      }
+      const doneId = selectedSchedule.requestId;
+      setSchedules((prev) => prev.map((s) => (s.requestId === doneId ? { ...s, status: 'done' } : s)));
+      setShowModal(false);
+      setConfirmComplete(false);
+      setCompleteNotice(`${selectedSchedule.serviceType} for ${selectedSchedule.parishionerName} marked as completed.`);
+      fetchMonthlyActivity();
+    } catch (err) {
+      console.error('[Priest] Complete failed', err);
+      setCompleteError(
+        axios.isAxiosError(err)
+          ? err.response?.data?.message || 'Could not mark the service as completed.'
+          : err instanceof Error
+          ? err.message
+          : 'Could not mark the service as completed.'
+      );
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   const handleMonthChange = (value: string) => {
     const [y, m] = value.split('-').map(Number);
@@ -408,7 +465,8 @@ const PriestHomePage: React.FC = () => {
               )}
             </div>
 
-            <PriestAvailabilitySwitch />
+            {/* Availability switch hidden for now: Mark Day off covers this. Kept for possible future use. */}
+            {/* <PriestAvailabilitySwitch /> */}
 
 
             <button
@@ -630,6 +688,21 @@ const PriestHomePage: React.FC = () => {
           ))}
         </div>
 
+        {completeNotice && (
+          <div
+            role="status"
+            className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900"
+          >
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" aria-hidden />
+              {completeNotice}
+            </span>
+            <button onClick={() => setCompleteNotice(null)} aria-label="Dismiss" className="text-green-800 hover:text-green-950">
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-800">
@@ -706,10 +779,7 @@ const PriestHomePage: React.FC = () => {
                       </div>
 
                       <button
-                        onClick={() => {
-                          setSelectedSchedule(schedule);
-                          setShowModal(true);
-                        }}
+                        onClick={() => openDetails(schedule)}
                         className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition self-start lg:self-center"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -755,7 +825,8 @@ const PriestHomePage: React.FC = () => {
             <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
               <h3 className="text-xl font-bold text-gray-800">Service Details</h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeDetails}
+                aria-label="Close"
                 className="p-1 hover:bg-gray-100 rounded-full transition"
               >
                 ✕
@@ -844,10 +915,58 @@ const PriestHomePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="border-t border-gray-200 px-6 py-4">
+            <div className="border-t border-gray-200 px-6 py-4 space-y-3">
+              {selectedSchedule.status === 'approved' && (() => {
+                const canComplete = isPastTime(selectedSchedule.preferredDate.slice(0, 10), formatHm(selectedSchedule.preferredTime));
+                if (!canComplete) {
+                  return (
+                    <p className="flex items-start gap-2 text-sm text-gray-600">
+                      <Clock className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" aria-hidden />
+                      You can mark this as completed starting {formatDate(selectedSchedule.preferredDate)} at{' '}
+                      {formatTime(selectedSchedule.preferredTime)}.
+                    </p>
+                  );
+                }
+                return confirmComplete ? (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-sm text-green-900">
+                      Mark this service as completed? The parishioner will be notified. This can&apos;t be undone.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => setConfirmComplete(false)}
+                        disabled={completing}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Not yet
+                      </button>
+                      <button
+                        onClick={handleComplete}
+                        disabled={completing}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="w-4 h-4" aria-hidden />
+                        {completing ? 'Saving...' : 'Yes, completed'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmComplete(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                  >
+                    <CheckCircle2 className="w-4 h-4" aria-hidden />
+                    Mark as Completed
+                  </button>
+                );
+              })()}
+              {completeError && (
+                <p role="alert" className="text-sm text-red-600">{completeError}</p>
+              )}
               <button
-                onClick={() => setShowModal(false)}
-                className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                onClick={closeDetails}
+                disabled={completing}
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
               >
                 Close
               </button>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { AxiosResponse } from "axios";
 import axios from "axios";
-import { AlertTriangle, CalendarOff, Loader2, X } from "lucide-react";
+import { AlertTriangle, CalendarOff, Clock, Info, Loader2, Lock, Sun, X } from "lucide-react";
 import type { ApiResponse } from "../../../../library/api";
 import {
   formatHm,
@@ -49,13 +49,16 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
 
   const [startDate, setStartDate] = useState(firstDate);
   const [endDate, setEndDate] = useState(initial?.end_date ?? firstDate);
-  const [wholeDay, setWholeDay] = useState(initial ? initial.whole_day : true);
+  const [wholeDayChoice, setWholeDayChoice] = useState(initial ? initial.whole_day : true);
   const [startTime, setStartTime] = useState(initial?.start_time ?? "08:00");
   const [endTime, setEndTime] = useState(initial?.end_time ?? "12:00");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [conflicts, setConflicts] = useState<TimeOffConflict[] | null>(null);
+  // More than one day is always whole day; specific hours are only for a single day
+  const multiDay = !!startDate && !!endDate && endDate > startDate;
+  const wholeDay = multiDay || wholeDayChoice;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -118,11 +121,26 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
     }
   };
 
-  const inputClass = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50";
+  // Plain-language summary of what will be saved
+  const summary = (() => {
+    if (!startDate || !endDate || endDate < startDate) return null;
+    const days = daysBetween(startDate, endDate) + 1;
+    const dates = multiDay ? `${formatYmd(startDate)} – ${formatYmd(endDate)}` : formatYmd(startDate);
+    const span = wholeDay
+      ? multiDay
+        ? `${days} days, whole day`
+        : "Whole day"
+      : endTime > startTime
+        ? `${formatHm(startTime)} – ${formatHm(endTime)}`
+        : null;
+    return span ? { dates, span } : null;
+  })();
+
+  const inputClass ="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50";
 
   return (
     <div
-      className="fixed inset-0 bg-clear bg-opacity-20 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !saving) onClose();
       }}
@@ -177,12 +195,12 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
           </div>
         ) : (
           <form
-            className="space-y-4 p-5"
             onSubmit={(e) => {
               e.preventDefault();
               submit(false);
             }}
           >
+            <div className="space-y-5 p-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block text-sm font-medium text-slate-700">
                 From
@@ -221,33 +239,49 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
 
             <fieldset>
               <legend className="text-sm font-medium text-slate-700">Day off for</legend>
-              <div className="mt-1 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup">
+              <div className="mt-1 grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup" aria-label="Day off for">
                 {[
-                  { value: true, label: "Whole day" },
-                  { value: false, label: "Specific hours" },
-                ].map((opt) => (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    role="radio"
-                    aria-checked={wholeDay === opt.value}
-                    disabled={saving}
-                    onClick={() => {
-                      setWholeDay(opt.value);
-                      setError(null);
-                    }}
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                      wholeDay === opt.value ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-slate-800"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                  { value: true, label: "Whole day", Icon: Sun },
+                  { value: false, label: "Specific hours", Icon: Clock },
+                ].map(({ value, label, Icon }) => {
+                  const locked = multiDay && !value;
+                  const selected = wholeDay === value;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-describedby={locked ? "time-off-hours-note" : undefined}
+                      disabled={saving || locked}
+                      onClick={() => {
+                        setWholeDayChoice(value);
+                        setError(null);
+                      }}
+                      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed ${
+                        selected
+                          ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                          : locked
+                            ? "text-slate-500"
+                            : "text-slate-600 hover:bg-white/60 hover:text-slate-800"
+                      }`}
+                    >
+                      {locked ? <Lock size={14} aria-hidden /> : <Icon size={15} aria-hidden />}
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
+              {multiDay && (
+                <p id="time-off-hours-note" className="mt-1.5 flex items-start gap-1.5 text-xs text-slate-600">
+                  <Info size={13} className="mt-px shrink-0 text-blue-600" aria-hidden />
+                  Specific hours are only for a single day. Set From and Until to the same date to use them.
+                </p>
+              )}
             </fieldset>
 
             {!wholeDay && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-slate-200 p-3">
                 <label className="block text-sm font-medium text-slate-700">
                   From time
                   <select value={startTime} disabled={saving} onChange={(e) => { setStartTime(e.target.value); setError(null); }} className={`mt-1 ${inputClass}`}>
@@ -264,7 +298,6 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
                     ))}
                   </select>
                 </label>
-                <p className="col-span-2 -mt-1 text-xs text-slate-500">These hours apply to every day in the date range.</p>
               </div>
             )}
 
@@ -284,15 +317,28 @@ const TimeOffFormModal: React.FC<TimeOffFormModalProps> = ({ title, subtitle, in
             {error && (
               <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
             )}
+            </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50">
-                Cancel
-              </button>
-              <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                {saving && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {initial ? "Save changes" : "Save time off"}
-              </button>
+            <div className="flex flex-col gap-3 rounded-b-xl border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="min-w-0 text-sm text-slate-600" aria-live="polite">
+                {summary ? (
+                  <>
+                    <span className="font-medium text-slate-900">{summary.dates}</span>
+                    <span className="block text-xs text-slate-500">{summary.span}</span>
+                  </>
+                ) : (
+                  <span className="text-slate-500">Choose the dates</span>
+                )}
+              </p>
+              <div className="flex shrink-0 justify-end gap-2">
+                <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50">
+                  {saving && <Loader2 size={14} className="animate-spin" aria-hidden />}
+                  {initial ? "Save changes" : "Save time off"}
+                </button>
+              </div>
             </div>
           </form>
         )}

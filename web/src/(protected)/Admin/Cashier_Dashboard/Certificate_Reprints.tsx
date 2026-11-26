@@ -198,7 +198,9 @@ const CertificateReprints: React.FC<CertificateReprintsProps> = ({ onChanged }) 
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{row.person_name}</p>
                       <p className="text-xs text-slate-500">
-                        Baptismal Certificate{row.reason ? ` · ${row.reason}` : ""}
+                        Baptismal Certificate
+                        {row.reprint_number ? ` · Reprint ${row.reprint_number} of ${row.reprint_total ?? row.reprint_number}` : ""}
+                        {row.reason ? ` · ${row.reason}` : ""}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">

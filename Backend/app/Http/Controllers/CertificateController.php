@@ -343,6 +343,8 @@ class CertificateController extends Controller
             'signatory_name' => $c->signatory_name,
             'baptism_id' => $c->baptism_id,
             'request_id' => $c->request_id,
+            'reprint_count' => \App\Models\CertificateReprint::countForPerson($c->person_name, $c->certificate_type),
+            'reprint_blocked_reason' => $c->reprintBlockedReason(),
             'details' => $c->details,
             'issued_by' => $c->issuedBy?->full_name,
             'created_at' => $c->created_at?->toIso8601String(),

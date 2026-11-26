@@ -17,9 +17,20 @@ const LONG_SERVICE_BLOCKS: Record<string, string[]> = {
   '13:00': ['13:00', '14:00', '15:00', '16:00', '17:00'],
 };
 
-/** Time choices for a service: two 5-hour starts for long services, otherwise every hour. */
+/** Range labels for the two Marriage / Funeral Mass blocks, so the whole block is clear. */
+export const LONG_SERVICE_BLOCK_LABELS: Record<string, string> = {
+  '08:00': '8:00 AM – 12:00 PM',
+  '13:00': '1:00 PM – 5:00 PM',
+};
+
+/** Time choices for a service: two 5-hour blocks for long services, otherwise every hour. */
 export const timeOptionsFor = (longService = false) =>
-  longService ? SERVICE_TIME_OPTIONS.filter((t) => t.value in LONG_SERVICE_BLOCKS) : SERVICE_TIME_OPTIONS;
+  longService
+    ? SERVICE_TIME_OPTIONS.filter((t) => t.value in LONG_SERVICE_BLOCKS).map((t) => ({
+        ...t,
+        label: LONG_SERVICE_BLOCK_LABELS[t.value] ?? t.label,
+      }))
+    : SERVICE_TIME_OPTIONS;
 
 /** True when the time, or for a long service any hour of its block, is already booked. */
 export const isBookedServiceTime = (time: string, bookedSlots: string[], longService = false): boolean => {
@@ -28,9 +39,9 @@ export const isBookedServiceTime = (time: string, bookedSlots: string[], longSer
   return bookedSlots.some((slot) => needed.includes(normalizeTimeValue(slot)));
 };
 
-export const getDisplayTimeLabel = (time24Hour: string): string => {
+export const getDisplayTimeLabel = (time24Hour: string, longService = false): string => {
   if (!time24Hour) return 'Select time';
-  const option = SERVICE_TIME_OPTIONS.find((t) => t.value === time24Hour);
+  const option = timeOptionsFor(longService).find((t) => t.value === time24Hour);
   return option ? option.label : 'Select time';
 };
 

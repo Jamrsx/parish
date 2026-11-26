@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   expenseAPI,
+  expenseWeekLabel,
   getApiErrorMessage,
   getExpenseCategory,
   lineItemPeople,
@@ -51,6 +52,7 @@ const GeneralReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [expenseWeek, setExpenseWeek] = useState<string>("all");
 
   const params: GeneralReportParams | null = useMemo(() => {
     if (period === "monthly") {
@@ -430,14 +432,47 @@ const GeneralReport: React.FC = () => {
             </div>
           )}
 
+          {(() => {
+            // Monthly reports: tag each expense with its week and let the cashier view one week at a time
+            const weeks = report.period === "monthly" ? report.weekly_breakdown : [];
+            const showWeek = weeks.length > 0;
+            const tagged = report.expenses.items.map((e) => ({ e, week: showWeek ? expenseWeekLabel(e.expense_date, weeks) : null }));
+            const activeWeek = showWeek && weeks.some((w) => w.label === expenseWeek) ? expenseWeek : "all";
+            const shown = activeWeek === "all" ? tagged : tagged.filter((t) => t.week === activeWeek);
+            const shownTotal = shown.reduce((sum, t) => sum + Number(t.e.amount || 0), 0);
+            const colCount = showWeek ? 6 : 5;
+            const chip = (key: string, label: string, count: number) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={activeWeek === key}
+                onClick={() => setExpenseWeek(key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  activeWeek === key
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {label}
+                <span className={`tabular-nums ${activeWeek === key ? "text-blue-100" : "text-slate-500"}`}>{count}</span>
+              </button>
+            );
+            return (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100">
+            <div className="flex flex-col gap-3 px-5 py-3 border-b border-slate-100 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-sm font-semibold text-slate-900">Verified expense details</h3>
+              {showWeek && (
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show expenses for">
+                  {chip("all", "All weeks", tagged.length)}
+                  {weeks.map((w) => chip(w.label, w.label, tagged.filter((t) => t.week === w.label).length))}
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
+                    {showWeek && <th className="text-left px-4 py-2.5">Week</th>}
                     <th className="text-left px-4 py-2.5">Date</th>
                     <th className="text-left px-4 py-2.5">Category</th>
                     <th className="text-left px-4 py-2.5">Description</th>
@@ -446,19 +481,20 @@ const GeneralReport: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {report.expenses.items.length === 0 ? (
+                  {shown.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-slate-500">
-                        No verified expenses for this period
+                      <td colSpan={colCount} className="py-10 text-center text-slate-500">
+                        {activeWeek === "all" ? "No verified expenses for this period" : `No verified expenses in ${activeWeek}`}
                       </td>
                     </tr>
                   ) : (
-                    report.expenses.items.map((e) => {
+                    shown.map(({ e, week }) => {
                       const mode = getExpenseCategory(e.category)?.items.mode ?? "none";
                       const items = e.line_items || [];
                       return (
                         <React.Fragment key={e.expense_id}>
                           <tr>
+                            {showWeek && <td className="px-4 py-2.5 whitespace-nowrap align-top font-medium">{week ?? "—"}</td>}
                             <td className="px-4 py-2.5 whitespace-nowrap align-top">{e.expense_date}</td>
                             <td className="px-4 py-2.5 align-top">{e.category_label}</td>
                             <td className="px-4 py-2.5 align-top">
@@ -475,6 +511,7 @@ const GeneralReport: React.FC = () => {
                           {mode !== "none" &&
                             items.map((item, i) => (
                               <tr key={`${e.expense_id}-item-${i}`} className="bg-slate-50/60 text-xs text-slate-600">
+                                {showWeek && <td />}
                                 <td />
                                 <td />
                                 <td className="px-4 py-1.5 pl-8" colSpan={2}>
@@ -494,9 +531,21 @@ const GeneralReport: React.FC = () => {
                     })
                   )}
                 </tbody>
+                {shown.length > 0 && (
+                  <tfoot className="border-t border-slate-200 bg-slate-50">
+                    <tr>
+                      <td colSpan={colCount - 1} className="px-4 py-2.5 font-semibold text-slate-900">
+                        {activeWeek === "all" ? "Total" : `${activeWeek} total`}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-900">{formatPeso(shownTotal)}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
+            );
+          })()}
         </div>
       )}
     </div>

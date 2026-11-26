@@ -23,9 +23,24 @@ const LONG_SERVICE_BLOCKS: Record<string, string[]> = {
 export const isLongService = (formHandler?: string | null): boolean =>
   ['marriage', 'funeral_mass'].includes((formHandler || '').toLowerCase());
 
-/** Time choices for a service: two 5-hour starts for long services, otherwise every hour. */
+/** Range labels for the two Marriage / Funeral Mass blocks, so the whole block is clear. */
+export const LONG_SERVICE_BLOCK_LABELS: Record<string, string> = {
+  '08:00': '8:00 AM – 12:00 PM',
+  '13:00': '1:00 PM – 5:00 PM',
+};
+
+/** Time choices for a service: two 5-hour blocks for long services, otherwise every hour. */
 export const timeOptionsFor = (longService = false) =>
-  longService ? SERVICE_TIME_OPTIONS.filter((opt) => opt.value in LONG_SERVICE_BLOCKS) : SERVICE_TIME_OPTIONS;
+  longService
+    ? SERVICE_TIME_OPTIONS.filter((opt) => opt.value in LONG_SERVICE_BLOCKS).map((opt) => ({
+        ...opt,
+        label: LONG_SERVICE_BLOCK_LABELS[opt.value] ?? opt.label,
+      }))
+    : SERVICE_TIME_OPTIONS;
+
+/** "8:00 AM – 12:00 PM" for a long-service block start, otherwise null (use the normal time label). */
+export const longServiceRangeLabel = (time: string | null | undefined, formHandler?: string | null): string | null =>
+  isLongService(formHandler) ? LONG_SERVICE_BLOCK_LABELS[(time || '').slice(0, 5)] ?? null : null;
 
 export type SlotState = 'open' | 'booked' | 'passed';
 

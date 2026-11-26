@@ -47,6 +47,12 @@ class NotificationController extends Controller
             return 0;
         }
 
+        try {
+            ManageRequest::syncServiceReminders($user->user_id);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Service reminder sync failed: ' . $e->getMessage());
+        }
+
         return ManageRequest::expirePendingRequests($user->user_id);
     }
 
@@ -152,6 +158,8 @@ class NotificationController extends Controller
                 // continue
             }
         }
+
+        $this->expirePendingForUser($user);
 
         $limit = $request->input('limit', 10);
         $notifications = Notification::where('user_id', $user->user_id)

@@ -113,7 +113,12 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
                   <td className="px-4 py-3 whitespace-nowrap text-slate-700">{formatLongDate(row.date_issued)}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {row.person_name}
-                    {row.request_id && <span className="ml-2 text-xs font-normal text-slate-400">Request #{row.request_id}</span>}
+                    {row.request_id && <span className="ml-2 text-xs font-normal text-slate-500">Request #{row.request_id}</span>}
+                    {(row.reprint_count ?? 0) > 0 && (
+                      <span className="ml-2 inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                        Reprinted {row.reprint_count}×
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{row.purpose || '—'}</td>
                   <td className="px-4 py-3 text-slate-700">{row.signatory_name}</td>
@@ -130,12 +135,18 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
                       <button
                         type="button"
                         onClick={() => onReprint(row)}
-                        title="Request a paid reprint"
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                        disabled={!!row.reprint_blocked_reason}
+                        title={row.reprint_blocked_reason || "Request a paid reprint"}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium disabled:cursor-not-allowed ${
+                          row.reprint_blocked_reason ? "bg-slate-100 text-slate-500" : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`}
                       >
                         <Printer size={14} aria-hidden /> Reprint
                       </button>
                     </div>
+                    {row.reprint_blocked_reason && (
+                      <p className="mt-1 text-right text-[11px] text-slate-500">No Baptismal Certificate request</p>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -193,8 +204,11 @@ const IssuedCertificates: React.FC<IssuedCertificatesProps> = ({ onReprint, refr
                     onReprint(viewing);
                     setViewing(null);
                   }}
-                  title="Request a paid reprint"
-                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
+                  disabled={!!viewing.reprint_blocked_reason}
+                  title={viewing.reprint_blocked_reason || "Request a paid reprint"}
+                  className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium disabled:cursor-not-allowed ${
+                    viewing.reprint_blocked_reason ? "bg-slate-100 text-slate-500" : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
                 >
                   <Printer size={14} aria-hidden /> Reprint
                 </button>

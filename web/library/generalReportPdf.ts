@@ -1,5 +1,6 @@
 import type { jsPDF } from "jspdf";
-import { lineItemTotal, type GeneralReportData } from "./expenses";
+import { expenseWeekLabel, lineItemTotal, type GeneralReportData } from "./expenses";
+import { drawParishLogo, loadParishLogo } from "./pdfLogo";
 
 const peso = (n: number) =>
   `PHP ${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -71,9 +72,12 @@ const sectionTitle = (doc: jsPDF, y: number, title: string): number => {
 
 export const downloadGeneralReportPdf = async (report: GeneralReportData): Promise<void> => {
   console.log("[GeneralReportPdf] Loading PDF library...");
-  const { jsPDF: JsPDF } = await import("jspdf");
+  const [{ jsPDF: JsPDF }, logo] = await Promise.all([import("jspdf"), loadParishLogo()]);
   const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
+
+  // Parish seal at the top left of the header; the report still prints without it
+  drawParishLogo(doc, logo, MARGIN_X, 8, 22);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
@@ -195,21 +199,26 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
   }
 
   if (report.expenses.items.length > 0) {
+    // Monthly reports show which week each expense falls in
+    const withWeek = report.period === "monthly" && report.weekly_breakdown.length > 0;
     y = sectionTitle(doc, y, "Expense details (verified)");
     y = drawTable(
       doc,
       y,
       [
-        { header: "Date", width: 22 },
-        { header: "Category", width: 32 },
-        { header: "Description", width: 62 },
-        { header: "Paid to", width: 36 },
-        { header: "Amount", width: 30, align: "right" },
+        ...(withWeek ? [{ header: "Week", width: 16 }] : []),
+        { header: "Date", width: withWeek ? 20 : 22 },
+        { header: "Category", width: withWeek ? 30 : 32 },
+        { header: "Description", width: withWeek ? 54 : 62 },
+        { header: "Paid to", width: withWeek ? 32 : 36 },
+        { header: "Amount", width: 30, align: "right" as const },
       ],
       report.expenses.items.flatMap((e) => {
         const items = e.line_items || [];
         const isPerson = items.length > 0 && items[0].quantity === undefined;
+        const week = withWeek ? [expenseWeekLabel(e.expense_date, report.weekly_breakdown) ?? "-"] : [];
         const main = [
+          ...week,
           e.expense_date,
           e.category_label,
           e.reference_no ? `${e.description} (OR ${e.reference_no})` : e.description,
@@ -217,6 +226,7 @@ export const downloadGeneralReportPdf = async (report: GeneralReportData): Promi
           peso(e.amount),
         ];
         const detail = items.map((item) => [
+          ...(withWeek ? [""] : []),
           "",
           "",
           item.quantity !== undefined

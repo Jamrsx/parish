@@ -237,6 +237,10 @@ export interface ManageRequest {
     payment_date?: string | null;
     approved_at?: string | null;
     completed_at?: string | null;
+    /** Who marked it completed: secretary or priest */
+    completed_by?: number | null;
+    completed_by_name?: string | null;
+    completed_by_role?: string | null;
     created_at: string;
     updated_at: string;
 
@@ -613,6 +617,12 @@ export const manageRequestAPI = {
      */
     updateRequestStatus: (id: number, data: { status: RequestStatus, reason?: string }) =>
         api.put<ApiResponse<ManageRequest>>(`/priest/requests/${id}/status`, data),
+
+    /**
+     * Priest marks an assigned, booked service as completed (not before its scheduled time)
+     */
+    priestComplete: (id: number) =>
+        api.post<ApiResponse<ManageRequest>>(`/priest/requests/${id}/complete`),
 
     /**
  * Assign a priest to a request - ADMIN VERSION

@@ -4,38 +4,13 @@ import {
   formatFee,
   type ChurchService,
 } from "../../../../library/church_service";
-import {
-  BookOpen,
-  Church,
-  Cross,
-  Droplets,
-  FileText,
-  Flame,
-  Heart,
-  Home,
-  Layers,
-  Plus,
-  Star,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Church, Layers, Plus, type LucideIcon } from "lucide-react";
+import { SERVICE_ICON_OPTIONS, refreshServiceIcons } from "../components/serviceIcons";
 import { SecretaryTableSkeleton } from "./components/SecretarySkeletons";
 import PesoInput from "../../../components/PesoInput";
 import { toPesoInputValue } from "../../../../library/pesoInput";
 
-/** Saved icon names (must match SERVICE_ICON_MAP in the mobile app). */
-const ICON_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] = [
-  { value: "Church", label: "Church", Icon: Church },
-  { value: "Home", label: "Home", Icon: Home },
-  { value: "Heart", label: "Heart", Icon: Heart },
-  { value: "Cross", label: "Cross", Icon: Cross },
-  { value: "Droplets", label: "Water", Icon: Droplets },
-  { value: "BookOpen", label: "Book", Icon: BookOpen },
-  { value: "FileText", label: "Document", Icon: FileText },
-  { value: "Star", label: "Star", Icon: Star },
-  { value: "Users", label: "People", Icon: Users },
-  { value: "Candle", label: "Candle", Icon: Flame },
-];
+const ICON_OPTIONS = SERVICE_ICON_OPTIONS;
 
 const iconFor = (value?: string | null): LucideIcon =>
   ICON_OPTIONS.find((option) => option.value === value)?.Icon ?? Church;
@@ -127,6 +102,7 @@ const ManageServices: React.FC = () => {
         setShowModal(false);
         setFeedback(res.data.message || "Service saved.");
         fetchRows();
+        refreshServiceIcons();
       } else {
         setFeedback(res.data?.message || "Failed to save service.");
       }

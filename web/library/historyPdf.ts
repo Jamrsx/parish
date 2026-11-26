@@ -1,4 +1,5 @@
 import type { LedgerEntry, LedgerSummary } from "./history";
+import { drawParishLogo, loadParishLogo } from "./pdfLogo";
 
 const peso = (n: number) =>
   `PHP ${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,10 +20,13 @@ export const downloadTransactionsPdf = async (
   filterNote: string | null
 ): Promise<void> => {
   console.log("[HistoryPdf] Loading PDF library...", { rows: items.length });
-  const { jsPDF: JsPDF } = await import("jspdf");
+  const [{ jsPDF: JsPDF }, logo] = await Promise.all([import("jspdf"), loadParishLogo()]);
   const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
+
+  // Parish seal at the top left of the header
+  drawParishLogo(doc, logo, MARGIN_X, 7, 22);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);

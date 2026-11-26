@@ -21,10 +21,12 @@ import PriestScheduleModal from "./components/PriestScheduleModal";
 import { getFormattedRequestContactNumber, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress } from "./components/requestHelpers";
 import { useBookedTimeSlots } from "./hooks/useBookedTimeSlots";
 import ServiceDatePicker from "../../../components/booking/ServiceDatePicker";
-import { buildTimeOptions, isLongService, isPastTime, timeProblem } from "../../../components/booking/serviceSlots";
+import { buildTimeOptions, isLongService, isPastTime, longServiceRangeLabel, timeProblem } from "../../../components/booking/serviceSlots";
 import { SecretaryCalendarSkeleton, SecretaryStatSkeleton } from "./components/SecretarySkeletons";
 import { priestScheduleAPI, priestSlotFor, timeOffCovers, timeOffShortLabel } from "../../../../library/priestSchedule";
 import type { AllPriestTimeOff } from "../../../../library/priestSchedule";
+import { historyAPI, type TimelineEvent } from "../../../../library/history";
+import ServiceTimelineList from "../components/history/ServiceTimelineList";
 
 // Define the request details interface
 interface RequestDetails {
@@ -37,6 +39,9 @@ interface RequestDetails {
   assignedPriest?: string;
   assignedPriestId?: number | null;
   createdAt?: string;
+  completedAt?: string | null;
+  completedByName?: string | null;
+  completedByRole?: string | null;
   updatedAt?: string;
   childBirthDate?: string;
   motherName?: string;
@@ -173,6 +178,11 @@ const mapRequestToScheduledService = (request: ManageRequest): ScheduledServices
     assignedPriestId,
     createdAt: request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A',
     updatedAt: request.updated_at ? new Date(request.updated_at).toLocaleDateString() : 'N/A',
+    completedAt: request.completed_at
+      ? new Date(request.completed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : null,
+    completedByName: request.completed_by_name ?? null,
+    completedByRole: request.completed_by_role ?? null,
   };
 
   const base = {
@@ -475,6 +485,11 @@ const ScheduledServices: React.FC = () => {
     reschedule_reason: '',
   });
   const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  // Activity timeline (exact date and time of each step) for the open service
+  const [activity, setActivity] = useState<{ id: number; events: TimelineEvent[]; error: string | null } | null>(null);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [discardReason, setDiscardReason] = useState('');
+  const [discardSubmitting, setDiscardSubmitting] = useState(false);
   const { bookedSlots } = useBookedTimeSlots(
     showRescheduleModal ? rescheduleData.preferred_date : '',
     selectedService?.id
@@ -549,6 +564,27 @@ const ScheduledServices: React.FC = () => {
       cancelled = true;
     };
   }, [monthKey, awayReloadNonce]);
+
+  const openServiceId = showDetailModal ? selectedService?.id : undefined;
+  useEffect(() => {
+    if (!openServiceId) return;
+    let cancelled = false;
+    historyAPI('admin')
+      .timeline(openServiceId)
+      .then((res) => {
+        if (cancelled) return;
+        console.log('[ScheduledServices] Activity for', openServiceId, res.data?.data?.events);
+        setActivity({ id: openServiceId, events: res.data?.data?.events ?? [], error: null });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[ScheduledServices] Activity load failed', err);
+        setActivity({ id: openServiceId, events: [], error: 'Could not load the activity for this service.' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [openServiceId]);
 
   useEffect(() => {
     if (!showModal) return;
@@ -625,7 +661,9 @@ const ScheduledServices: React.FC = () => {
           );
           setShowDetailModal(false);
           setSelectedService(null);
-          
+          // Reload so the details show who completed it and when
+          fetchServices();
+
           setNotificationModal({
             isOpen: true,
             title: 'Service Completed',
@@ -721,6 +759,52 @@ const ScheduledServices: React.FC = () => {
       );
     } finally {
       setRescheduleSubmitting(false);
+    }
+  };
+
+  const DEFAULT_DISCARD_REASON = 'Parishioner declined during the confirmation call.';
+
+  const openDiscardModal = () => {
+    if (!selectedService) return;
+    setDiscardReason(DEFAULT_DISCARD_REASON);
+    setShowDiscardModal(true);
+  };
+
+  const closeDiscardModal = () => {
+    if (discardSubmitting) return;
+    setShowDiscardModal(false);
+    setDiscardReason('');
+  };
+
+  // Discard = cancel the booking and notify the parishioner; the time slot stays taken for that day
+  const submitDiscard = async () => {
+    if (!selectedService) return;
+    const reason = discardReason.trim();
+    if (reason.length < 10) {
+      showError('Please give a reason (at least 10 characters).');
+      return;
+    }
+
+    setDiscardSubmitting(true);
+    try {
+      console.log('[ScheduledServices] Discarding booking', selectedService.id, reason);
+      await manageRequestAPI.cancel(selectedService.id, { cancelled_reason: reason });
+      const discardedId = selectedService.id;
+      setAllServices((prev) => prev.filter((service) => service.id !== discardedId));
+      setShowDiscardModal(false);
+      setDiscardReason('');
+      setShowDetailModal(false);
+      setSelectedService(null);
+      showSuccess('Booking discarded. The parishioner has been notified.');
+    } catch (error) {
+      console.error('[ScheduledServices] Discard failed:', error);
+      showError(
+        axios.isAxiosError(error)
+          ? error.response?.data?.message || 'Failed to discard the booking.'
+          : 'Failed to discard the booking.'
+      );
+    } finally {
+      setDiscardSubmitting(false);
     }
   };
 
@@ -1133,7 +1217,8 @@ const renderDetailModal = () => {
       day: 'numeric',
       year: 'numeric',
     });
-    const timeLabel = formatTimeDisplay12Hour(selectedService.time || '');
+    const timeLabel =
+      longServiceRangeLabel(scheduledHm, selectedService.formHandler) ?? formatTimeDisplay12Hour(selectedService.time || '');
     const paymentStatus = (details?.paymentStatus || '').toLowerCase();
     const paymentLabel = paymentStatus ? paymentStatus.charAt(0).toUpperCase() + paymentStatus.slice(1) : 'N/A';
     const paymentTone =
@@ -1238,11 +1323,20 @@ const renderDetailModal = () => {
                 ["Father's name", details.fatherName],
               ])}
 
-            {details && (
-              <p className="text-xs text-slate-500">
-                Created {details.createdAt} · Last updated {details.updatedAt}
-              </p>
-            )}
+            <section className="min-w-0">
+              <h4 className="mb-3 text-sm font-semibold text-slate-900">Activity</h4>
+              {activity?.id !== selectedService.id ? (
+                <div className="space-y-2" aria-label="Loading activity">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-100" />
+                  ))}
+                </div>
+              ) : activity.error ? (
+                <p className="text-sm text-red-600">{activity.error}</p>
+              ) : (
+                <ServiceTimelineList events={activity.events} compact />
+              )}
+            </section>
           </div>
 
           <div className="border-t border-slate-200 bg-white px-6 py-4">
@@ -1250,7 +1344,16 @@ const renderDetailModal = () => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-center gap-2 text-sm text-green-800">
                   <CheckCircle2 size={16} className="shrink-0 text-green-600" aria-hidden />
-                  Completed and kept on the calendar for record keeping.
+                  <span>
+                    Completed
+                    {details?.completedByName ? (
+                      <>
+                        {' '}by <strong className="font-semibold">{details.completedByName}</strong>
+                        {details.completedByRole === 'secretary' ? ' (Secretary)' : details.completedByRole === 'priest' ? ' (Priest)' : ''}
+                      </>
+                    ) : null}
+                    {details?.completedAt ? ` on ${details.completedAt}` : ''}.
+                  </span>
                 </p>
                 <button
                   type="button"
@@ -1265,7 +1368,7 @@ const renderDetailModal = () => {
                 {!canComplete && (
                   <p className="mb-3 flex items-center gap-2 text-sm text-slate-600">
                     <Info size={16} className="shrink-0 text-blue-600" aria-hidden />
-                    You can mark this as completed starting {completeFromLabel} at {timeLabel}.
+                    You can mark this as completed starting {completeFromLabel} at {formatTimeDisplay12Hour(selectedService.time || '')}.
                   </p>
                 )}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1285,6 +1388,14 @@ const renderDetailModal = () => {
                     >
                       <UserCog size={16} aria-hidden />
                       Change Priest
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openDiscardModal}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    >
+                      <XCircle size={16} aria-hidden />
+                      Discard
                     </button>
                   </div>
                   <button
@@ -1499,6 +1610,58 @@ const renderDetailModal = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
               >
                 {rescheduleSubmitting ? 'Processing...' : 'Confirm Reschedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Booking Modal */}
+      {showDiscardModal && selectedService && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="discard-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 id="discard-title" className="text-xl font-bold text-slate-800">Discard this booking?</h3>
+              <ModalCloseButton onClick={closeDiscardModal} />
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                <p><span className="font-medium">{selectedService.type}</span> — {selectedService.name}</p>
+                <p>{formatTimeDisplay12Hour(selectedService.time || '')} · {new Date(`${selectedService.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+              <p className="text-sm text-slate-600">
+                Use this when the parishioner declined on your confirmation call. The booking is cancelled and the parishioner
+                gets a notification with your reason. The time slot stays unavailable for that day.
+              </p>
+              <div>
+                <label htmlFor="discard-reason" className="mb-1 block text-sm font-medium text-slate-700">Reason *</label>
+                <textarea
+                  id="discard-reason"
+                  value={discardReason}
+                  onChange={(e) => setDiscardReason(e.target.value)}
+                  rows={3}
+                  disabled={discardSubmitting}
+                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">Minimum 10 characters. The parishioner will see this.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={closeDiscardModal}
+                disabled={discardSubmitting}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              >
+                Keep booking
+              </button>
+              <button
+                type="button"
+                onClick={submitDiscard}
+                disabled={discardSubmitting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {discardSubmitting ? 'Discarding...' : 'Discard booking'}
               </button>
             </div>
           </div>

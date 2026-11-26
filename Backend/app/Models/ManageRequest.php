@@ -32,6 +32,7 @@ class ManageRequest extends Model
         'payment_date',
         'approved_at',
         'completed_at',
+        'completed_by',
         'rescheduled_by',
         'reschedule_reason',
     ];
@@ -180,6 +181,12 @@ class ManageRequest extends Model
         return $this->belongsTo(User::class, 'cancelled_by', 'user_id');
     }
 
+    /** Secretary or priest who marked the service as completed */
+    public function completedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by', 'user_id');
+    }
+
     public function rescheduledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'rescheduled_by', 'user_id');
@@ -306,8 +313,27 @@ class ManageRequest extends Model
         // Only church services (baptism, wedding, etc.) compete for parish time slots.
         // Certificates (and special intentions) keep preferred times for visit/pickup
         // and must not block or be blocked by service bookings.
-        return $query->whereIn('status', self::blockingStatuses())
-            ->whereNull('certificate_form_id')
+        return static::onlyScheduledServices($query->whereIn('status', self::blockingStatuses()));
+    }
+
+    /**
+     * Requests that keep their time slot taken for booking purposes.
+     * Once a time has been booked (approved), it stays unavailable for that day even if the
+     * booking is later completed or cancelled, so the parish keeps its preparation time.
+     * A request cancelled while still pending (never approved) frees the slot.
+     */
+    public function scopeHoldingTimeSlot($query)
+    {
+        return static::onlyScheduledServices($query->where(function ($q) {
+            $q->whereIn('status', self::blockingStatuses())
+                ->orWhere('status', 'done')
+                ->orWhere(fn ($c) => $c->where('status', 'cancelled')->whereNotNull('approved_at'));
+        }));
+    }
+
+    private static function onlyScheduledServices($query)
+    {
+        return $query->whereNull('certificate_form_id')
             ->whereDoesntHave('service', function ($q) {
                 $q->where('category', 'certificate')
                     ->orWhere('form_handler', 'special_intention')
@@ -361,7 +387,7 @@ class ManageRequest extends Model
         $query = static::query()
             ->with('service')
             ->whereDate('preferred_date', $date)
-            ->blockingSchedule();
+            ->holdingTimeSlot();
 
         if ($excludeRequestId) {
             $query->where('request_id', '!=', $excludeRequestId);
@@ -470,7 +496,7 @@ class ManageRequest extends Model
             ->with('service')
             ->whereDate('preferred_date', '>=', $from)
             ->whereDate('preferred_date', '<=', $to)
-            ->blockingSchedule()
+            ->holdingTimeSlot()
             ->get(['request_id', 'service_id', 'preferred_date', 'preferred_time'])
             ->groupBy(fn (self $request) => Carbon::parse($request->preferred_date)->format('Y-m-d'))
             ->filter(function ($requests) use ($slotCount) {
@@ -730,7 +756,7 @@ class ManageRequest extends Model
         return true;
     }
 
-    public function complete(): bool
+    public function complete(?User $by = null): bool
     {
         if (!$this->canBeCompleted()) {
             return false;
@@ -739,6 +765,7 @@ class ManageRequest extends Model
         $this->update([
             'status' => 'done',
             'completed_at' => now(),
+            'completed_by' => $by?->user_id,
         ]);
 
         return true;
@@ -981,5 +1008,104 @@ class ManageRequest extends Model
         }
 
         return $count;
+    }
+
+    // ============ PARISHIONER DAY-BEFORE REMINDERS ============
+
+    /** Day-before reminders are shown from 8:00 AM and discarded at 9:00 PM (app timezone). */
+    public const SERVICE_REMINDER_TYPE = 'service_reminder';
+    public const SERVICE_REMINDER_START_HOUR = 8;
+    public const SERVICE_REMINDER_END_HOUR = 21;
+
+    public static function serviceReminderWindowOpen(?\Carbon\Carbon $now = null): bool
+    {
+        $hour = ($now ?? now())->hour;
+        return $hour >= self::SERVICE_REMINDER_START_HOUR && $hour < self::SERVICE_REMINDER_END_HOUR;
+    }
+
+    /**
+     * Remove day-before reminders that should no longer show: made on an earlier day,
+     * past 9:00 PM, or the booking was cancelled, completed or moved off tomorrow.
+     * Includes reminders the parishioner already deleted, so nothing lingers in their trash.
+     */
+    public static function discardStaleServiceReminders(?int $userId = null): int
+    {
+        $now = now();
+        $tomorrow = $now->copy()->addDay()->toDateString();
+        $windowOpen = static::serviceReminderWindowOpen($now);
+
+        $query = Notification::withTrashed()
+            ->where('type', self::SERVICE_REMINDER_TYPE)
+            ->where(function ($q) use ($now, $tomorrow, $windowOpen) {
+                if (!$windowOpen) {
+                    $q->whereRaw('1 = 1');
+                    return;
+                }
+                $q->where('created_at', '<', $now->copy()->startOfDay())
+                    ->orWhereNull('request_id')
+                    ->orWhereDoesntHave('request', function ($r) use ($tomorrow) {
+                        $r->where('status', 'approved')->whereDate('preferred_date', $tomorrow);
+                    });
+            });
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        return $query->forceDelete();
+    }
+
+    /**
+     * Send each parishioner one reminder per booked (approved) service that is tomorrow.
+     * Runs when the parishioner opens notifications and from the scheduled command.
+     */
+    public static function syncServiceReminders(?int $userId = null): int
+    {
+        static::discardStaleServiceReminders($userId);
+
+        if (!static::serviceReminderWindowOpen()) {
+            return 0;
+        }
+
+        $tomorrow = now()->addDay()->toDateString();
+        $query = static::with('service')
+            ->where('status', 'approved')
+            ->whereDate('preferred_date', $tomorrow)
+            ->whereHas('user', fn ($q) => $q->where('role', 'parishioner'));
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
+
+        $created = 0;
+        foreach ($query->get() as $row) {
+            $alreadySent = Notification::withTrashed()
+                ->where('user_id', $row->user_id)
+                ->where('request_id', $row->request_id)
+                ->where('type', self::SERVICE_REMINDER_TYPE)
+                ->where('created_at', '>=', now()->startOfDay())
+                ->exists();
+
+            if ($alreadySent) {
+                continue;
+            }
+
+            $time = self::normalizeTime($row->preferred_time);
+            $when = $time !== '' ? ' at ' . date('g:i A', strtotime($time)) : '';
+            $date = \Carbon\Carbon::parse($row->preferred_date)->format('M d, Y');
+
+            Notification::create([
+                'user_id' => $row->user_id,
+                'request_id' => $row->request_id,
+                'type' => self::SERVICE_REMINDER_TYPE,
+                'title' => 'Your Service Is Tomorrow',
+                'message' => 'Reminder: your booked ' . $row->notificationServiceLabel()
+                    . " is tomorrow, {$date}{$when}. Please arrive a little early.",
+                'status' => 'unread',
+            ]);
+            $created++;
+        }
+
+        return $created;
     }
 }

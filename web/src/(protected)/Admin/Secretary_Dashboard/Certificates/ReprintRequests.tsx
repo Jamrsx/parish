@@ -269,7 +269,9 @@ const ReprintRequests: React.FC<ReprintRequestsProps> = ({ onPrint, onAlert, onC
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{row.person_name}</p>
                       <p className="text-xs text-slate-500">
-                        Reprint #{row.reprint_id}
+                        {row.reprint_number
+                          ? `Reprint ${row.reprint_number} of ${row.reprint_total ?? row.reprint_number}`
+                          : `Cancelled · ${row.reprint_total ?? 0} reprint${row.reprint_total === 1 ? '' : 's'} on record`}
                         {row.reason ? ` · ${row.reason}` : ''}
                       </p>
                     </td>

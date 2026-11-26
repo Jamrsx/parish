@@ -126,6 +126,13 @@ class CertificateReprintController extends Controller
             ], 404);
         }
 
+        if ($blocked = $issued->reprintBlockedReason()) {
+            return response()->json([
+                'success' => false,
+                'message' => $blocked,
+            ], 422);
+        }
+
         $open = CertificateReprint::where('issued_certificate_id', $issued->issued_certificate_id)
             ->whereIn('status', [CertificateReprint::STATUS_AWAITING_PAYMENT, CertificateReprint::STATUS_PAID])
             ->first();
@@ -413,6 +420,9 @@ class CertificateReprintController extends Controller
             'issued_certificate_id' => $r->issued_certificate_id,
             'person_name' => $r->person_name,
             'certificate_type' => $r->certificate_type,
+            // How many times this person has had this certificate reprinted
+            'reprint_number' => $r->personReprintNumber(),
+            'reprint_total' => CertificateReprint::countForPerson($r->person_name, $r->certificate_type),
             'amount' => (float) $r->amount,
             'reason' => $r->reason,
             'status' => $r->status,

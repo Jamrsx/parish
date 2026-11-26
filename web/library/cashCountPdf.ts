@@ -1,4 +1,5 @@
 import type { jsPDF } from "jspdf";
+import { drawParishLogo, loadParishLogo } from "./pdfLogo";
 import type { DailyReportData, DenominationLine, MassCollectionRow } from "./cashier";
 
 /** Paper form denomination rows (20 bill vs 20 coin cannot both be known from stored data). */
@@ -299,7 +300,7 @@ export const downloadCashCountPdf = async (
 
   const grid = buildCashCountGrid(report, options);
   console.log("[CashCountPdf] Loading PDF library...");
-  const { jsPDF: JsPDF } = await import("jspdf");
+  const [{ jsPDF: JsPDF }, logo] = await Promise.all([import("jspdf"), loadParishLogo()]);
   console.log("[CashCountPdf] PDF library loaded");
   const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
@@ -308,6 +309,9 @@ export const downloadCashCountPdf = async (
   const marginX = 10;
   const marginY = 8;
   const contentW = pageW - marginX * 2;
+
+  // Parish seal at the top left of the header
+  drawParishLogo(doc, logo, marginX, marginY - 2, 20);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -517,7 +521,7 @@ export const downloadCashCountPdf = async (
       ? [
           `Per-mass form for ${holyMassLabel || "Holy Mass"}${timeLabel ? ` at ${timeLabel}` : ""} on ${report.date}.`,
           `Mass collection only: P${peso(grandTotal)} (Basket P${peso(categoryTotals.basket)} | Kalag P${peso(categoryTotals.kalag)}).`,
-          `Special Intention, Love Offering, Donation, and other service fees are NOT included — use Full Day PDF for those.`,
+          `Special Intention, Love Offering, Donation, and other service fees are NOT included — use the Daily Report's top Download PDF for those.`,
           `Day income (all sources): P${peso(report.income_for_date)}.`,
           ...(noDenomLabels.length
             ? [`No denomination recorded for: ${noDenomLabels.join(", ")}.`]
@@ -581,6 +585,7 @@ export const downloadCashCountPdf = async (
       marginX,
       marginY,
       contentW,
+      logo,
     });
   }
 
@@ -620,6 +625,7 @@ const appendLoveOfferingDonorPage = (
     marginX: number;
     marginY: number;
     contentW: number;
+    logo?: string | null;
   }
 ) => {
   const donations = [...(report.donations || [])].sort((a, b) => {
@@ -649,6 +655,8 @@ const appendLoveOfferingDonorPage = (
   });
 
   doc.addPage("a4", "landscape");
+
+  drawParishLogo(doc, layout.logo ?? null, layout.marginX, layout.marginY - 2, 20);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);

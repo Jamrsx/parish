@@ -27,6 +27,8 @@ import {
   type PriestCalendarData,
   type PriestTimeOff,
 } from '../../../../library/priestSchedule';
+import { manageRequestAPI } from '../../../../library/manage-request';
+import { isPastTime } from '../../../components/booking/serviceSlots';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -58,6 +60,8 @@ const PriestCalendar: React.FC = () => {
   const [toRemove, setToRemove] = useState<PriestTimeOff | null>(null);
   const [removing, setRemoving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [completingId, setCompletingId] = useState<number | null>(null);
 
   const range = useMemo(
     () => ({ from: toYmd(monthStart(visibleMonth)), to: toYmd(monthEnd(visibleMonth)) }),
@@ -156,6 +160,29 @@ const PriestCalendar: React.FC = () => {
     setForm(null);
     setFeedback({ type: 'success', text: message });
     reload();
+  };
+
+  const completeService = async (a: PriestAssignment) => {
+    setCompletingId(a.request_id);
+    try {
+      console.log('[MyCalendar] Mark completed', a.request_id);
+      const res = await manageRequestAPI.priestComplete(a.request_id);
+      setFeedback({ type: 'success', text: `${a.service_type} (Request #${a.request_id}) marked as completed.` });
+      console.log('[MyCalendar] Completed', res.data);
+      setConfirmingId(null);
+      reload();
+    } catch (err) {
+      console.error('[MyCalendar] Complete failed', err);
+      setFeedback({
+        type: 'error',
+        text: axios.isAxiosError(err)
+          ? err.response?.data?.message || 'Could not mark the service as completed.'
+          : 'Could not mark the service as completed.',
+      });
+      setConfirmingId(null);
+    } finally {
+      setCompletingId(null);
+    }
   };
 
   const confirmRemove = async () => {
@@ -395,12 +422,50 @@ const PriestCalendar: React.FC = () => {
                           <Clock size={12} /> {a.time ? formatHm(a.time) : 'No time set'}
                         </span>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle[a.status] || 'bg-slate-100 text-slate-700'}`}>
-                          {a.status === 'done' ? 'Completed' : a.status}
+                          {a.status === 'done' ? 'Completed' : a.status === 'approved' ? 'Booked' : a.status}
                         </span>
                       </div>
                       <p className="mt-1 text-sm font-semibold text-slate-800">{a.service_type}</p>
                       <p className="text-xs text-slate-600">{a.client_name || 'No name'} · Request #{a.request_id}</p>
                       {blocked && <p className="mt-1 text-[11px] text-amber-800">You marked this as a day off — the secretary will reassign it.</p>}
+                      {a.status === 'approved' &&
+                        (!isPastTime(selectedDate, a.time || '00:00') ? (
+                          <p className="mt-2 text-[11px] text-slate-600">
+                            You can mark this as completed from {a.time ? formatHm(a.time) : 'the start of the day'} on this date.
+                          </p>
+                        ) : confirmingId === a.request_id ? (
+                          <div className="mt-2 rounded-md border border-green-200 bg-white p-2">
+                            <p className="text-xs text-slate-700">Mark as completed? The parishioner will be notified. This can&apos;t be undone.</p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingId(null)}
+                                disabled={completingId === a.request_id}
+                                className="flex-1 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                Not yet
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => completeService(a)}
+                                disabled={completingId === a.request_id}
+                                className="flex flex-1 items-center justify-center gap-1 rounded-md bg-green-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                              >
+                                {completingId === a.request_id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                                Yes, completed
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingId(a.request_id)}
+                            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-green-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                          >
+                            <CheckCircle2 size={13} />
+                            Mark as Completed
+                          </button>
+                        ))}
                     </li>
                   );
                 })}

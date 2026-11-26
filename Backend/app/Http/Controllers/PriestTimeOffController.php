@@ -235,7 +235,8 @@ class PriestTimeOffController extends Controller
 
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
-        $wholeDay = $request->boolean('whole_day');
+        // Time off spanning more than one day is always whole day; specific hours are for a single day only
+        $wholeDay = $request->boolean('whole_day') || $startDate !== $endDate;
         $startTime = $wholeDay ? null : $request->input('start_time');
         $endTime = $wholeDay ? null : $request->input('end_time');
 

@@ -124,11 +124,11 @@ class SpecialIntention extends Model
                     $cancelledReason = null;
 
                     if ($row->status === 'received') {
-                        $status = 'done';
+                        // Paid, but completion is left to the secretary or priest
+                        $status = 'approved';
                         $paymentStatus = 'paid';
                         $amountPaid = (float) $row->amount;
                         $paymentDate = $row->received_at ?: now();
-                        $completedAt = $row->received_at ?: now();
                     } elseif ($row->status === 'rejected') {
                         $status = 'cancelled';
                         $cancelledReason = $row->reject_reason
