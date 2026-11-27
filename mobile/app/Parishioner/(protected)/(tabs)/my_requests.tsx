@@ -46,7 +46,8 @@ const getExpiryRemainingMs = (
   currentTime: number,
   expiryMinutes: number
 ): number | null => {
-  if (!canRequestExpire(request) || !request.created_at) return null;
+  // expiryMinutes 0 means auto-cancel is off: no countdown
+  if (expiryMinutes <= 0 || !canRequestExpire(request) || !request.created_at) return null;
   const expiryMs = Math.max(1, expiryMinutes) * 60 * 1000;
   const expiresAt = new Date(request.created_at).getTime() + expiryMs;
   const remaining = expiresAt - currentTime;
@@ -281,6 +282,9 @@ export default function MyRequestsScreen() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [unpaidCount, setUnpaidCount] = useState(0);
   const [expiryMinutes, setExpiryMinutes] = useState(DEFAULT_EXPIRY_MINUTES);
+  // Countdown and the "will be cancelled" note only show when the parish has auto-cancel turned on
+  const [autoCancel, setAutoCancel] = useState(false);
+  const effectiveExpiry = autoCancel ? expiryMinutes : 0;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -310,6 +314,7 @@ export default function MyRequestsScreen() {
 
       if (response.success && response.data?.data) {
         setRequests(response.data.data);
+        setAutoCancel(response.auto_cancel === true);
         if (typeof response.expiry_minutes === 'number' && response.expiry_minutes > 0) {
           setExpiryMinutes(response.expiry_minutes);
           console.log('Request expiry minutes from .env:', response.expiry_minutes);
@@ -368,7 +373,7 @@ export default function MyRequestsScreen() {
     if (!hasExpiringPending || expireRefreshInFlight.current) return;
 
     const anyExpired = requests.some((request) => {
-      const remaining = getExpiryRemainingMs(request, now, expiryMinutes);
+      const remaining = getExpiryRemainingMs(request, now, effectiveExpiry);
       return remaining === 0;
     });
 
@@ -390,7 +395,7 @@ export default function MyRequestsScreen() {
         expireRefreshInFlight.current = false;
       }
     })();
-  }, [now, requests, hasExpiringPending, fetchRequests, fetchUnpaidCount, expiryMinutes]);
+  }, [now, requests, hasExpiringPending, fetchRequests, fetchUnpaidCount, effectiveExpiry]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -603,7 +608,7 @@ export default function MyRequestsScreen() {
                   const paymentConfig = getPaymentConfig(request);
                   const scheduleText = getStatusScheduleText(request);
                   const rescheduled = wasRescheduled(request);
-                  const expiryRemainingMs = getExpiryRemainingMs(request, now, expiryMinutes);
+                  const expiryRemainingMs = getExpiryRemainingMs(request, now, effectiveExpiry);
                   const unpaidNotice = paymentConfig.needsAttention;
 
                   return (
@@ -771,7 +776,7 @@ export default function MyRequestsScreen() {
                         const statusConfig = getStatusConfig(selectedRequest.status, selectedRequest);
                         const scheduleText = getStatusScheduleText(selectedRequest);
                         const rescheduled = wasRescheduled(selectedRequest);
-                        const expiryRemainingMs = getExpiryRemainingMs(selectedRequest, now, expiryMinutes);
+                        const expiryRemainingMs = getExpiryRemainingMs(selectedRequest, now, effectiveExpiry);
 
                         return (
                           <>

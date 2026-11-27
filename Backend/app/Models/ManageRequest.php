@@ -704,10 +704,45 @@ class ManageRequest extends Model
     }
 
     /**
+     * Whether pending requests are cancelled automatically once past their deadline.
+     * Off by default: overdue requests stay pending and are flagged for the secretary instead.
+     * Set REQUEST_AUTO_CANCEL=true in .env to turn automatic cancelling back on.
+     */
+    public static function autoCancelEnabled(): bool
+    {
+        return filter_var(env('REQUEST_AUTO_CANCEL', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
      * Cancel pending requests older than the expiry window.
      */
+    /** True for special intentions, which never auto-expire. */
+    public function isSpecialIntention(): bool
+    {
+        $this->loadMissing('service');
+        return $this->service?->form_handler === 'special_intention'
+            || $this->service?->service_type === 'Special Intention';
+    }
+
+    /**
+     * Response deadline of a pending request (submitted time + REQUEST_EXPIRY_MINUTES), or null when it has none
+     * (not pending, or a special intention). Past it, the request is overdue (or auto-cancelled when that is on).
+     */
+    public function expiresAt(): ?Carbon
+    {
+        if ($this->status !== 'pending' || !$this->created_at || $this->isSpecialIntention()) {
+            return null;
+        }
+
+        return $this->created_at->copy()->addMinutes(static::expiryMinutes());
+    }
+
     public static function expirePendingRequests(?int $userId = null): int
     {
+        if (!static::autoCancelEnabled()) {
+            return 0;
+        }
+
         $minutes = static::expiryMinutes();
         $reason = "Automatically cancelled after {$minutes} minutes without approval.";
 

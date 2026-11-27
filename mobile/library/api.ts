@@ -131,6 +131,8 @@ export interface ApiResponse<T = any> {
   errors?: Record<string, string[]>;
   /** From Backend REQUEST_EXPIRY_MINUTES when returned by parishioner request APIs */
   expiry_minutes?: number;
+  /** From Backend REQUEST_AUTO_CANCEL: when false, pending requests never auto-cancel */
+  auto_cancel?: boolean;
 }
 
 // API CLIENT

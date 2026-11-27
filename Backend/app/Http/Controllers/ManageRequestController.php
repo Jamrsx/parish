@@ -24,6 +24,13 @@ class ManageRequestController extends Controller
      */
     public function index(Request $request)
     {
+        // Cancel pending requests past their deadline (only when REQUEST_AUTO_CANCEL is on)
+        try {
+            ManageRequest::expirePendingRequests();
+        } catch (\Exception $e) {
+            Log::error('Expiring pending requests failed: ' . $e->getMessage());
+        }
+
         $query = ManageRequest::with([
             'user',
             'service',
@@ -129,6 +136,8 @@ class ManageRequestController extends Controller
             'payment_date' => $request->payment_date,
             'approved_at' => $request->approved_at,
             'completed_at' => $request->completed_at,
+            // Pending requests auto-cancel at this time (null when they don't expire)
+            'expires_at' => $request->expiresAt()?->toIso8601String(),
             'completed_by' => $request->completed_by,
             'completed_by_name' => $request->completedBy?->full_name_with_title,
             'completed_by_role' => $request->completedBy?->role,
@@ -351,6 +360,7 @@ class ManageRequestController extends Controller
                             ->addMinutes($expiryMinutes)
                             ->toIso8601String(),
                         'expiry_minutes' => $expiryMinutes,
+                        'auto_cancel' => ManageRequest::autoCancelEnabled(),
                     ]
                 )
             ], 201);
@@ -1677,6 +1687,7 @@ class ManageRequestController extends Controller
             'data' => [
                 'expired_count' => $expiredCount,
                 'expiry_minutes' => ManageRequest::expiryMinutes(),
+                'auto_cancel' => ManageRequest::autoCancelEnabled(),
             ],
         ]);
     }
@@ -1734,6 +1745,8 @@ class ManageRequestController extends Controller
             'success' => true,
             'data' => $requests,
             'expiry_minutes' => $expiryMinutes,
+            // When false, pending requests are not cancelled automatically (the app hides the countdown)
+            'auto_cancel' => ManageRequest::autoCancelEnabled(),
         ]);
     }
 

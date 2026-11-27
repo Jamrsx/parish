@@ -10,6 +10,7 @@ import FilterPill from './components/FilterPill';
 import EmptyState from './components/EmptyState';
 import ModalCloseButton from './components/ModalCloseButton';
 import StatusBadge from './components/StatusBadge';
+import ExpiryIndicator, { EXPIRY_WARN_MINUTES, expiryState } from './components/ExpiryIndicator';
 import { ServiceTypeIcon, getFilterServiceIcon } from './components/ServiceTypeIcon';
 import { getFormattedRequestContactNumber, formatPhilippinePhone, getResidencyLabel, shouldShowNonResidentAddress, getRequestFormAddress, isParishResident } from './components/requestHelpers';
 import { useBookedTimeSlots } from './hooks/useBookedTimeSlots';
@@ -219,6 +220,13 @@ const ManageRequests: React.FC = () => {
   }, []);
 
   // Define fetchRequests with useCallback - Always filter for 'pending' status
+  // Ticks every 15 s so the expiring-soon banner and row tint stay current
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 15000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
@@ -1140,6 +1148,14 @@ const ManageRequests: React.FC = () => {
     { value: 'certificate', label: 'Certificate' },
   ];
 
+  const expiringSoon = requests.filter((r) => r.status === 'pending' && expiryState(r.expires_at, nowTick) === 'soon');
+  const overdue = requests.filter((r) => r.status === 'pending' && expiryState(r.expires_at, nowTick) === 'overdue');
+  const deadlineMinutes = (() => {
+    const r = requests.find((x) => x.expires_at && x.created_at);
+    return r ? Math.round((new Date(r.expires_at as string).getTime() - new Date(r.created_at as string).getTime()) / 60000) : 60;
+  })();
+  const expiryMinutesLabel = deadlineMinutes % 60 === 0 ? `${deadlineMinutes / 60} hour${deadlineMinutes === 60 ? '' : 's'}` : `${deadlineMinutes} minutes`;
+
   return (
     <div>
       <PageHeader
@@ -1179,29 +1195,50 @@ const ManageRequests: React.FC = () => {
         ))}
       </div>
 
+      {overdue.length > 0 && (
+        <div role="alert" className="mb-3 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" aria-hidden />
+          <p>
+            <strong className="font-semibold">
+              {overdue.length === 1 ? '1 request is overdue.' : `${overdue.length} requests are overdue.`}
+            </strong>{' '}
+            {overdue.length === 1 ? 'It has' : 'They have'} waited longer than {expiryMinutesLabel}. Approve, assign a priest, or cancel {overdue.length === 1 ? 'it' : 'them'}.
+          </p>
+        </div>
+      )}
+      {expiringSoon.length > 0 && (
+        <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+          <p>
+            <strong className="font-semibold">
+              {expiringSoon.length === 1 ? '1 request becomes overdue' : `${expiringSoon.length} requests become overdue`} within {EXPIRY_WARN_MINUTES} minutes.
+            </strong>{' '}
+            Approve {expiringSoon.length === 1 ? 'it' : 'them'} or assign a priest soon.
+          </p>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl shadow border border-gray-200 bg-white">
-        <table className="min-w-full">
-          <thead className="bg-gradient-to-r from-blue-600 to-blue-700">
-            <tr>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Service</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">User</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white whitespace-nowrap min-w-[9.5rem]">Residency</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Preferred Schedule</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Contact</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Status</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Assigned Priest</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Payment</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Submitted</th>
-              <th className="px-4 py-4 text-left text-sm font-semibold text-white">Actions</th>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="min-w-full text-sm">
+          <thead className="border-b border-slate-200 bg-slate-50">
+            <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th className="px-4 py-3">Service</th>
+              <th className="px-4 py-3">Requested by</th>
+              <th className="px-4 py-3">Schedule</th>
+              <th className="px-4 py-3">Time left</th>
+              <th className="px-4 py-3">Priest</th>
+              <th className="px-4 py-3">Payment</th>
+              <th className="px-4 py-3">Submitted</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {loading && requests.length === 0 ? (
-              <SecretaryTableSkeleton columns={10} />
+              <SecretaryTableSkeleton columns={8} />
             ) : error ? (
               <tr>
-                <td colSpan={10} className="px-4 py-16">
+                <td colSpan={8} className="px-4 py-16">
                   <div className="text-center">
                     <p className="text-red-500 mb-4">{error}</p>
                     <button
@@ -1215,7 +1252,7 @@ const ManageRequests: React.FC = () => {
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={8}>
                   <EmptyState title="No pending requests found" description="All requests have been processed or no submissions yet." />
                 </td>
               </tr>
@@ -1227,11 +1264,20 @@ const ManageRequests: React.FC = () => {
                 const isPending = request.status === 'pending';
                 const isApproved = request.status === 'approved';
                 const isCancelled = request.status === 'cancelled';
-                
+                const rowExpiry = isPending ? expiryState(request.expires_at, nowTick) : 'none';
+                const submitted = request.created_at ? new Date(request.created_at) : null;
+                const address = getRequestFormAddress(request);
+
                 return (
-                  <tr 
+                  <tr
                     key={`${requestId}-${index}`}
-                    className="odd:bg-white even:bg-gray-50 hover:bg-blue-50 transition-colors duration-200"
+                    className={`align-top transition-colors ${
+                      rowExpiry === 'overdue'
+                        ? 'bg-red-50 hover:bg-red-100/60'
+                        : rowExpiry === 'soon'
+                          ? 'bg-amber-50/70 hover:bg-amber-50'
+                          : 'hover:bg-slate-50'
+                    }`}
                   >
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -1242,92 +1288,89 @@ const ManageRequests: React.FC = () => {
                             size={18}
                           />
                         </div>
-                        <span className="font-medium text-slate-800">
-                          {getServiceLabel(request)}
-                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">{getServiceLabel(request)}</p>
+                          <p className="text-xs text-slate-500">#{requestId}</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-gray-700 font-medium">
-                      {getUserFullName(request.user)}
+                    <td className="px-4 py-4">
+                      <p className="font-medium text-slate-900">{getUserFullName(request.user)}</p>
+                      <p className="mt-0.5 text-xs tabular-nums text-slate-500">{getFormattedRequestContactNumber(request)}</p>
+                      <span
+                        className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          isParishResident(request.is_resident) ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {getResidencyLabel(request.is_resident)}
+                      </span>
+                      {shouldShowNonResidentAddress(request.is_resident, address) && (
+                        <p className="mt-1 max-w-[14rem] break-words text-xs text-slate-500">{address}</p>
+                      )}
                     </td>
-                    <td className="px-4 py-4 min-w-[9.5rem]">
-                      <div className="flex flex-col gap-1">
-                        <span
-                          className={`inline-flex w-fit px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
-                            isParishResident(request.is_resident)
-                              ? 'bg-slate-100 text-slate-700'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <p className="font-medium text-slate-900">{formatDateOnly(request.preferred_date)}</p>
+                      <p className="text-xs text-slate-500">{formatTimeDisplay12Hour(request.preferred_time)}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      {isPending ? (
+                        request.expires_at ? (
+                          <ExpiryIndicator expiresAt={request.expires_at} />
+                        ) : (
+                          <span className="text-xs text-slate-500">Doesn&apos;t expire</span>
+                        )
+                      ) : (
+                        <StatusBadge status={request.status} label={getStatusLabel(request.status).toUpperCase()} />
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <p className="text-sm text-slate-700">
+                        {isSpecialIntentionRequest(request)
+                          ? 'Not required'
+                          : isCertificateRequest(request) && !request.assigned_priest
+                            ? 'Optional'
+                            : getAssignedPriestName(request)}
+                      </p>
+                      {isPending && !isSpecialIntentionRequest(request) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openPriestAssignmentModal(request, {
+                              priestOptional: isCertificateRequest(request),
+                              mode: isCertificateRequest(request) ? 'assign_only' : 'assign_and_approve',
+                            });
+                          }}
+                          className="mt-1 text-xs font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 disabled:opacity-50"
+                          disabled={isUpdating}
                         >
-                          {getResidencyLabel(request.is_resident)}
-                        </span>
-                        {shouldShowNonResidentAddress(request.is_resident, getRequestFormAddress(request)) && (
-                          <span className="text-xs text-slate-500 break-words">
-                            {getRequestFormAddress(request)}
-                          </span>
-                        )}
-                      </div>
+                          {request.assigned_priest ? 'Change priest' : 'Assign priest'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-gray-700 font-medium">
-                          {formatDateOnly(request.preferred_date)}
-                        </span>
-                        <span className="text-gray-500 text-sm">
-                          {formatTimeDisplay12Hour(request.preferred_time)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-gray-600">
-                      {getFormattedRequestContactNumber(request)}
-                    </td>
-                    <td className="px-4 py-4">
-                      <StatusBadge status={request.status} label={getStatusLabel(request.status).toUpperCase()} />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-gray-700">
-                          {isSpecialIntentionRequest(request)
-                            ? 'Not required'
-                            : isCertificateRequest(request) && !request.assigned_priest
-                              ? 'Optional'
-                              : getAssignedPriestName(request)}
-                        </span>
-                        {isPending && !isSpecialIntentionRequest(request) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openPriestAssignmentModal(request, {
-                                priestOptional: isCertificateRequest(request),
-                                mode: isCertificateRequest(request) ? 'assign_only' : 'assign_and_approve',
-                              });
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 text-left"
-                            disabled={isUpdating}
-                          >
-                            {request.assigned_priest ? 'Change Priest' : 'Assign Priest'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold border ${getPaymentStatusColor(request.payment_status)}`}>
+                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getPaymentStatusColor(request.payment_status)}`}>
                         {request.payment_status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-gray-500 text-sm">
-                      {request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A'}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {submitted ? (
+                        <>
+                          <p className="text-slate-700">{submitted.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                          <p className="text-xs tabular-nums text-slate-500">{submitted.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+                        </>
+                      ) : (
+                        <span className="text-slate-500">N/A</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {/* View Details Button */}
+                      <div className="ml-auto flex w-36 flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => openDetailsModal(request)}
-                          className="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
-                          <Eye size={14} /> View Details
+                          <Eye size={14} aria-hidden /> View details
                         </button>
-                        
+
                         {isCancelled ? (
                           <StatusBadge status="cancelled" label="Cancelled" />
                         ) : isPending ? (
@@ -1335,7 +1378,8 @@ const ManageRequests: React.FC = () => {
                             onChange={(e) => updateStatus(request, e.target.value as ManageRequest['status'])}
                             value={request.status}
                             disabled={isUpdating}
-                            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 bg-white hover:border-blue-300 transition-colors"
+                            aria-label={`Status of request #${requestId}`}
+                            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 transition-colors hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                           >
                             {getStatusOptions(request.status).map((option) => (
                               <option key={option} value={option}>
@@ -1346,22 +1390,19 @@ const ManageRequests: React.FC = () => {
                         ) : isApproved ? (
                           <StatusBadge status="approved" label="Booked" />
                         ) : null}
-                        
-                        {/* Reschedule Button - only for pending and approved */}
+
                         {canReschedule && (
                           <button
                             onClick={() => openRescheduleModal(request)}
                             disabled={isUpdating}
-                            className="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                            className="rounded-lg px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
                           >
                             {getRescheduleButtonLabel(request)}
                           </button>
                         )}
-                        
+
                         {isUpdating && (
-                          <div className="mt-1">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto"></div>
-                          </div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto" aria-label="Updating" />
                         )}
                       </div>
                     </td>
@@ -1423,6 +1464,7 @@ const ManageRequests: React.FC = () => {
                     <p>
                       <StatusBadge status={detailsModal.request.status} label={getStatusLabel(detailsModal.request.status).toUpperCase()} />
                     </p>
+                    {detailsModal.request.status === 'pending' && <ExpiryIndicator expiresAt={detailsModal.request.expires_at} />}
                   </div>
                   <div>
                     <span className="text-sm text-gray-500">Service</span>

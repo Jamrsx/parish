@@ -89,7 +89,9 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $notifications
+            'data' => $notifications,
+            // When false, pending requests are not cancelled automatically (the app hides the countdown)
+            'auto_cancel' => ManageRequest::autoCancelEnabled(),
         ]);
     }
 

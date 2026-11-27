@@ -1024,6 +1024,9 @@ const ScheduledServices: React.FC = () => {
       cells.push(<div key={`empty-${i}`} className="h-20 sm:h-24 border-t border-l border-gray-100 bg-gray-50/40" />);
     }
 
+    const now = new Date();
+    const todayKey = formatDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+
     for (let day = 1; day <= daysInMonth; day++) {
       const dateKey = formatDateKey(year, month, day);
       const servicesOnDay = getServicesForDate(dateKey);
@@ -1031,8 +1034,12 @@ const ScheduledServices: React.FC = () => {
       const hasServices = servicesOnDay.length > 0;
       const allCompleted = hasServices && servicesOnDay.every((service) => service.status === 'done');
       const priestsAway = getPriestsAwayOn(dateKey);
-      const isClickable = hasServices || priestsAway.length > 0;
+      // Past dates stay visible but can't be opened (see Parish History), unless a booked service there still needs completing
+      const isPast = dateKey < todayKey;
+      const needsCompleting = servicesOnDay.some((service) => service.status === 'approved' && !service.isCompleted);
+      const isClickable = (hasServices || priestsAway.length > 0) && (!isPast || needsCompleting);
       const countLabel = `${servicesOnDay.length} service${servicesOnDay.length === 1 ? '' : 's'}`;
+      const pastHint = isPast && !isClickable && (hasServices || priestsAway.length > 0) ? 'Past date: see Parish History for details' : undefined;
       const StatusIcon = allCompleted ? CheckCircle2 : CalendarDays;
 
       cells.push(
@@ -1041,10 +1048,11 @@ const ScheduledServices: React.FC = () => {
           key={`day-${day}`}
           disabled={!isClickable}
           onClick={() => handleDateClick(dateKey)}
-          aria-label={`${dateKey}: ${hasServices ? countLabel : 'no services'}${priestsAway.length ? `, ${priestsAway.length} priest away` : ''}`}
+          title={pastHint ?? (isPast && needsCompleting ? 'Has a booked service still to mark as completed' : undefined)}
+          aria-label={`${dateKey}: ${hasServices ? countLabel : 'no services'}${priestsAway.length ? `, ${priestsAway.length} priest away` : ''}${pastHint ? ', past date' : ''}`}
           className={`flex h-20 sm:h-24 flex-col items-start justify-between border-t border-l border-gray-100 p-1.5 sm:p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
             isClickable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
-          }`}
+          } ${isPast ? 'bg-slate-50/60' : ''}`}
         >
           <span
             className={`flex h-7 w-7 items-center justify-center rounded-full text-sm tabular-nums ${

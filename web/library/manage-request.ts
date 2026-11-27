@@ -237,6 +237,8 @@ export interface ManageRequest {
     payment_date?: string | null;
     approved_at?: string | null;
     completed_at?: string | null;
+    /** Pending requests are auto-cancelled at this time (null when they don't expire) */
+    expires_at?: string | null;
     /** Who marked it completed: secretary or priest */
     completed_by?: number | null;
     completed_by_name?: string | null;

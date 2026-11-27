@@ -176,6 +176,8 @@ export default function NotificationScreen() {
   const [selectedTab, setSelectedTab] = useState<'all' | 'unread' | 'deleted'>('all');
   const [swipeAnimations, setSwipeAnimations] = useState<{ [key: number]: Animated.Value }>({});
   const [now, setNow] = useState(Date.now());
+  // Countdown and expiry timers only run when the parish has auto-cancel turned on
+  const [autoCancel, setAutoCancel] = useState(false);
   const [showMarkAllModal, setShowMarkAllModal] = useState(false);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   
@@ -228,6 +230,7 @@ export default function NotificationScreen() {
     try {
       const response = await api.getNotifications();
       if (response.success && isMounted.current) {
+        setAutoCancel(response.auto_cancel === true);
         const data = response.data.data || [];
         const withService = (data as NotificationItem[]).filter((n) => !!n.request_summary?.service_name).length;
         console.log('[Notifications] loaded:', data.length, 'with service info:', withService);
@@ -494,7 +497,8 @@ export default function NotificationScreen() {
         notification.type === 'request_pending' || notification.type === 'new_request';
       const requestStillPending = notification.request?.status === 'pending';
 
-      if (!isPendingEvent || !requestStillPending) return;
+      // No expiry timers when the parish has auto-cancel turned off
+      if (!autoCancel || !isPendingEvent || !requestStillPending) return;
 
       const createdAt = notification.request?.created_at || notification.created_at;
       const expiresAt = new Date(createdAt).getTime() + REQUEST_EXPIRY_MS;
@@ -518,7 +522,7 @@ export default function NotificationScreen() {
     });
 
     return () => timers.forEach(clearTimeout);
-  }, [notifications, fetchNotifications, refreshUnreadCount]);
+  }, [notifications, fetchNotifications, refreshUnreadCount, autoCancel]);
 
   const filteredNotifications = notifications.filter(n => 
     selectedTab === 'all' || (selectedTab === 'unread' && n.status === 'unread')
@@ -813,7 +817,7 @@ export default function NotificationScreen() {
             
             const status = getNotificationStatus(notification);
             const statusColors = status ? getStatusColorConfig(status) : null;
-            const expiryRemainingMs = getExpiryRemainingMs(notification, now);
+            const expiryRemainingMs = autoCancel ? getExpiryRemainingMs(notification, now) : null;
 
             return (
               <Animated.View
